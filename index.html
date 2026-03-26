@@ -770,13 +770,14 @@ function initVMap(){
     setTimeout(initVMap, 200); return;
   }
 
-  // vw.ol3.Map (공식 클래스명)
+  // vw.ol3.Map
   const mapOptions = new vw.ol3.MapOptions({
     basemapType: vw.ol3.BasemapType.GRAPHIC,
     zoom: 15,
     minZoom: 7,
     maxZoom: 19,
-    center: new vw.ol3.CameraPosition(126.9780, 37.5665)
+    lng: 126.9780,
+    lat: 37.5665
   });
   vMap = new vw.ol3.Map('vmap', mapOptions);
 
@@ -892,7 +893,8 @@ function moveMapTo(lng, lat){
   try{
     vMarker = new vw.ol3.layer.Marker({
       id: 'searchPin',
-      position: new vw.ol3.CameraPosition(lng, lat)
+      lng: lng,
+      lat: lat
     });
     vMap.addLayer(vMarker);
   } catch(e){ console.warn('marker:', e); }
