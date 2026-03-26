@@ -331,13 +331,15 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         </div>
       </div>
 
-      <!-- 합산 면적 + 다음 -->
+      <!-- 합산 면적 + 프로젝트 생성 -->
       <div id="lots-summary" style="display:none;margin-top:auto;">
         <div class="info-box green" style="text-align:center;margin-bottom:10px;">
           <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:2px;">합산 대지 면적</div>
           <div id="total-site-area" style="font-size:22px;font-weight:800;color:#16a34a;">0 m²</div>
         </div>
-        <button class="btn btn-primary btn-full" onclick="goStep(1)">다음: 대지 정보 확인 →</button>
+        <button class="btn btn-primary btn-full" onclick="createProject()" style="font-size:13px;padding:11px;letter-spacing:.01em;">
+          이 장소로 프로젝트 생성
+        </button>
       </div>
 
     </div>
@@ -346,8 +348,9 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <!-- 브이월드 지도 -->
   <div id="site-map" style="flex:1;position:relative;">
     <div id="vmap" style="width:100%;height:100%;"></div>
-    <div style="position:absolute;bottom:10px;left:10px;font-size:10px;color:var(--text3);
-      background:rgba(255,255,255,.92);padding:5px 10px;border-radius:5px;border:1px solid var(--border);z-index:1000;">
+    <div id="map-hint" style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
+      background:rgba(255,255,255,.92);padding:5px 10px;border-radius:5px;border:1px solid var(--border);
+      z-index:1000;pointer-events:none;">
       클릭: 필지 선택 &nbsp;|&nbsp; Ctrl+클릭: 다중 선택 &nbsp;|&nbsp;
       선택: <b id="lot-count">0</b>개 &nbsp;|&nbsp; <b id="lot-area-disp">0 m²</b>
     </div>
@@ -770,21 +773,47 @@ let lotLayers = [];        // WFS polygon layers
 // ── 지도 초기화 ──
 function initVMap(){
   if(vMap) return;
-  if(typeof vw === 'undefined'){
-    setTimeout(initVMap, 300); return;
+  if(typeof vw === 'undefined' || typeof vw.Map2d === 'undefined'){
+    setTimeout(initVMap, 200); return;
   }
-  try {
-    vMap = vw.map({
-      basemap: vw.BasemapType.GRAPHIC,
-      zoom: 15,
-      lng: 126.9780,
-      lat: 37.5665,
-      container: 'vmap'
-    });
-  } catch(e){
-    console.warn('vworld map init:', e);
-  }
+
+  // 브이월드 2D 지도 생성 (공식 API)
+  vMap = new vw.Map2d('vmap', {
+    initPosition: new vw.CameraPosition(
+      new vw.CoordZ(126.9780, 37.5665, 600),
+      new vw.Direction(0, -90, 0)
+    )
+  });
+
+  // 지적도 WMS 레이어
+  const wmsLayer = new vw.layer.Wms({
+    name: 'cadastral',
+    url: 'https://api.vworld.kr/req/wms',
+    params: {
+      layers: 'lt_c_landinfobaseinfo',
+      styles: '',
+      format: 'image/png',
+      transparent: true,
+      version: '1.3.0',
+      key: VWORLD_KEY
+    },
+    maxZoom: 22, minZoom: 1
+  });
+  vMap.addLayer(wmsLayer);
+
+  // 지도 클릭 → 필지 조회
+  vMap.onClick(function(windowPosition, ecefPosition, cartographicPosition){
+    if(!cartographicPosition) return;
+    const lng = cartographicPosition.longitude * 180 / Math.PI;
+    const lat = cartographicPosition.latitude  * 180 / Math.PI;
+    const multi = window._ctrlDown || false;
+    fetchLotJsonp(lng, lat, multi);
+  });
 }
+
+// Ctrl 키 추적 (다중 선택)
+window.addEventListener('keydown', e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=true; });
+window.addEventListener('keyup',   e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=false; });
 
 // ── 주소 검색 (JSONP) ──
 function searchAddr(){
@@ -793,7 +822,6 @@ function searchAddr(){
   setSearchStatus('검색 중…');
   $('search-results').style.display = 'none';
 
-  // 지번(동) 우선 → 도로명 재시도
   searchByJsonp(q, 'parcel', function(items){
     if(items.length){ renderResults(items); return; }
     searchByJsonp(q, 'road', function(items2){
@@ -849,61 +877,87 @@ function selectResult(addr, lng, lat){
   $('selected-addr-text').textContent = addr;
   $('selected-coord-text').textContent = `위도 ${lat.toFixed(5)}  경도 ${lng.toFixed(5)}`;
   $('addr-search').value = addr;
-  setSearchStatus('✓ 위치 선택됨', 'green');
+  setSearchStatus('✓ 위치 선택됨 — 지도에서 필지를 클릭하세요', 'green');
   state.searchMarker = {addr, lng, lat};
 
-  // 지도 이동
-  if(vMap){
-    try { vMap.setCenter(lng, lat); vMap.setZoom(18); } catch(e){}
-    try {
-      if(vMarker) vMap.removeMarker(vMarker);
-      vMarker = vMap.addMarker({ lng, lat, label: addr.length>22 ? addr.slice(0,22)+'…' : addr });
-    } catch(e){}
+  if(!vMap){ initVMap(); setTimeout(()=>moveMapTo(lng,lat), 800); return; }
+  moveMapTo(lng, lat);
+}
+
+function moveMapTo(lng, lat){
+  try{
+    vMap.moveTo(new vw.CoordZ(lng, lat, 300), new vw.Direction(0,-90,0));
+  } catch(e){
+    try{ vMap.getView().moveTo(new vw.CoordZ(lng, lat, 300)); } catch(e2){}
   }
+  // 핀 마커
+  if(vMarker){ try{ vMap.removeObject(vMarker); }catch(e){} vMarker=null; }
+  try{
+    vMarker = new vw.Marker({
+      id:'searchPin',
+      position: new vw.Coord(lng, lat),
+      icon: { url:'https://map.vworld.kr/images/ol3/marker/red.png', width:24, height:35 }
+    });
+    vMap.addObject(vMarker);
+  } catch(e){}
 }
 
 function clearSearch(){
   state.searchMarker = null;
   $('selected-location').style.display = 'none';
   setSearchStatus('');
-  if(vMarker && vMap){ try{ vMap.removeMarker(vMarker); }catch(e){} vMarker = null; }
+  if(vMarker && vMap){ try{ vMap.removeObject(vMarker); }catch(e){} vMarker = null; }
 }
 
-// ── 필지 클릭 → WFS 면적 조회 ──
-async function fetchLotAtPoint(lng, lat, multiSelect){
+// ── 필지 클릭 → 속성 JSONP 조회 ──
+function fetchLotJsonp(lng, lat, multiSelect){
   setSearchStatus('필지 조회 중…');
-  try{
-    // bbox: 클릭 지점 주변 소범위
-    const d = 0.00005;
-    const bbox = `${lng-d},${lat-d},${lng+d},${lat+d}`;
-    const url = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
-      +`&typeName=lt_c_landinfobaseinfo&bbox=${bbox},EPSG:4326`
-      +`&propertyName=pnu,addr_ld,lndpclAr,geometry`
-      +`&outputFormat=application/json&key=${VWORLD_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    const features = data.features || [];
+  const cbName = 'vwlot_' + Date.now();
+  const script = document.createElement('script');
+  const timer = setTimeout(function(){ cleanup(); setSearchStatus('필지 조회 시간 초과'); }, 6000);
+
+  function cleanup(){
+    clearTimeout(timer);
+    delete window[cbName];
+    if(script.parentNode) script.parentNode.removeChild(script);
+  }
+
+  window[cbName] = function(data){
+    cleanup();
+    const features = data?.response?.result?.featureCollection?.features || [];
     if(!features.length){ setSearchStatus('필지 정보 없음'); return; }
 
-    const f = features[0];
-    const pnu = f.properties?.pnu || String(Date.now());
-    const addr = f.properties?.addr_ld || '주소 미상';
-    const area = parseFloat(f.properties?.lndpclAr || 0);
+    const f = features[0].properties || {};
+    const pnu  = f.pnu  || f.PNU  || String(Date.now());
+    const addr = f.addr || f.ADDR || f.jibunAddr || '주소 미상';
+    const area = parseFloat(f.lndpclAr || f.LNDPCLAR || f.area || 0);
 
     if(!multiSelect) selectedLots.clear();
-
-    if(selectedLots.has(pnu)){
-      selectedLots.delete(pnu);
-    } else {
-      selectedLots.set(pnu, {pnu, addr, area});
-    }
+    if(selectedLots.has(pnu)){ selectedLots.delete(pnu); }
+    else { selectedLots.set(pnu, {pnu, addr, area, lng, lat}); }
 
     updateSelectedLots();
     setSearchStatus('');
-  } catch(e){
-    setSearchStatus('필지 조회 실패');
-    console.error(e);
-  }
+  };
+
+  script.onerror = function(){
+    cleanup();
+    // fallback: 면적 없이 좌표만 저장
+    const pnu = 'manual_' + Date.now();
+    if(!multiSelect) selectedLots.clear();
+    selectedLots.set(pnu, {pnu, addr:'선택된 필지', area:0, lng, lat});
+    updateSelectedLots();
+    setSearchStatus('');
+  };
+
+  // 브이월드 속성 조회 (JSONP)
+  script.src = `https://api.vworld.kr/req/data?service=data&request=GetFeature&version=2.0`
+    + `&data=LT_C_LANDINFOBASEINFO`
+    + `&geomfilter=POINT(${lng}%20${lat})`
+    + `&columns=pnu,addr,lndpclAr`
+    + `&format=json&errorformat=json`
+    + `&callback=${cbName}&key=${VWORLD_KEY}`;
+  document.body.appendChild(script);
 }
 
 function updateSelectedLots(){
@@ -918,10 +972,10 @@ function updateSelectedLots(){
     return;
   }
   wrap.innerHTML = lots.map(l =>
-    `<div class="search-result-item" style="display:flex;justify-content:space-between;align-items:center;">
-      <span class="addr-main" style="flex:1;font-size:10px;">${l.addr}</span>
-      <span style="font-weight:700;color:var(--accent);margin-left:8px;white-space:nowrap;">${Math.round(l.area)} m²</span>
-      <button onclick="removeLot('${l.pnu}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;margin-left:4px;">✕</button>
+    `<div class="search-result-item" style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+      <span style="flex:1;font-size:10px;line-height:1.4;">${l.addr}</span>
+      <span style="font-weight:700;color:var(--accent);white-space:nowrap;">${l.area ? Math.round(l.area)+' m²' : '면적 미상'}</span>
+      <button onclick="removeLot('${l.pnu}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;flex-shrink:0;">✕</button>
     </div>`
   ).join('');
   state.siteArea = Math.round(total);
@@ -942,8 +996,17 @@ function setSearchStatus(msg, type=''){
 
 
 
-// ═══════════════════════════════════════════
-// STEP 1 — ZONE PRESETS
+function createProject(){
+  if(!selectedLots.size){
+    showToast('필지를 선택해 주세요'); return;
+  }
+  // state에 대지 정보 저장 후 다음 단계로
+  state.lots = [...selectedLots.values()];
+  state.siteAddr = state.searchMarker?.addr || state.lots[0]?.addr || '';
+  goStep(1);
+}
+
+
 // ═══════════════════════════════════════════
 const ZONE_PRESETS = [
   {label:'1종일반',bcr:60,far:200},{label:'2종일반',bcr:60,far:250},{label:'3종일반',bcr:50,far:300},
