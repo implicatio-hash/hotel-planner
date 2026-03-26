@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hotel Planner — Design Automation</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://map.vworld.kr/js/vworldMapInit.js.do?version=2.0&apiKey=F6A1D87B-4FE7-3E62-9D90-11C694E11A53"></script>
+<style>
+/* ───── RESET & FONTS ───── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #f4f5f7;
+  --bg2:     #ffffff;
+  --bg3:     #f0f1f4;
+  --border:  #e2e4ea;
+  --border2: #d0d3db;
+  --text:    #1a1d26;
+  --text2:   #4b5068;
+  --text3:   #8b90a0;
+  --accent:  #2563eb;
+  --accent2: #1d4ed8;
+  --green:   #16a34a;
+  --orange:  #ea580c;
+  --red:     #dc2626;
+  --purple:  #7c3aed;
+  --shadow:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+  --shadow2: 0 4px 16px rgba(0,0,0,.10);
+  --radius:  8px;
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, sans-serif;
+}
+body { background: var(--bg); color: var(--text); font-size: 13px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ───── TOP BAR ───── */
+#topbar {
+  height: 48px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; gap: 12px;
+  flex-shrink: 0; box-shadow: var(--shadow);
+}
+.logo { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--text); }
+.logo span { font-weight: 400; color: var(--text3); margin-left: 6px; font-size: 11px; }
+.topbar-sep { width: 1px; height: 16px; background: var(--border); }
+
+/* ───── STEP NAV ───── */
+#stepnav {
+  height: 40px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; gap: 0;
+  flex-shrink: 0; overflow-x: auto;
+}
+.step-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 10px; font-size: 11px; font-weight: 500;
+  color: var(--text3); background: none; border: none; cursor: pointer;
+  white-space: nowrap; border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+  font-family: inherit;
+}
+.step-btn:hover { color: var(--text2); }
+.step-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.step-btn .snum {
+  width: 18px; height: 18px; border-radius: 50%; font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg3); color: var(--text3);
+}
+.step-btn.active .snum { background: var(--accent); color: #fff; }
+.step-sep { color: var(--border2); font-size: 12px; padding: 0 2px; }
+
+/* ───── MAIN ───── */
+#main { flex: 1; overflow: hidden; display: flex; }
+.step-panel { display: none; width: 100%; height: 100%; }
+.step-panel.active { display: flex; }
+
+/* ───── LEFT PANEL ───── */
+#panel {
+  width: 280px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#panel-header {
+  padding: 16px 20px 12px; border-bottom: 1px solid var(--border);
+}
+#panel-header h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+#panel-header p { font-size: 11px; color: var(--text3); line-height: 1.6; }
+#panel-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ───── RIGHT CONTENT ───── */
+#site-map { flex: 1; position: relative; background: var(--bg3); }
+#vmap { width: 100%; height: 100%; }
+
+/* ───── FORM ELEMENTS ───── */
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 11px; font-weight: 600; color: var(--text2); }
+input[type=text], input[type=number], select, textarea {
+  width: 100%; padding: 7px 10px; border: 1px solid var(--border2);
+  border-radius: 6px; font-size: 12px; font-family: inherit; color: var(--text);
+  background: var(--bg2); outline: none; transition: border-color .15s;
+}
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.input-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.input-unit { position: relative; }
+.input-unit input { padding-right: 30px; }
+.input-unit span { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text3); pointer-events: none; }
+
+/* ───── BUTTONS ───── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; border: none; font-family: inherit; transition: all .15s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-secondary { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
+.btn-secondary:hover { background: var(--border); color: var(--text); }
+.btn-full { width: 100%; }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-ghost { background: none; border: 1px solid var(--border2); color: var(--text3); }
+.btn-ghost:hover { color: var(--text); border-color: var(--text3); }
+
+/* ───── SECTION LABEL ───── */
+.sec-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text3); padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+
+/* ───── INFO BOX ───── */
+.info-box {
+  padding: 10px 12px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; font-size: 11px; line-height: 1.6; color: var(--text2);
+}
+.info-box.blue  { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.info-box.green { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.info-box.orange{ background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+
+/* ───── STAT ROW ───── */
+.stat-row { display: flex; justify-content: space-between; align-items: baseline; }
+.stat-label { font-size: 11px; color: var(--text3); }
+.stat-val { font-size: 14px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-val.accent { color: var(--accent); }
+.stat-val.green  { color: var(--green); }
+
+/* ───── FAR GAUGE ───── */
+.gauge-wrap { background: var(--bg3); border-radius: 20px; height: 6px; overflow: hidden; }
+.gauge-fill { height: 100%; border-radius: 20px; transition: width .4s, background-color .3s; }
+
+/* ───── SEARCH RESULTS ───── */
+.search-result-item {
+  padding: 8px 10px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer; transition: all .12s;
+  font-size: 11px; line-height: 1.5;
+}
+.search-result-item:hover { border-color: var(--accent); background: #eff6ff; }
+.search-result-item .addr-main { font-weight: 500; color: var(--text); }
+.search-result-item .addr-sub  { color: var(--text3); font-size: 10px; margin-top: 1px; }
+
+/* ───── STEP PANELS ───── */
+
+/* Step 1 info panel */
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.info-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px;
+}
+.info-card .ic-label { font-size: 10px; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
+.info-card .ic-val { font-size: 16px; font-weight: 700; color: var(--text); }
+.info-card .ic-unit { font-size: 10px; color: var(--text3); margin-left: 2px; }
+
+/* Step 2 volume alternatives */
+.alt-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.alt-card {
+  background: var(--bg2); border: 2px solid var(--border); border-radius: 8px;
+  padding: 14px 12px; cursor: pointer; transition: all .2s; text-align: center;
+}
+.alt-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow2); }
+.alt-card.selected { border-color: var(--accent); background: #eff6ff; }
+.alt-card .alt-name { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 10px; }
+.alt-card .alt-floors { font-size: 28px; font-weight: 800; color: var(--accent); }
+.alt-card .alt-sub { font-size: 10px; color: var(--text3); margin-top: 4px; }
+
+/* Step 5 Three.js */
+#view3d-container { flex: 1; position: relative; overflow: hidden; background: #f0f2f6; }
+#view3d-container canvas { width: 100% !important; height: 100% !important; }
+.view3d-controls {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 6px; z-index: 10;
+}
+
+/* Step 6 floor table */
+#floor-table-wrap { flex: 1; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+thead th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--bg3); padding: 8px 10px; text-align: center;
+  font-weight: 700; font-size: 10px; color: var(--text2);
+  border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+tbody td {
+  padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+tbody tr:hover td { background: #f8f9ff; }
+tbody tr.flash td { animation: rowflash .7s ease; }
+@keyframes rowflash { 0%,100%{ background:transparent; } 40%{ background:#fff3cd; } }
+.locked-row td { color: var(--text3); background: var(--bg3) !important; }
+.lock-btn { background: none; border: none; cursor: pointer; font-size: 13px; opacity: .5; }
+.lock-btn:hover { opacity: 1; }
+td.editable:hover { background: #eff6ff !important; cursor: text; }
+
+/* FAR indicator */
+#far-bar-wrap { padding: 10px 16px 0; }
+.far-label { display: flex; justify-content: space-between; font-size: 10px; font-weight: 600; margin-bottom: 4px; }
+
+/* Step 7 elevator */
+.elev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.elev-card {
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;
+  background: var(--bg2); font-size: 11px;
+}
+.elev-card.active { border-color: var(--accent); background: #eff6ff; }
+.elev-check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
+.elev-check input { width: 15px; height: 15px; accent-color: var(--accent); }
+.elev-check span { font-weight: 600; font-size: 12px; }
+
+/* Step 8 diagram */
+#diag-canvas { background: #fff; border-radius: 8px; box-shadow: var(--shadow); }
+
+/* ───── TOAST ───── */
+#toast {
+  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+  background: var(--text); color: #fff; padding: 9px 16px;
+  border-radius: 6px; font-size: 12px; opacity: 0;
+  transition: opacity .25s; pointer-events: none; max-width: 260px; line-height: 1.5;
+}
+#toast.show { opacity: 1; }
+
+/* ───── SCROLLBAR ───── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+* { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+
+/* ───── CHANGE LOG ───── */
+#change-log { font-size: 10px; color: var(--text3); max-height: 100px; overflow-y: auto; }
+.log-item { padding: 3px 0; border-bottom: 1px solid var(--border); }
+
+/* ───── PANEL WITH TABS ───── */
+.wide-panel { width: 340px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.wide-panel #panel-body { padding: 14px 16px; }
+
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo">HOTEL PLANNER <span>Design Automation v0.1</span></div>
+  <div class="topbar-sep"></div>
+  <div style="font-size:11px;color:var(--text3)" id="project-name-display">새 프로젝트</div>
+  <div style="flex:1"></div>
+  <button class="btn btn-secondary btn-sm" onclick="exportSummary()">개요 내보내기</button>
+</div>
+
+<!-- STEP NAV -->
+<div id="stepnav">
+  <button class="step-btn active" data-step="0" onclick="goStep(0)"><span class="snum">1</span>대지 선택</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="1" onclick="goStep(1)"><span class="snum">2</span>대지 정보</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="2" onclick="goStep(2)"><span class="snum">3</span>지상 볼륨</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="3" onclick="goStep(3)"><span class="snum">4</span>지하 볼륨</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="snum">5</span>BOH 배치</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="snum">6</span>3D 모델링</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="snum">7</span>층별 개요</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="7" onclick="goStep(7)"><span class="snum">8</span>승강기 계획</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="8" onclick="goStep(8)"><span class="snum">9</span>평면 다이어그램</button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- ═══ STEP 0: 대지 선택 ═══ -->
+<div id="step-0" class="step-panel active" style="flex-direction:row;">
+  <div id="panel">
+    <div id="panel-header">
+      <h2>대지 위치 선택</h2>
+      <p>주소를 검색하거나 지도에서 필지를 선택하세요</p>
+    </div>
+    <div id="panel-body">
+
+      <!-- 주소 검색 -->
+      <div>
+        <div class="sec-label" style="margin-bottom:8px;">주소 검색</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="addr-search" placeholder="예) 강동구 상일로 6길 39"
+            onkeydown="if(event.key==='Enter')searchAddr()">
+          <button class="btn btn-primary btn-sm" onclick="searchAddr()" style="flex-shrink:0;padding:7px 11px;">🔍</button>
+        </div>
+        <div id="search-status" style="margin-top:5px;font-size:10px;color:var(--text3);min-height:14px;"></div>
+      </div>
+
+      <!-- 검색 결과 -->
+      <div id="search-results" style="display:none;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">결과를 클릭하면 지도에 표시됩니다</div>
+        <div id="search-result-list" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;"></div>
+      </div>
+
+      <!-- 선택된 위치 -->
+      <div id="selected-location" style="display:none;">
+        <div class="info-box blue" style="padding:8px 10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+            <div>
+              <div style="font-size:9px;color:#3b82f6;font-weight:700;margin-bottom:3px;">📍 검색된 위치</div>
+              <div id="selected-addr-text" style="font-weight:600;font-size:11px;line-height:1.5;"></div>
+              <div id="selected-coord-text" style="font-size:9px;color:#3b82f6;margin-top:2px;opacity:.7;"></div>
+            </div>
+            <button onclick="clearSearch()" style="background:none;border:none;cursor:pointer;color:#93c5fd;font-size:16px;line-height:1;flex-shrink:0;">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 선택 필지 -->
+      <div>
+        <div class="sec-label" style="margin-bottom:8px;">선택된 필지</div>
+        <div id="selected-lots">
+          <div class="info-box" style="text-align:center;color:var(--text3);">지도에서 필지를 클릭하세요</div>
+        </div>
+      </div>
+
+      <!-- 합산 면적 + 다음 -->
+      <div id="lots-summary" style="display:none;margin-top:auto;">
+        <div class="info-box green" style="text-align:center;margin-bottom:10px;">
+          <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:2px;">합산 대지 면적</div>
+          <div id="total-site-area" style="font-size:22px;font-weight:800;color:#16a34a;">0 m²</div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="goStep(1)">다음: 대지 정보 확인 →</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 브이월드 지도 -->
+  <div id="site-map" style="flex:1;position:relative;">
+    <div id="vmap" style="width:100%;height:100%;"></div>
+    <div style="position:absolute;bottom:10px;left:10px;font-size:10px;color:var(--text3);
+      background:rgba(255,255,255,.92);padding:5px 10px;border-radius:5px;border:1px solid var(--border);z-index:1000;">
+      클릭: 필지 선택 &nbsp;|&nbsp; Ctrl+클릭: 다중 선택 &nbsp;|&nbsp;
+      선택: <b id="lot-count">0</b>개 &nbsp;|&nbsp; <b id="lot-area-disp">0 m²</b>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 1: 대지 정보 ═══ -->
+<div id="step-1" class="step-panel" style="flex-direction:row;">
+  <div id="panel" style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>대지 정보 확인</h2>
+      <p>용도지역과 건폐율·용적률을 입력하세요</p>
+    </div>
+    <div id="panel-body">
+      <div class="form-group">
+        <label>대지 면적 (㎡)</label>
+        <input type="number" id="site-area" value="2400" min="100">
+      </div>
+      <div class="form-group">
+        <label>용도지역</label>
+        <select id="zone-type" onchange="applyZonePreset()">
+          <option value="3종일반">3종 일반주거지역</option>
+          <option value="준주거">준주거지역</option>
+          <option value="일반상업" selected>일반상업지역</option>
+          <option value="중심상업">중심상업지역</option>
+          <option value="근린상업">근린상업지역</option>
+          <option value="준공업">준공업지역</option>
+          <option value="직접입력">직접 입력</option>
+        </select>
+      </div>
+      <div class="input-row">
+        <div class="form-group">
+          <label>건폐율 (%)</label>
+          <input type="number" id="bcr" value="60" min="1" max="100">
+        </div>
+        <div class="form-group">
+          <label>용적률 (%)</label>
+          <input type="number" id="far" value="800" min="1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>도로폭 (접도 최대, m)</label>
+        <input type="number" id="road-width" value="12" min="4">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="calcSiteInfo()">정보 확인 →</button>
+
+      <div id="site-result" style="display:none;margin-top:8px;">
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="ic-label">최대 건축 면적</div>
+            <div><span class="ic-val" id="max-coverage">0</span><span class="ic-unit">m²</span></div>
+          </div>
+          <div class="info-card">
+            <div class="ic-label">최대 연면적</div>
+            <div><span class="ic-val" id="max-gfa">0</span><span class="ic-unit">m²</span></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-primary btn-full" onclick="goStep(2)">다음: 지상 볼륨 산정 →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;padding:24px;overflow-y:auto;">
+    <div style="max-width:600px;margin:0 auto;">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;">용도지역별 건폐율 / 용적률 기준</h3>
+      <table style="width:100%;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <thead><tr>
+          <th style="background:var(--bg3);padding:8px 12px;text-align:left;font-size:11px;border-bottom:1px solid var(--border);">용도지역</th>
+          <th style="background:var(--bg3);padding:8px 12px;text-align:center;font-size:11px;border-bottom:1px solid var(--border);">건폐율</th>
+          <th style="background:var(--bg3);padding:8px 12px;text-align:center;font-size:11px;border-bottom:1px solid var(--border);">용적률</th>
+        </tr></thead>
+        <tbody id="zone-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 2: 지상 볼륨 ═══ -->
+<div id="step-2" class="step-panel" style="flex-direction:row;">
+  <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>지상 볼륨 산정</h2>
+      <p>층고 및 층수 설정 후 대안을 선택하세요</p>
+    </div>
+    <div id="panel-body">
+      <div class="input-row">
+        <div class="form-group">
+          <label>기준 층고 (m)</label>
+          <input type="number" id="floor-height" value="3.5" step="0.1" min="2.8" max="5.0">
+        </div>
+        <div class="form-group">
+          <label>로비층 층고 (m)</label>
+          <input type="number" id="lobby-height" value="6.0" step="0.1" min="4.0" max="12.0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>코어 비율 (%)</label>
+        <input type="number" id="core-ratio" value="18" min="10" max="35">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="generateAlternatives()">대안 생성</button>
+      <div id="selected-alt-info" style="display:none;margin-top:8px;">
+        <div class="info-box green">
+          선택된 대안: <b id="selected-alt-name">-</b><br>
+          지상 <b id="selected-floors">-</b>층 &nbsp;|&nbsp; <b id="selected-height">-</b>m
+        </div>
+        <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="goStep(3)">다음: 지하 볼륨 →</button>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;padding:24px;overflow-y:auto;">
+    <div id="alt-cards-wrap">
+      <div class="info-box" style="text-align:center;color:var(--text3);padding:40px;">
+        좌측에서 조건을 설정한 후 [대안 생성] 버튼을 누르세요
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 3: 지하 볼륨 ═══ -->
+<div id="step-3" class="step-panel" style="flex-direction:row;">
+  <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>지하 볼륨 산정</h2>
+      <p>주차대수 입력으로 지하층수를 자동 산정합니다</p>
+    </div>
+    <div id="panel-body">
+      <div class="form-group">
+        <label>필요 주차대수</label>
+        <input type="number" id="parking-req" value="200" min="10">
+      </div>
+      <div class="input-row">
+        <div class="form-group">
+          <label>지하 층고 (m)</label>
+          <input type="number" id="under-fh" value="3.0" step="0.1" min="2.7">
+        </div>
+        <div class="form-group">
+          <label>기계실 층수</label>
+          <input type="number" id="mech-floors" value="1" min="1" max="3">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>주차 효율 (%)</label>
+        <input type="number" id="parking-eff" value="65" min="40" max="80">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="calcUnderground()">지하 볼륨 산정</button>
+      <div id="under-result" style="display:none;margin-top:8px;">
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="ic-label">지하 층수</div>
+            <div><span class="ic-val" id="under-floors">0</span><span class="ic-unit">층</span></div>
+          </div>
+          <div class="info-card">
+            <div class="ic-label">지하 면적</div>
+            <div><span class="ic-val" id="under-area">0</span><span class="ic-unit">m²</span></div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="goStep(4)">다음: BOH 배치 →</button>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;padding:24px;display:flex;align-items:center;justify-content:center;">
+    <canvas id="under-diagram" width="500" height="380"
+      style="border-radius:8px;box-shadow:var(--shadow);background:#fff;"></canvas>
+  </div>
+</div>
+
+<!-- ═══ STEP 4: BOH 배치 ═══ -->
+<div id="step-4" class="step-panel" style="flex-direction:row;">
+  <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>BOH 배치</h2>
+      <p>지상·지하 BOH 비율을 설정하세요</p>
+    </div>
+    <div id="panel-body">
+      <div class="form-group">
+        <label>총 BOH 비율 (%)</label>
+        <input type="number" id="boh-total" value="20" min="10" max="35" oninput="updateBohChart()">
+      </div>
+      <div class="form-group">
+        <label>지하 BOH 비율 (%)</label>
+        <input type="number" id="boh-under" value="62" min="0" max="100" oninput="updateBohChart()">
+      </div>
+      <div class="info-box" style="margin-top:4px;">
+        <div class="stat-row">
+          <span class="stat-label">지상 BOH 면적</span>
+          <span class="stat-val" id="boh-above-area">0 m²</span>
+        </div>
+        <div class="stat-row" style="margin-top:4px;">
+          <span class="stat-label">지하 BOH 면적</span>
+          <span class="stat-val" id="boh-under-area">0 m²</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="goStep(5)">다음: 3D 모델링 →</button>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;">
+    <canvas id="boh-chart" width="400" height="300"
+      style="border-radius:8px;box-shadow:var(--shadow);background:#fff;"></canvas>
+  </div>
+</div>
+
+<!-- ═══ STEP 5: 3D ═══ -->
+<div id="step-5" class="step-panel" style="flex-direction:row;">
+  <div style="width:240px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>3D 매스 모델링</h2>
+      <p>드래그: 회전 &nbsp;|&nbsp; 스크롤: 줌</p>
+    </div>
+    <div id="panel-body" style="gap:8px;">
+      <div class="sec-label">뷰 제어</div>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="toggleWireframe()" id="wf-btn">와이어프레임</button>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="toggleExplode()" id="ex-btn">층 분리 보기</button>
+      <div class="sec-label" style="margin-top:4px;">건물 정보</div>
+      <div class="info-box">
+        <div class="stat-row"><span class="stat-label">지상 층수</span><span class="stat-val" id="3d-above">-</span></div>
+        <div class="stat-row" style="margin-top:4px;"><span class="stat-label">지하 층수</span><span class="stat-val" id="3d-below">-</span></div>
+        <div class="stat-row" style="margin-top:4px;"><span class="stat-label">총 높이</span><span class="stat-val" id="3d-height">-</span></div>
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(6)">다음: 층별 개요 →</button>
+    </div>
+  </div>
+  <div id="view3d-container" style="flex:1;position:relative;">
+    <!-- Three.js canvas injected here -->
+    <div id="loading-3d" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--bg3);z-index:5;">
+      <div style="font-size:12px;color:var(--text3);">3D 모델 생성 중...</div>
+      <div style="width:200px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+        <div id="progress-bar" style="height:100%;width:0%;background:var(--accent);transition:width .1s;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 6: 층별 개요 ═══ -->
+<div id="step-6" class="step-panel" style="flex-direction:column;">
+  <div style="display:flex;flex:1;overflow:hidden;">
+    <!-- left -->
+    <div style="width:240px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">층별 개요</div>
+        <div style="font-size:11px;color:var(--text3);">더블클릭: 수치 편집<br>드래그: 행 순서 변경</div>
+      </div>
+      <div style="padding:12px 14px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
+        <!-- FAR gauge -->
+        <div id="far-bar-wrap">
+          <div class="far-label">
+            <span style="color:var(--text2);font-weight:700;font-size:11px;">용적률</span>
+            <span id="far-used-pct" style="font-weight:700;">0%</span>
+          </div>
+          <div class="gauge-wrap"><div id="gauge-fill" class="gauge-fill" style="width:0%;background:var(--accent);"></div></div>
+          <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:10px;color:var(--text3);">
+            <span>사용: <b id="far-used">0</b> m²</span>
+            <span>잔여: <b id="far-remain">0</b> m²</span>
+          </div>
+        </div>
+        <!-- totals -->
+        <div class="info-box">
+          <div class="stat-row"><span class="stat-label">총 연면적</span><span class="stat-val" id="total-gfa">0 m²</span></div>
+          <div class="stat-row" style="margin-top:4px;"><span class="stat-label">총 객실</span><span class="stat-val" id="total-rooms">0 실</span></div>
+          <div class="stat-row" style="margin-top:4px;"><span class="stat-label">객실 전용률</span><span class="stat-val" id="room-ratio">0%</span></div>
+        </div>
+        <!-- log -->
+        <div>
+          <div class="sec-label" style="margin-bottom:5px;">변경 이력</div>
+          <div id="change-log"><div style="font-size:10px;color:var(--text3);">변경 없음</div></div>
+        </div>
+        <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(7)">다음: 승강기 계획 →</button>
+      </div>
+    </div>
+    <!-- table -->
+    <div id="floor-table-wrap" style="flex:1;overflow:auto;background:var(--bg2);">
+      <table id="floor-table">
+        <thead><tr>
+          <th>🔒</th><th>층</th><th>용도</th><th>시설</th>
+          <th>면적(m²)</th><th>층고(m)</th><th>비고</th>
+        </tr></thead>
+        <tbody id="floor-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 7: 승강기 ═══ -->
+<div id="step-7" class="step-panel" style="flex-direction:row;">
+  <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>승강기 계획</h2>
+      <p>필요한 승강기 유형을 선택하세요</p>
+    </div>
+    <div id="panel-body" style="gap:8px;">
+      <div class="sec-label">승강기 유형 선택</div>
+      <div class="elev-grid">
+        <div class="elev-card" id="elev-card-guest">
+          <label class="elev-check"><input type="checkbox" id="elev-guest" checked onchange="updateElevCards()"><span>객실 전용</span></label>
+          <div class="form-group"><label>대수</label><input type="number" id="elev-guest-n" value="4" min="1" max="12" oninput="calcElevTraffic()"></div>
+        </div>
+        <div class="elev-card" id="elev-card-service">
+          <label class="elev-check"><input type="checkbox" id="elev-service" checked onchange="updateElevCards()"><span>서비스</span></label>
+          <div class="form-group"><label>대수</label><input type="number" id="elev-service-n" value="2" min="1" max="8" oninput="calcElevTraffic()"></div>
+        </div>
+        <div class="elev-card" id="elev-card-staff">
+          <label class="elev-check"><input type="checkbox" id="elev-staff" onchange="updateElevCards()"><span>직원 전용</span></label>
+          <div class="form-group"><label>대수</label><input type="number" id="elev-staff-n" value="2" min="1" max="6" oninput="calcElevTraffic()" disabled></div>
+        </div>
+        <div class="elev-card" id="elev-card-vip">
+          <label class="elev-check"><input type="checkbox" id="elev-vip" onchange="updateElevCards()"><span>VIP 전용</span></label>
+          <div class="form-group"><label>대수</label><input type="number" id="elev-vip-n" value="1" min="1" max="4" oninput="calcElevTraffic()" disabled></div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="goStep(8)">다음: 평면 다이어그램 →</button>
+    </div>
+  </div>
+  <!-- 교통량 분석 -->
+  <div style="flex:1;padding:20px;overflow-y:auto;">
+    <h3 style="font-size:13px;font-weight:700;margin-bottom:14px;">승강기 교통량 분석</h3>
+    <div id="elev-analysis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;"></div>
+  </div>
+</div>
+
+<!-- ═══ STEP 8: 평면 다이어그램 ═══ -->
+<div id="step-8" class="step-panel" style="flex-direction:row;">
+  <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>평면 다이어그램</h2>
+      <p>기준층 평면을 생성합니다</p>
+    </div>
+    <div id="panel-body" style="gap:10px;">
+      <div class="form-group">
+        <label>표시 층</label>
+        <select id="diag-floor" onchange="drawDiagram()">
+          <option value="basement">지하 기준층</option>
+          <option value="ground" selected>1층 (진입층)</option>
+          <option value="guestroom">객실 기준층</option>
+        </select>
+      </div>
+      <div class="input-row">
+        <div class="form-group">
+          <label>기둥 간격 X (m)</label>
+          <input type="number" id="col-x" value="9.0" step="0.5" min="6" oninput="drawDiagram()">
+        </div>
+        <div class="form-group">
+          <label>기둥 간격 Y (m)</label>
+          <input type="number" id="col-y" value="9.0" step="0.5" min="6" oninput="drawDiagram()">
+        </div>
+      </div>
+      <div class="info-box" id="diag-info">
+        <div id="diag-stats"></div>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg3);">
+    <canvas id="diag-canvas" width="720" height="520"></canvas>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+const state = {
+  siteArea: 2400, bcr: 60, far: 800,
+  maxCoverage: 0, maxGFA: 0,
+  aboveFloors: 20, underFloors: 4,
+  floorHeight: 3.5, lobbyHeight: 6.0,
+  coreRatio: 18,
+  parkingReq: 200, underArea: 0,
+  bohTotal: 20, bohUnder: 62,
+  selectedAlt: null,
+  selectedLots: new Set(),
+  searchMarker: null,
+  floors: [],
+  changeLogs: [],
+};
+
+// ═══════════════════════════════════════════
+// UTILITY
+// ═══════════════════════════════════════════
+function $(id){ return document.getElementById(id); }
+function n(id){ return parseFloat($(id)?.value)||0; }
+function ni(id){ return parseInt($(id)?.value)||0; }
+
+let toastTimer;
+function showToast(msg, dur=2800){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+function goStep(idx){
+  document.querySelectorAll('.step-panel').forEach((p,i)=>{
+    p.classList.toggle('active',i===idx);
+  });
+  document.querySelectorAll('.step-btn').forEach(b=>{
+    b.classList.toggle('active',+b.dataset.step===idx);
+  });
+  if(idx===0){ if(vMap) vMap.updateSize(); else initVMap(); }
+  if(idx===4){ drawBohChart(); updateBohAreas(); }
+  if(idx===5){ initThreeJS(); }
+  if(idx===6){ buildFloorTable(); recalcFAR(); }
+  if(idx===7){ calcElevTraffic(); updateElevCards(); }
+  if(idx===8){ drawDiagram(); }
+}
+
+// ═══════════════════════════════════════════
+// STEP 0 — VWORLD MAP SDK + SEARCH + 필지
+// ═══════════════════════════════════════════
+const VWORLD_KEY = 'F6A1D87B-4FE7-3E62-9D90-11C694E11A53';
+
+let vMap = null;           // vworld map object
+let vMarker = null;        // 검색 핀
+let selectedLots = new Map(); // pnu → {pnu, addr, area}
+let lotLayers = [];        // WFS polygon layers
+
+// ── 지도 초기화 ──
+function initVMap(){
+  if(vMap) return;
+  // SDK 로딩 대기
+  if(typeof vw === 'undefined' || typeof vw.ol3 === 'undefined'){
+    setTimeout(initVMap, 300); return;
+  }
+
+  // 브이월드 2D 지도 생성
+  vMap = new vw.ol3.map({
+    target: 'vmap',
+    basemapId: 'Satellite',   // 'Base' | 'Satellite' | 'white'
+    zoom: 17,
+    center: [126.9780, 37.5665]
+  });
+
+  // 지적도 WMS 레이어 (필지 경계 표시)
+  const cadastralLayer = new vw.ol3.layer.Wms({
+    id: 'cadastral',
+    url: 'https://api.vworld.kr/req/wms',
+    params: {
+      LAYERS: 'lt_c_landinfobaseinfo',
+      FORMAT: 'image/png',
+      TRANSPARENT: 'true',
+      key: VWORLD_KEY
+    },
+    opacity: 0.7
+  });
+  vMap.addLayer(cadastralLayer);
+
+  // 지도 클릭 이벤트 → 필지 WFS 조회
+  vMap.on('singleclick', function(e){
+    const coord = e.coordinate; // [lng, lat] in EPSG:4326
+    const multiSelect = e.originalEvent?.ctrlKey || e.originalEvent?.metaKey || false;
+    fetchLotAtPoint(coord[0], coord[1], multiSelect);
+  });
+}
+
+// ── 주소 검색 ──
+async function searchAddr(){
+  const q = $('addr-search').value.trim();
+  if(!q){ showToast('주소를 입력해 주세요'); return; }
+  setSearchStatus('검색 중…');
+  $('search-results').style.display='none';
+
+  try{
+    // 도로명 우선
+    let url = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0`
+      +`&crs=EPSG:4326&size=10&page=1&query=${encodeURIComponent(q)}`
+      +`&type=address&category=road&format=json&errorformat=json&key=${VWORLD_KEY}`;
+    let res = await fetch(url);
+    let data = await res.json();
+    let items = data.response?.result?.items || [];
+
+    if(!items.length){
+      // 지번 재시도
+      url = url.replace('category=road','category=parcel');
+      res = await fetch(url);
+      data = await res.json();
+      items = data.response?.result?.items || [];
+    }
+
+    if(items.length){ renderResults(items); }
+    else { setSearchStatus('검색 결과가 없습니다'); }
+  } catch(e){
+    setSearchStatus('검색에 실패했습니다');
+    console.error(e);
+  }
+}
+
+function renderResults(items){
+  setSearchStatus(`${items.length}건 검색됨`, 'green');
+  const list = $('search-result-list');
+  list.innerHTML = items.map(item => {
+    const addr = item.address?.road || item.address?.parcel || item.title || '주소 없음';
+    const lng = parseFloat(item.point?.x || 0);
+    const lat = parseFloat(item.point?.y || 0);
+    return `<div class="search-result-item" onclick="selectResult('${addr.replace(/'/g,"\\'")}',${lng},${lat})">
+      <div class="addr-main">${addr}</div>
+      <div class="addr-sub">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+    </div>`;
+  }).join('');
+  $('search-results').style.display = 'block';
+}
+
+function selectResult(addr, lng, lat){
+  $('search-results').style.display = 'none';
+  $('selected-location').style.display = 'block';
+  $('selected-addr-text').textContent = addr;
+  $('selected-coord-text').textContent = `위도 ${lat.toFixed(5)}  경도 ${lng.toFixed(5)}`;
+  $('addr-search').value = addr;
+  setSearchStatus('✓ 위치 선택됨', 'green');
+  state.searchMarker = {addr, lng, lat};
+
+  // 지도 이동 + 핀 마커
+  if(vMap){
+    vMap.setCenter([lng, lat]);
+    vMap.setZoom(18);
+    // 기존 핀 제거
+    if(vMarker) vMap.removeLayer(vMarker);
+    // 핀 오버레이 추가
+    vMarker = new vw.ol3.layer.Marker({
+      id: 'searchPin',
+      position: [lng, lat],
+      iconUrl: 'https://map.vworld.kr/images/ol3/marker/red.png',
+      label: addr.length > 24 ? addr.slice(0,24)+'…' : addr
+    });
+    vMap.addLayer(vMarker);
+  }
+}
+
+function clearSearch(){
+  state.searchMarker = null;
+  $('selected-location').style.display = 'none';
+  setSearchStatus('');
+  if(vMarker && vMap){ vMap.removeLayer(vMarker); vMarker = null; }
+}
+
+// ── 필지 클릭 → WFS 면적 조회 ──
+async function fetchLotAtPoint(lng, lat, multiSelect){
+  setSearchStatus('필지 조회 중…');
+  try{
+    // bbox: 클릭 지점 주변 소범위
+    const d = 0.00005;
+    const bbox = `${lng-d},${lat-d},${lng+d},${lat+d}`;
+    const url = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
+      +`&typeName=lt_c_landinfobaseinfo&bbox=${bbox},EPSG:4326`
+      +`&propertyName=pnu,addr_ld,lndpclAr,geometry`
+      +`&outputFormat=application/json&key=${VWORLD_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const features = data.features || [];
+    if(!features.length){ setSearchStatus('필지 정보 없음'); return; }
+
+    const f = features[0];
+    const pnu = f.properties?.pnu || String(Date.now());
+    const addr = f.properties?.addr_ld || '주소 미상';
+    const area = parseFloat(f.properties?.lndpclAr || 0);
+
+    if(!multiSelect) selectedLots.clear();
+
+    if(selectedLots.has(pnu)){
+      selectedLots.delete(pnu);
+    } else {
+      selectedLots.set(pnu, {pnu, addr, area});
+    }
+
+    updateSelectedLots();
+    setSearchStatus('');
+  } catch(e){
+    setSearchStatus('필지 조회 실패');
+    console.error(e);
+  }
+}
+
+function updateSelectedLots(){
+  const lots = [...selectedLots.values()];
+  const total = lots.reduce((s, l) => s + (l.area || 0), 0);
+  $('lot-count').textContent = lots.length;
+  $('lot-area-disp').textContent = Math.round(total) + ' m²';
+  const wrap = $('selected-lots');
+  if(!lots.length){
+    wrap.innerHTML = '<div class="info-box" style="text-align:center;color:var(--text3);">지도에서 필지를 클릭하세요</div>';
+    $('lots-summary').style.display = 'none';
+    return;
+  }
+  wrap.innerHTML = lots.map(l =>
+    `<div class="search-result-item" style="display:flex;justify-content:space-between;align-items:center;">
+      <span class="addr-main" style="flex:1;font-size:10px;">${l.addr}</span>
+      <span style="font-weight:700;color:var(--accent);margin-left:8px;white-space:nowrap;">${Math.round(l.area)} m²</span>
+      <button onclick="removeLot('${l.pnu}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;margin-left:4px;">✕</button>
+    </div>`
+  ).join('');
+  state.siteArea = Math.round(total);
+  $('total-site-area').textContent = Math.round(total) + ' m²';
+  $('lots-summary').style.display = 'block';
+}
+
+function removeLot(pnu){
+  selectedLots.delete(pnu);
+  updateSelectedLots();
+}
+
+function setSearchStatus(msg, type=''){
+  const el = $('search-status');
+  el.textContent = msg;
+  el.style.color = type==='green' ? 'var(--green)' : type==='red' ? 'var(--red)' : 'var(--text3)';
+}
+
+
+
+// ═══════════════════════════════════════════
+// STEP 1 — ZONE PRESETS
+// ═══════════════════════════════════════════
+const ZONE_PRESETS = [
+  {label:'1종일반',bcr:60,far:200},{label:'2종일반',bcr:60,far:250},{label:'3종일반',bcr:50,far:300},
+  {label:'준주거',bcr:70,far:500},{label:'일반상업',bcr:60,far:800},{label:'중심상업',bcr:70,far:1300},
+  {label:'근린상업',bcr:70,far:600},{label:'준공업',bcr:70,far:400},
+];
+
+function applyZonePreset(){
+  const z=$('zone-type').value;
+  const p=ZONE_PRESETS.find(p=>p.label===z);
+  if(p){ $('bcr').value=p.bcr; $('far').value=p.far; }
+}
+
+function buildZoneTable(){
+  const tbody=$('zone-table-body');
+  if(!tbody) return;
+  tbody.innerHTML=ZONE_PRESETS.map(z=>`
+    <tr style="font-size:12px;">
+      <td style="padding:7px 12px;border-bottom:1px solid var(--border);">${z.label}</td>
+      <td style="padding:7px 12px;border-bottom:1px solid var(--border);text-align:center;">${z.bcr}%</td>
+      <td style="padding:7px 12px;border-bottom:1px solid var(--border);text-align:center;">${z.far}%</td>
+    </tr>`).join('');
+}
+
+function calcSiteInfo(){
+  const sa=n('site-area')||state.siteArea;
+  const bcr=n('bcr'), far=n('far');
+  state.siteArea=sa; state.bcr=bcr; state.far=far;
+  const mc=Math.floor(sa*bcr/100);
+  const mg=Math.floor(sa*far/100);
+  state.maxCoverage=mc; state.maxGFA=mg;
+  $('max-coverage').textContent=mc.toLocaleString();
+  $('max-gfa').textContent=mg.toLocaleString();
+  $('site-result').style.display='block';
+}
+
+// ═══════════════════════════════════════════
+// STEP 2 — ALTERNATIVES
+// ═══════════════════════════════════════════
+function generateAlternatives(){
+  const fh=n('floor-height')||3.5;
+  const lh=n('lobby-height')||6.0;
+  const cr=n('core-ratio')||18;
+  const sa=state.siteArea||2400;
+  const bcr=state.bcr||60;
+  const mgfa=state.maxGFA||(sa*8);
+
+  state.floorHeight=fh; state.lobbyHeight=lh; state.coreRatio=cr;
+
+  const footprint=Math.floor(sa*bcr/100);
+  const netRatio=(100-cr)/100;
+  const floorGFA=Math.floor(footprint);
+
+  function makeAlt(name, ratio, desc){
+    const floors=Math.round(mgfa*ratio/(floorGFA));
+    const height=Math.round((lh+(floors-1)*fh)*10)/10;
+    const gfa=floorGFA*floors;
+    return {name,floors,height,gfa,desc};
+  }
+
+  const alts=[
+    makeAlt('안 A — 표준형',0.85,'균형잡힌 볼륨. 일반적 호텔 규모'),
+    makeAlt('안 B — 고층형',1.0,'최대 용적률 활용. 객실 수 극대화'),
+    makeAlt('안 C — 저층형',0.70,'저층·고급 유형. 층당 서비스 향상'),
+  ];
+
+  const wrap=$('alt-cards-wrap');
+  wrap.innerHTML=`<div class="alt-cards">${alts.map((a,i)=>`
+    <div class="alt-card" id="alt-${i}" onclick="selectAlt(${i})">
+      <div class="alt-name">${a.name}</div>
+      <div class="alt-floors">${a.floors}<span style="font-size:16px;font-weight:400;color:var(--text3);">F</span></div>
+      <div class="alt-sub">${a.height}m</div>
+      <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.5;">${a.desc}</div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text2);">연면적 <b>${a.gfa.toLocaleString()}</b> m²</div>
+    </div>`).join('')}</div>`;
+  window._alts=alts;
+}
+
+function selectAlt(i){
+  document.querySelectorAll('.alt-card').forEach((c,j)=>c.classList.toggle('selected',j===i));
+  const a=window._alts[i];
+  state.selectedAlt=a; state.aboveFloors=a.floors;
+  $('selected-alt-info').style.display='block';
+  $('selected-alt-name').textContent=a.name;
+  $('selected-floors').textContent=a.floors;
+  $('selected-height').textContent=a.height+' m';
+  generateFloorPlan();
+}
+
+// ═══════════════════════════════════════════
+// STEP 3 — UNDERGROUND
+// ═══════════════════════════════════════════
+function calcUnderground(){
+  const pReq=ni('parking-req');
+  const eff=n('parking-eff')/100;
+  const sa=state.siteArea||2400;
+  const mf=ni('mech-floors')||1;
+
+  // 층당 주차 대수 = 바닥면적 × 효율 / 1대당 약 30m²
+  const perFloor=Math.floor(sa*eff/30);
+  const parkFloors=Math.ceil(pReq/perFloor);
+  const totalUnder=parkFloors+mf;
+  const underArea=sa*(totalUnder+1);
+
+  state.underFloors=totalUnder; state.underArea=underArea;
+  $('under-floors').textContent=totalUnder;
+  $('under-area').textContent=underArea.toLocaleString();
+  $('under-result').style.display='block';
+  drawUnderDiagram(parkFloors,mf,sa);
+}
+
+function drawUnderDiagram(parkF,mechF,sa){
+  const c=$('under-diagram'); if(!c) return;
+  const ctx=c.getContext('2d');
+  ctx.clearRect(0,0,500,380);
+  const floors=parkF+mechF;
+  const bx=120,by=20,bw=260,fh=Math.min(60,300/floors);
+  const total=floors*fh;
+
+  ctx.fillStyle='#f4f5f7'; ctx.fillRect(0,0,500,380);
+  ctx.fillStyle='#e2e4ea'; ctx.fillRect(bx-10,by,bw+20,total+20);
+
+  for(let i=0;i<floors;i++){
+    const fy=by+i*fh;
+    const isM=i>=parkF;
+    ctx.fillStyle=isM?'#fde8d8':'#dbeafe';
+    ctx.strokeStyle=isM?'#ea580c':'#2563eb';
+    ctx.lineWidth=1;
+    ctx.fillRect(bx,fy,bw,fh-2);
+    ctx.strokeRect(bx,fy,bw,fh-2);
+    ctx.fillStyle=isM?'#9a3412':'#1e40af';
+    ctx.font='bold 11px Pretendard,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(isM?`B${floors-i}F 기계실`:`B${floors-i}F 주차 (${Math.floor(sa*0.65/30)}대)`,bx+bw/2,fy+fh/2+4);
+  }
+  ctx.textAlign='left';
+}
+
+// ═══════════════════════════════════════════
+// STEP 4 — BOH
+// ═══════════════════════════════════════════
+function updateBohAreas(){
+  const gfa=state.maxGFA||(state.siteArea*8)||19200;
+  const totalBoh=Math.floor(gfa*n('boh-total')/100);
+  const underPct=n('boh-under')/100;
+  $('boh-under-area').textContent=Math.floor(totalBoh*underPct).toLocaleString()+' m²';
+  $('boh-above-area').textContent=Math.floor(totalBoh*(1-underPct)).toLocaleString()+' m²';
+}
+
+function updateBohChart(){ updateBohAreas(); drawBohChart(); }
+
+function drawBohChart(){
+  const c=$('boh-chart'); if(!c) return;
+  const ctx=c.getContext('2d');
+  const cx=200,cy=150,r=100,ir=55;
+  ctx.clearRect(0,0,400,300);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,400,300);
+  const pct=Math.max(0,Math.min(100,n('boh-under')))/100;
+  const segs=[{label:'지하 BOH',pct,color:'#2563eb'},{label:'지상 BOH',pct:1-pct,color:'#f97316'}];
+  let s=-Math.PI/2;
+  segs.forEach(sg=>{
+    const e=s+sg.pct*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,s,e); ctx.closePath();
+    ctx.fillStyle=sg.color; ctx.globalAlpha=.88; ctx.fill();
+    const m=(s+e)/2;
+    if(sg.pct>.05){
+      ctx.globalAlpha=1; ctx.fillStyle='#fff';
+      ctx.font='bold 13px Pretendard,sans-serif'; ctx.textAlign='center';
+      ctx.fillText(Math.round(sg.pct*100)+'%',cx+Math.cos(m)*r*.65,cy+Math.sin(m)*r*.65+4);
+    }
+    s=e;
+  });
+  ctx.globalAlpha=1;
+  ctx.beginPath(); ctx.arc(cx,cy,ir,0,Math.PI*2);
+  ctx.fillStyle='#fff'; ctx.fill();
+  ctx.fillStyle='#8b90a0'; ctx.font='11px Pretendard,sans-serif'; ctx.textAlign='center';
+  ctx.fillText('BOH 배분',cx,cy-3); ctx.fillText(n('boh-total')+'%',cx,cy+12);
+  segs.forEach((sg,i)=>{
+    const ly=240+i*22;
+    ctx.fillStyle=sg.color; ctx.fillRect(80,ly,14,14);
+    ctx.fillStyle='#4b5068'; ctx.textAlign='left';
+    ctx.fillText(sg.label+' '+Math.round(sg.pct*100)+'%',100,ly+11);
+  });
+  ctx.textAlign='left';
+}
+
+// ═══════════════════════════════════════════
+// STEP 5 — THREE.JS
+// ═══════════════════════════════════════════
+let renderer,scene,camera,meshes3d=[],animId,isWireframe=false,isExploded=false;
+
+function initThreeJS(){
+  const wrap=$('view3d-container');
+  if(!wrap||renderer) return;
+  const W=wrap.clientWidth,H=wrap.clientHeight;
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+  renderer.setSize(W,H); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;
+  wrap.insertBefore(renderer.domElement,wrap.firstChild);
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xf0f2f6);
+  camera=new THREE.PerspectiveCamera(45,W/H,.1,1000);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff,.9));
+  const dl=new THREE.DirectionalLight(0xffffff,1.2);
+  dl.position.set(60,120,80); dl.castShadow=true; scene.add(dl);
+  const dl2=new THREE.DirectionalLight(0xaaccff,.4);
+  dl2.position.set(-40,20,-40); scene.add(dl2);
+
+  const grid=new THREE.GridHelper(200,20,0xd0d3db,0xe2e4ea);
+  scene.add(grid);
+
+  buildMasses();
+
+  let isDrag=false,pm={x:0,y:0},sph={theta:.8,phi:1.1,r:160};
+  function uc(){
+    camera.position.set(
+      sph.r*Math.sin(sph.phi)*Math.sin(sph.theta),
+      sph.r*Math.cos(sph.phi),
+      sph.r*Math.sin(sph.phi)*Math.cos(sph.theta));
+    camera.lookAt(0,20,0);
+  }
+  uc();
+  renderer.domElement.addEventListener('mousedown',e=>{isDrag=true;pm={x:e.clientX,y:e.clientY};});
+  window.addEventListener('mouseup',()=>isDrag=false);
+  window.addEventListener('mousemove',e=>{
+    if(!isDrag)return;
+    sph.theta-=(e.clientX-pm.x)*.005; sph.phi=Math.max(.2,Math.min(1.5,sph.phi+(e.clientY-pm.y)*.005));
+    pm={x:e.clientX,y:e.clientY}; uc();
+  });
+  renderer.domElement.addEventListener('wheel',e=>{sph.r=Math.max(40,Math.min(300,sph.r+e.deltaY*.2));uc();},{passive:true});
+
+  $('3d-above').textContent=state.aboveFloors+'층';
+  $('3d-below').textContent=state.underFloors+'층';
+  const h=Math.round(state.lobbyHeight+(state.aboveFloors-1)*state.floorHeight);
+  $('3d-height').textContent=h+' m';
+
+  // hide loader
+  let p=0,pbar=$('progress-bar');
+  const pi=setInterval(()=>{p=Math.min(100,p+10);if(pbar)pbar.style.width=p+'%';if(p>=100){clearInterval(pi);const ld=$('loading-3d');if(ld)ld.style.display='none';}},60);
+  animate3D();
+}
+
+function buildMasses(){
+  meshes3d.forEach(m=>scene.remove(m)); meshes3d=[];
+  const above=state.aboveFloors||20, fh=state.floorHeight||3.5, lh=state.lobbyHeight||6;
+  const bw=36,bd=28;
+  const COLOR_MAP=[
+    {from:above,to:above,hex:'#16a34a'},{from:above-2,to:above-1,hex:'#7c3aed'},
+    {from:6,to:above-3,hex:'#2563eb'},{from:3,to:5,hex:'#ea580c'},
+    {from:2,to:2,hex:'#16a34a'},{from:1,to:1,hex:'#ca8a04'},
+  ];
+  function getCol(f){const r=COLOR_MAP.find(c=>f>=c.from&&f<=c.to);return r?new THREE.Color(r.hex):new THREE.Color('#2563eb');}
+  for(let f=1;f<=above;f++){
+    const h=f===1?lh:fh;
+    const y0=lh+(f-2)*fh, yPos=f===1?h/2:y0+h/2;
+    const sc=f>above-3?.85:f>above-8?.92:1;
+    const geo=new THREE.BoxGeometry(bw*sc,h-.1,bd*sc);
+    const mat=new THREE.MeshLambertMaterial({color:getCol(f),transparent:true,opacity:.9});
+    const mesh=new THREE.Mesh(geo,mat);
+    mesh.position.set(0,yPos,0); mesh.castShadow=true; mesh.userData={f,yBase:yPos};
+    scene.add(mesh); meshes3d.push(mesh);
+  }
+  // Underground
+  for(let f=1;f<=state.underFloors;f++){
+    const geo=new THREE.BoxGeometry(bw+4,3.0,bd+4);
+    const mat=new THREE.MeshLambertMaterial({color:0x94a3b8,transparent:true,opacity:.55,wireframe:false});
+    const mesh=new THREE.Mesh(geo,mat);
+    mesh.position.set(0,-f*3.0+1.5,0); scene.add(mesh); meshes3d.push(mesh);
+  }
+}
+
+function animate3D(){
+  animId=requestAnimationFrame(animate3D);
+  renderer.render(scene,camera);
+}
+
+function toggleWireframe(){
+  isWireframe=!isWireframe;
+  meshes3d.forEach(m=>{if(m.material)m.material.wireframe=isWireframe;});
+  $('wf-btn').classList.toggle('btn-primary',isWireframe);
+  $('wf-btn').classList.toggle('btn-secondary',!isWireframe);
+}
+function toggleExplode(){
+  isExploded=!isExploded;
+  meshes3d.forEach(m=>{if(m.userData.f){const gap=isExploded?2:0;m.position.y=m.userData.yBase+m.userData.f*gap;}});
+  $('ex-btn').classList.toggle('btn-primary',isExploded);
+  $('ex-btn').classList.toggle('btn-secondary',!isExploded);
+}
+
+// ═══════════════════════════════════════════
+// STEP 6 — FLOOR TABLE
+// ═══════════════════════════════════════════
+const FAC_GROUPS = {
+  '객실':['객실층','스위트층','서비스드 레지던스'],
+  'F&B':['레스토랑','바·라운지','뷔페'],
+  '연회':['연회장','소회의실','대연회홀'],
+  '부대':['피트니스','스파·풀','쇼핑'],
+  '공용':['로비','프론트','비즈니스센터'],
+  'BOH':['BOH(지상)'],
+  '주차':['주차','기계실'],
+};
+const FAC_COLORS={'객실':'#dbeafe','F&B':'#ede9fe','연회':'#ffedd5','부대':'#dcfce7','공용':'#fef9c3','BOH':'#f1f5f9','주차':'#f1f5f9'};
+const FAC_TEXT={'객실':'#1e40af','F&B':'#5b21b6','연회':'#9a3412','부대':'#166534','공용':'#854d0e','BOH':'#475569','주차':'#475569'};
+
+function generateFloorPlan(){
+  const above=state.aboveFloors||20;
+  const under=state.underFloors||4;
+  const fh=state.floorHeight||3.5;
+  const lh=state.lobbyHeight||6;
+  const sa=state.siteArea||2400;
+  const bcr=state.bcr||60;
+  const footprint=Math.floor(sa*bcr/100);
+  const rows=[];
+  // Underground
+  for(let f=under;f>=1;f--){
+    const label=`B${f}F`;
+    rows.push({floor:label,type:'지하',fac:f===1?'기계실':'주차',area:footprint+Math.floor(footprint*.1),fh:3.0,note:'',locked:false,group:f===1?'주차':'주차'});
+  }
+  // Ground floors
+  for(let f=1;f<=above;f++){
+    let fac,group,area,note='';
+    if(f===1){fac='로비';group='공용';area=Math.floor(footprint*1.0);note='1층 진입층';}
+    else if(f===2){fac='레스토랑';group='F&B';area=Math.floor(footprint*.85);}
+    else if(f<=3){fac='연회장';group='연회';area=Math.floor(footprint*.9);}
+    else if(f<=5){fac='피트니스';group='부대';area=Math.floor(footprint*.8);}
+    else if(f===above){fac='스카이라운지';group='F&B';area=Math.floor(footprint*.7);}
+    else{fac='객실층';group='객실';area=Math.floor(footprint*.82);}
+    rows.push({floor:`${f}F`,type:'지상',fac,area,fh:f===1?lh:fh,note,locked:false,group});
+  }
+  state.floors=rows;
+}
+
+let dragSrc=null;
+function buildFloorTable(flashRows=new Set()){
+  if(!state.floors.length) generateFloorPlan();
+  const tbody=$('floor-tbody'); if(!tbody) return;
+  tbody.innerHTML=state.floors.map((row,i)=>{
+    const gc=FAC_COLORS[row.group]||'#f1f5f9';
+    const tc=FAC_TEXT[row.group]||'#475569';
+    const flash=flashRows.has(row.floor)?'flash':'';
+    return `<tr class="${row.locked?'locked-row':''} ${flash}" draggable="true"
+      data-i="${i}"
+      ondragstart="dragSrc=this.dataset.i"
+      ondragover="event.preventDefault()"
+      ondrop="dropRow(this.dataset.i,event)">
+      <td><button class="lock-btn" onclick="toggleLock(${i})" title="${row.locked?'잠금 해제':'잠금'}">${row.locked?'🔒':'🔓'}</button></td>
+      <td style="font-weight:700;color:var(--text2);">${row.floor}</td>
+      <td style="color:var(--text3);">${row.type}</td>
+      <td><span style="background:${gc};color:${tc};padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">${row.fac}</span></td>
+      <td class="editable" ondblclick="startEdit(this,${i},'area')">${row.area.toLocaleString()}</td>
+      <td class="editable" ondblclick="startEdit(this,${i},'fh')">${row.fh}</td>
+      <td style="color:var(--text3);font-size:10px;">${row.note}</td>
+    </tr>`;
+  }).join('');
+  recalcFAR();
+}
+
+function toggleLock(i){ state.floors[i].locked=!state.floors[i].locked; buildFloorTable(); }
+
+function dropRow(targetI,e){
+  e.preventDefault();
+  const si=parseInt(dragSrc), ti=parseInt(targetI);
+  if(si===ti||isNaN(si)) return;
+  const rows=state.floors;
+  const moved=rows.splice(si,1)[0];
+  rows.splice(ti,0,moved);
+  buildFloorTable();
+}
+
+function startEdit(td,i,field){
+  if(state.floors[i].locked){ showToast('잠긴 행은 편집할 수 없습니다'); return; }
+  const cur=state.floors[i][field];
+  td.innerHTML=`<input type="number" value="${cur}" step="${field==='fh'?.1:1}" min="0"
+    style="width:70px;padding:3px 5px;font-size:11px;font-family:inherit;border:1px solid var(--accent);border-radius:4px;"
+    onblur="commitEdit(this,${i},'${field}')"
+    onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')buildFloorTable();"
+    onclick="event.stopPropagation()">`;
+  td.querySelector('input').focus();
+}
+
+function commitEdit(input,i,field){
+  const newV=parseFloat(input.value)||0;
+  const oldV=state.floors[i][field];
+  if(newV===oldV){ buildFloorTable(); return; }
+
+  // FAR check (above-ground only, area field)
+  if(field==='area' && state.floors[i].type==='지상'){
+    const currentFAR_used=state.floors.filter(r=>r.type==='지상').reduce((s,r)=>s+r.area,0);
+    const maxGFA=state.maxGFA||(state.siteArea*state.far/100);
+    const delta=newV-oldV;
+    if(currentFAR_used+delta>maxGFA){showToast('⚠️ 용적률 한도를 초과합니다');buildFloorTable();return;}
+  }
+
+  const oldRow=state.floors[i];
+  oldRow[field]=newV;
+
+  // Proportional redistribution within same group (area changes on above-ground)
+  let affected=[];
+  if(field==='area' && oldRow.type==='지상'){
+    const delta=newV-oldV;
+    const peers=state.floors.filter((r,j)=>j!==i&&!r.locked&&r.group===oldRow.group&&r.type==='지상');
+    const peerTotal=peers.reduce((s,r)=>s+r.area,0);
+    if(peers.length&&peerTotal>0){
+      peers.forEach(r=>{
+        const absorb=Math.round(r.area/peerTotal*(-delta));
+        const newA=Math.max(0,r.area+absorb);
+        if(newA!==r.area){ r.area=newA; affected.push(r); }
+      });
+    }
+  }
+
+  pushLog(oldRow.floor,field,oldV,newV,affected);
+  const flashSet=new Set([oldRow.floor,...affected.map(a=>a.floor)]);
+  buildFloorTable(flashSet);
+}
+
+function pushLog(floor,field,oldV,newV,affected){
+  const msg=`${floor} ${field==='area'?'면적':'층고'} ${oldV}→${newV}${affected.length?' ('+affected.length+'개 층 연동)':''}`;
+  state.changeLogs.unshift(msg);
+  if(state.changeLogs.length>10) state.changeLogs.pop();
+  const log=$('change-log');
+  if(log) log.innerHTML=state.changeLogs.map(l=>`<div class="log-item">${l}</div>`).join('');
+}
+
+function recalcFAR(){
+  const above=state.floors.filter(r=>r.type==='지상');
+  const used=above.reduce((s,r)=>s+r.area,0);
+  const maxGFA=state.maxGFA||(state.siteArea*(state.far/100))||19200;
+  const pct=Math.min(100,Math.round(used/maxGFA*100));
+  const remain=Math.max(0,maxGFA-used);
+  if($('far-used')) $('far-used').textContent=used.toLocaleString();
+  if($('far-remain')) $('far-remain').textContent=remain.toLocaleString();
+  if($('far-used-pct')) $('far-used-pct').textContent=pct+'%';
+  const fill=$('gauge-fill');
+  if(fill){
+    fill.style.width=pct+'%';
+    fill.style.background=pct>=95?'var(--red)':pct>=80?'var(--orange)':'var(--accent)';
+  }
+  // totals
+  const total=state.floors.reduce((s,r)=>s+r.area,0);
+  const rooms=state.floors.filter(r=>r.fac.includes('객실')||r.fac.includes('스위트')).reduce((s,r)=>s+Math.floor(r.area/32),0);
+  const guestArea=state.floors.filter(r=>r.group==='객실').reduce((s,r)=>s+r.area,0);
+  if($('total-gfa')) $('total-gfa').textContent=total.toLocaleString()+' m²';
+  if($('total-rooms')) $('total-rooms').textContent=rooms+' 실';
+  if($('room-ratio')) $('room-ratio').textContent=total>0?Math.round(guestArea/total*100)+'%':'0%';
+}
+
+// ═══════════════════════════════════════════
+// STEP 7 — ELEVATOR
+// ═══════════════════════════════════════════
+function updateElevCards(){
+  ['guest','service','staff','vip'].forEach(t=>{
+    const chk=$(`elev-${t}`);
+    const inp=$(`elev-${t}-n`);
+    const card=$(`elev-card-${t}`);
+    if(inp) inp.disabled=!chk.checked;
+    if(card) card.classList.toggle('active',chk.checked);
+  });
+  calcElevTraffic();
+}
+
+function calcElevTraffic(){
+  const above=state.aboveFloors||20;
+  const fh=state.floorHeight||3.5, lh=state.lobbyHeight||6;
+  const totalH=lh+(above-1)*fh;
+  const types=[
+    {id:'guest',label:'객실 전용',speed:4,cap:17,peakUsers:0.2},
+    {id:'service',label:'서비스',speed:2.5,cap:20,peakUsers:0.05},
+    {id:'staff',label:'직원 전용',speed:2.5,cap:13,peakUsers:0.1},
+    {id:'vip',label:'VIP 전용',speed:4,cap:8,peakUsers:0.02},
+  ];
+  const rooms=state.floors?.filter(r=>r.group==='객실').reduce((s,r)=>s+Math.floor(r.area/32),0)||200;
+  const wrap=$('elev-analysis'); if(!wrap) return;
+  wrap.innerHTML=types.filter(t=>$(`elev-${t.id}`)?.checked).map(t=>{
+    const n=ni(`elev-${t.id}-n`)||1;
+    const tripT=Math.round(totalH/t.speed*2+n*2+10);
+    const waitT=Math.round(tripT/n);
+    const cap5=Math.round(n*300/tripT*t.cap);
+    const color=waitT<=60?'var(--green)':waitT<=90?'var(--orange)':'var(--red)';
+    return `<div class="elev-card" style="border-color:${color};">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;">${t.label} × ${n}대</div>
+      <div class="stat-row"><span class="stat-label">예상 대기 시간</span>
+        <span style="font-weight:800;font-size:14px;color:${color};">${waitT}초</span></div>
+      <div class="stat-row" style="margin-top:4px;"><span class="stat-label">5분 처리 용량</span>
+        <span class="stat-val">${cap5}인</span></div>
+      <div class="stat-row" style="margin-top:4px;"><span class="stat-label">왕복 시간</span>
+        <span class="stat-val">${tripT}초</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// STEP 8 — FLOOR DIAGRAM
+// ═══════════════════════════════════════════
+function drawDiagram(){
+  const type=$('diag-floor')?.value||'ground';
+  const cx=n('col-x')||9, cy_=n('col-y')||9;
+  const c=$('diag-canvas'); if(!c) return;
+  const ctx=c.getContext('2d');
+  ctx.clearRect(0,0,720,520);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,720,520);
+
+  const sa=state.siteArea||2400;
+  const side=Math.sqrt(sa*0.6);
+  const cols=Math.round(side/cx)+1, rows_=Math.round(side/cy_)+1;
+  const scale=Math.min(580/((cols)*cx),380/((rows_)*cy_));
+  const ox=70,oy=70;
+  const gw=cx*scale, gh=cy_*scale;
+
+  // Grid
+  ctx.strokeStyle='#e2e4ea'; ctx.lineWidth=.5;
+  for(let i=0;i<=cols;i++){ctx.beginPath();ctx.moveTo(ox+i*gw,oy);ctx.lineTo(ox+i*gw,oy+rows_*gh);ctx.stroke();}
+  for(let j=0;j<=rows_;j++){ctx.beginPath();ctx.moveTo(ox,oy+j*gh);ctx.lineTo(ox+cols*gw,oy+j*gh);ctx.stroke();}
+
+  // Columns
+  ctx.fillStyle='#1e40af';
+  for(let i=0;i<=cols;i++)for(let j=0;j<=rows_;j++){ctx.fillRect(ox+i*gw-4,oy+j*gh-4,8,8);}
+
+  if(type==='guestroom'){
+    drawGuestroomDiag(ctx,ox,oy,cols,rows_,gw,gh,cx,cy_,scale);
+  } else if(type==='ground'){
+    drawGroundDiag(ctx,ox,oy,cols,rows_,gw,gh,scale);
+  } else {
+    drawBasementDiag(ctx,ox,oy,cols,rows_,gw,gh,scale);
+  }
+
+  // Dimensions
+  ctx.fillStyle='#8b90a0'; ctx.font='10px Pretendard,sans-serif'; ctx.textAlign='center';
+  for(let i=0;i<cols;i++) ctx.fillText(cx+'m',ox+i*gw+gw/2,oy-8);
+  ctx.textAlign='left';
+}
+
+function drawGuestroomDiag(ctx,ox,oy,cols,rows_,gw,gh,cx,cy_,scale){
+  // Corridor in middle
+  const corrY=Math.floor(rows_/2);
+  ctx.fillStyle='#f0f9ff'; ctx.fillRect(ox,oy+corrY*gh,cols*gw,gh);
+  ctx.strokeStyle='#bae6fd'; ctx.strokeRect(ox,oy+corrY*gh,cols*gw,gh);
+  ctx.fillStyle='#0369a1'; ctx.font='bold 11px Pretendard,sans-serif'; ctx.textAlign='center';
+  ctx.fillText('복도',ox+cols*gw/2,oy+corrY*gh+gh/2+4);
+
+  // Rooms
+  for(let i=0;i<cols;i++){
+    for(let j=0;j<rows_;j++){
+      if(j===corrY) continue;
+      ctx.fillStyle='#dbeafe'; ctx.strokeStyle='#93c5fd'; ctx.lineWidth=1;
+      ctx.fillRect(ox+i*gw+1,oy+j*gh+1,gw-2,gh-2);
+      ctx.strokeRect(ox+i*gw+1,oy+j*gh+1,gw-2,gh-2);
+      ctx.fillStyle='#1e40af'; ctx.font='9px Pretendard,sans-serif'; ctx.textAlign='center';
+      ctx.fillText('객실',ox+i*gw+gw/2,oy+j*gh+gh/2+3);
+    }
+  }
+  const rooms=cols*(rows_-1);
+  if($('diag-stats')) $('diag-stats').innerHTML=`층당 객실 수: <b>${rooms}실</b>  |  기둥 간격: ${cx}m × ${cy_}m`;
+  ctx.textAlign='left';
+}
+
+function drawGroundDiag(ctx,ox,oy,cols,rows_,gw,gh,scale){
+  const tw=cols*gw,th=rows_*gh;
+  // Lobby
+  ctx.fillStyle='#fef9c3'; ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.5;
+  ctx.fillRect(ox,oy,tw*.55,th*.6);ctx.strokeRect(ox,oy,tw*.55,th*.6);
+  ctx.fillStyle='#92400e'; ctx.font='bold 13px Pretendard,sans-serif'; ctx.textAlign='center';
+  ctx.fillText('로비',ox+tw*.55/2,oy+th*.6/2+4);
+  // Restaurant
+  ctx.fillStyle='#ede9fe'; ctx.strokeStyle='#a78bfa'; ctx.lineWidth=1.5;
+  ctx.fillRect(ox+tw*.57,oy,tw*.43,th*.6);ctx.strokeRect(ox+tw*.57,oy,tw*.43,th*.6);
+  ctx.fillStyle='#5b21b6'; ctx.fillText('레스토랑',ox+tw*.57+tw*.43/2,oy+th*.6/2+4);
+  // Drop-off
+  ctx.fillStyle='#f0fdf4'; ctx.strokeStyle='#86efac'; ctx.lineWidth=1;
+  ctx.fillRect(ox,oy+th*.62,tw*.4,th*.38);ctx.strokeRect(ox,oy+th*.62,tw*.4,th*.38);
+  ctx.fillStyle='#166534'; ctx.font='11px Pretendard,sans-serif';
+  ctx.fillText('드롭오프 존',ox+tw*.2,oy+th*.62+th*.38/2+4);
+  // BOH
+  ctx.fillStyle='#f1f5f9'; ctx.strokeStyle='#94a3b8';
+  ctx.fillRect(ox+tw*.42,oy+th*.62,tw*.58,th*.38);ctx.strokeRect(ox+tw*.42,oy+th*.62,tw*.58,th*.38);
+  ctx.fillStyle='#475569'; ctx.fillText('BOH / 후문',ox+tw*.42+tw*.58/2,oy+th*.62+th*.38/2+4);
+  if($('diag-stats')) $('diag-stats').innerHTML=`1층 구성: 로비 · 레스토랑 · 드롭오프존 · BOH`;
+  ctx.textAlign='left';
+}
+
+function drawBasementDiag(ctx,ox,oy,cols,rows_,gw,gh,scale){
+  const tw=cols*gw,th=rows_*gh;
+  // Parking slots
+  const slotW=gw*.42,slotH=gh*.85,padding=3;
+  ctx.fillStyle='#f8fafc';ctx.fillRect(ox,oy,tw,th);
+  for(let i=0;i<cols;i++)for(let j=0;j<rows_;j++){
+    ctx.fillStyle='#e0e7ff'; ctx.strokeStyle='#a5b4fc'; ctx.lineWidth=1;
+    ctx.fillRect(ox+i*gw+padding,oy+j*gh+padding,slotW,slotH);
+    ctx.strokeRect(ox+i*gw+padding,oy+j*gh+padding,slotW,slotH);
+    ctx.fillStyle='#e0e7ff';
+    ctx.fillRect(ox+i*gw+gw/2+padding,oy+j*gh+padding,slotW,slotH);
+    ctx.strokeStyle='#a5b4fc';
+    ctx.strokeRect(ox+i*gw+gw/2+padding,oy+j*gh+padding,slotW,slotH);
+  }
+  // Core
+  ctx.fillStyle='#cbd5e1'; ctx.strokeStyle='#64748b'; ctx.lineWidth=2;
+  ctx.fillRect(ox+tw*.4,oy+th*.4,tw*.2,th*.25);ctx.strokeRect(ox+tw*.4,oy+th*.4,tw*.2,th*.25);
+  ctx.fillStyle='#334155'; ctx.font='bold 11px Pretendard,sans-serif'; ctx.textAlign='center';
+  ctx.fillText('코어',ox+tw*.5,oy+th*.525);
+  const slots=cols*rows_*2;
+  if($('diag-stats')) $('diag-stats').innerHTML=`주차 대수: 약 <b>${slots}대</b>  |  코어 포함`;
+  ctx.textAlign='left';
+}
+
+// ═══════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════
+function exportSummary(){
+  const lines=[
+    '=== HOTEL PLANNER 개요 ===',
+    `대지 면적: ${state.siteArea} m²`,
+    `건폐율 / 용적률: ${state.bcr}% / ${state.far}%`,
+    `지상 ${state.aboveFloors}층 / 지하 ${state.underFloors}층`,
+    `층고: ${state.floorHeight}m (로비 ${state.lobbyHeight}m)`,
+    '',
+    '=== 층별 개요 ===',
+    ...(state.floors.map(r=>`${r.floor}\t${r.fac}\t${r.area}m²`)||[]),
+  ];
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='hotel_planner_summary.txt'; a.click();
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  buildZoneTable();
+  initVMap();
+});
+</script>
+</body>
+</html>
