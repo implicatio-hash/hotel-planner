@@ -288,7 +288,6 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <div id="panel">
     <div id="panel-header">
       <h2>대지 위치 선택</h2>
-      <p>주소를 검색하거나 지도에서 필지를 선택하세요</p>
     </div>
     <div id="panel-body">
 
@@ -296,7 +295,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <div>
         <div class="sec-label" style="margin-bottom:8px;">주소 검색</div>
         <div style="display:flex;gap:6px;">
-          <input type="text" id="addr-search" placeholder="예) 강동구 상일로 6길 39"
+          <input type="text" id="addr-search" placeholder="동·읍면 또는 도로명 입력"
             onkeydown="if(event.key==='Enter')searchAddr()">
           <button class="btn btn-primary btn-sm" onclick="searchAddr()" style="flex-shrink:0;padding:7px 11px;">🔍</button>
         </div>
@@ -305,21 +304,15 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
       <!-- 검색 결과 -->
       <div id="search-results" style="display:none;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">결과를 클릭하면 지도에 표시됩니다</div>
-        <div id="search-result-list" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;"></div>
+        <div id="search-result-list" style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;"></div>
       </div>
 
-      <!-- 선택된 위치 -->
+      <!-- 선택된 위치 (X없음, 위경도 없음) -->
       <div id="selected-location" style="display:none;">
-        <div class="info-box blue" style="padding:8px 10px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
-            <div>
-              <div style="font-size:9px;color:#3b82f6;font-weight:700;margin-bottom:3px;">📍 검색된 위치</div>
-              <div id="selected-addr-text" style="font-weight:600;font-size:11px;line-height:1.5;"></div>
-              <div id="selected-coord-text" style="font-size:9px;color:#3b82f6;margin-top:2px;opacity:.7;"></div>
-            </div>
-            <button onclick="clearSearch()" style="background:none;border:none;cursor:pointer;color:#93c5fd;font-size:16px;line-height:1;flex-shrink:0;">✕</button>
-          </div>
+        <div class="info-box blue" style="padding:9px 11px;">
+          <div style="font-size:9px;color:#3b82f6;font-weight:700;margin-bottom:4px;">📍 선택된 위치</div>
+          <div id="selected-addr-parcel" style="font-weight:700;font-size:11px;line-height:1.5;"></div>
+          <div id="selected-addr-road" style="font-size:10px;color:#3b82f6;opacity:.8;margin-top:1px;"></div>
         </div>
       </div>
 
@@ -773,42 +766,41 @@ let lotLayers = [];        // WFS polygon layers
 // ── 지도 초기화 ──
 function initVMap(){
   if(vMap) return;
-  if(typeof vw === 'undefined' || typeof vw.Map2d === 'undefined'){
+  if(typeof vw === 'undefined' || typeof vw.ol3 === 'undefined'){
     setTimeout(initVMap, 200); return;
   }
 
-  // 브이월드 2D 지도 생성 (공식 API)
-  vMap = new vw.Map2d('vmap', {
-    initPosition: new vw.CameraPosition(
-      new vw.CoordZ(126.9780, 37.5665, 600),
-      new vw.Direction(0, -90, 0)
-    )
+  // vw.ol3.Map (공식 클래스명)
+  const mapOptions = new vw.ol3.MapOptions({
+    basemapType: vw.ol3.BasemapType.GRAPHIC,
+    zoom: 15,
+    minZoom: 7,
+    maxZoom: 19,
+    center: new vw.ol3.CameraPosition(126.9780, 37.5665)
   });
+  vMap = new vw.ol3.Map('vmap', mapOptions);
 
-  // 지적도 WMS 레이어
-  const wmsLayer = new vw.layer.Wms({
-    name: 'cadastral',
-    url: 'https://api.vworld.kr/req/wms',
-    params: {
-      layers: 'lt_c_landinfobaseinfo',
-      styles: '',
-      format: 'image/png',
-      transparent: true,
-      version: '1.3.0',
-      key: VWORLD_KEY
-    },
-    maxZoom: 22, minZoom: 1
-  });
-  vMap.addLayer(wmsLayer);
+  // 지적도 WMS 레이어 (필지 경계)
+  try {
+    const cadastral = new vw.ol3.layer.Wms({
+      id: 'cadastral',
+      url: 'https://api.vworld.kr/req/wms',
+      params: {
+        LAYERS: 'lt_c_landinfobaseinfo',
+        FORMAT: 'image/png',
+        TRANSPARENT: 'true',
+        key: VWORLD_KEY
+      }
+    });
+    vMap.addLayer(cadastral);
+  } catch(e){ console.warn('cadastral layer:', e); }
 
   // 지도 클릭 → 필지 조회
-  vMap.onClick(function(windowPosition, ecefPosition, cartographicPosition){
-    if(!cartographicPosition) return;
-    const lng = cartographicPosition.longitude * 180 / Math.PI;
-    const lat = cartographicPosition.latitude  * 180 / Math.PI;
-    const multi = window._ctrlDown || false;
-    fetchLotJsonp(lng, lat, multi);
+  vMap.on('singleclick', function(e){
+    const coord = ol.proj.toLonLat(e.coordinate);
+    fetchLotJsonp(coord[0], coord[1], e.originalEvent?.ctrlKey||false);
   });
+}
 }
 
 // Ctrl 키 추적 (다중 선택)
@@ -820,7 +812,11 @@ function searchAddr(){
   const q = $('addr-search').value.trim();
   if(!q){ showToast('주소를 입력해 주세요'); return; }
   setSearchStatus('검색 중…');
+  // 이전 선택 초기화
   $('search-results').style.display = 'none';
+  $('selected-location').style.display = 'none';
+  selectedLots.clear();
+  updateSelectedLots();
 
   searchByJsonp(q, 'parcel', function(items){
     if(items.length){ renderResults(items); return; }
@@ -860,46 +856,47 @@ function renderResults(items){
   setSearchStatus(`${items.length}건 검색됨`, 'green');
   const list = $('search-result-list');
   list.innerHTML = items.map(item => {
-    const addr = item.address?.parcel || item.address?.road || item.title || '주소 없음';
+    const parcel = item.address?.parcel || item.title || '';
+    const road   = item.address?.road || '';
     const lng = parseFloat(item.point?.x || 0);
     const lat = parseFloat(item.point?.y || 0);
-    return `<div class="search-result-item" onclick="selectResult('${addr.replace(/'/g,"\\'")}',${lng},${lat})">
-      <div class="addr-main">${addr}</div>
-      <div class="addr-sub">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+    return `<div class="search-result-item" onclick="selectResult('${parcel.replace(/'/g,"\\'")}','${road.replace(/'/g,"\\'")}',${lng},${lat})">
+      <div class="addr-main">${parcel || road}</div>
+      ${road && parcel ? `<div class="addr-sub">${road}</div>` : ''}
     </div>`;
   }).join('');
   $('search-results').style.display = 'block';
 }
 
-function selectResult(addr, lng, lat){
+function selectResult(parcel, road, lng, lat){
   $('search-results').style.display = 'none';
   $('selected-location').style.display = 'block';
-  $('selected-addr-text').textContent = addr;
-  $('selected-coord-text').textContent = `위도 ${lat.toFixed(5)}  경도 ${lng.toFixed(5)}`;
-  $('addr-search').value = addr;
-  setSearchStatus('✓ 위치 선택됨 — 지도에서 필지를 클릭하세요', 'green');
-  state.searchMarker = {addr, lng, lat};
+  $('selected-addr-parcel').textContent = parcel || road;
+  $('selected-addr-road').textContent = (road && parcel) ? road : '';
+  setSearchStatus('');
+  state.searchMarker = {addr: parcel||road, lng, lat};
 
-  if(!vMap){ initVMap(); setTimeout(()=>moveMapTo(lng,lat), 800); return; }
+  if(!vMap){ initVMap(); setTimeout(()=>moveMapTo(lng,lat), 600); return; }
   moveMapTo(lng, lat);
 }
 
 function moveMapTo(lng, lat){
+  if(!vMap) return;
   try{
-    vMap.moveTo(new vw.CoordZ(lng, lat, 300), new vw.Direction(0,-90,0));
-  } catch(e){
-    try{ vMap.getView().moveTo(new vw.CoordZ(lng, lat, 300)); } catch(e2){}
-  }
-  // 핀 마커
-  if(vMarker){ try{ vMap.removeObject(vMarker); }catch(e){} vMarker=null; }
+    const view = vMap.getView();
+    const center = ol.proj.fromLonLat([lng, lat]);
+    view.animate({ center, zoom: 18, duration: 500 });
+  } catch(e){ console.warn('moveMapTo:', e); }
+
+  // 마커
+  if(vMarker){ try{ vMap.removeLayer(vMarker); }catch(e){} vMarker=null; }
   try{
-    vMarker = new vw.Marker({
-      id:'searchPin',
-      position: new vw.Coord(lng, lat),
-      icon: { url:'https://map.vworld.kr/images/ol3/marker/red.png', width:24, height:35 }
+    vMarker = new vw.ol3.layer.Marker({
+      id: 'searchPin',
+      position: new vw.ol3.CameraPosition(lng, lat)
     });
-    vMap.addObject(vMarker);
-  } catch(e){}
+    vMap.addLayer(vMarker);
+  } catch(e){ console.warn('marker:', e); }
 }
 
 function clearSearch(){
