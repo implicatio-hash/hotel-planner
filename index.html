@@ -810,30 +810,30 @@ async function searchAddr(){
   const q = $('addr-search').value.trim();
   if(!q){ showToast('주소를 입력해 주세요'); return; }
   setSearchStatus('검색 중…');
-  $('search-results').style.display='none';
+  $('search-results').style.display = 'none';
+
+  const base = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0`
+    + `&crs=EPSG:4326&size=10&page=1&format=json&errorformat=json&key=${VWORLD_KEY}`
+    + `&query=${encodeURIComponent(q)}`;
+
+  // 지번(동 이름) 우선 → 도로명 → 장소명 순서
+  const urls = [
+    base + `&type=address&category=parcel`,
+    base + `&type=address&category=road`,
+    base + `&type=place`
+  ];
 
   try{
-    // 도로명 우선
-    let url = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0`
-      +`&crs=EPSG:4326&size=10&page=1&query=${encodeURIComponent(q)}`
-      +`&type=address&category=road&format=json&errorformat=json&key=${VWORLD_KEY}`;
-    let res = await fetch(url);
-    let data = await res.json();
-    let items = data.response?.result?.items || [];
-
-    if(!items.length){
-      // 지번 재시도
-      url = url.replace('category=road','category=parcel');
-      res = await fetch(url);
-      data = await res.json();
-      items = data.response?.result?.items || [];
+    for(const url of urls){
+      const res = await fetch(url);
+      const data = await res.json();
+      const items = data.response?.result?.items || [];
+      if(items.length){ renderResults(items); return; }
     }
-
-    if(items.length){ renderResults(items); }
-    else { setSearchStatus('검색 결과가 없습니다'); }
+    setSearchStatus('검색 결과가 없습니다');
   } catch(e){
     setSearchStatus('검색에 실패했습니다');
-    console.error(e);
+    console.error('searchAddr error:', e);
   }
 }
 
@@ -841,7 +841,7 @@ function renderResults(items){
   setSearchStatus(`${items.length}건 검색됨`, 'green');
   const list = $('search-result-list');
   list.innerHTML = items.map(item => {
-    const addr = item.address?.road || item.address?.parcel || item.title || '주소 없음';
+    const addr = item.address?.parcel || item.address?.road || item.title || '주소 없음';
     const lng = parseFloat(item.point?.x || 0);
     const lat = parseFloat(item.point?.y || 0);
     return `<div class="search-result-item" onclick="selectResult('${addr.replace(/'/g,"\\'")}',${lng},${lat})">
@@ -861,20 +861,27 @@ function selectResult(addr, lng, lat){
   setSearchStatus('✓ 위치 선택됨', 'green');
   state.searchMarker = {addr, lng, lat};
 
-  // 지도 이동 + 핀 마커
+  // 지도 이동
   if(vMap){
-    vMap.setCenter([lng, lat]);
-    vMap.setZoom(18);
-    // 기존 핀 제거
-    if(vMarker) vMap.removeLayer(vMarker);
-    // 핀 오버레이 추가
-    vMarker = new vw.ol3.layer.Marker({
-      id: 'searchPin',
-      position: [lng, lat],
-      iconUrl: 'https://map.vworld.kr/images/ol3/marker/red.png',
-      label: addr.length > 24 ? addr.slice(0,24)+'…' : addr
-    });
-    vMap.addLayer(vMarker);
+    try{
+      // ol3 뷰 방식
+      const view = vMap.getView();
+      const center = ol.proj.fromLonLat([lng, lat]);
+      view.animate({ center, zoom: 18, duration: 600 });
+    } catch(e){
+      // 대안: setCenter API
+      try { vMap.setCenter(lng, lat, 18); } catch(e2){}
+    }
+    // 핀 마커 (기존 제거 후 재추가)
+    if(vMarker){ try{ vMap.removeLayer(vMarker); }catch(e){} vMarker = null; }
+    try{
+      vMarker = new vw.ol3.layer.Marker({
+        id: 'searchPin',
+        position: [lng, lat],
+        label: addr.length > 22 ? addr.slice(0,22)+'…' : addr
+      });
+      vMap.addLayer(vMarker);
+    } catch(e){ console.warn('marker error:', e); }
   }
 }
 
