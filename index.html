@@ -770,71 +770,62 @@ let lotLayers = [];        // WFS polygon layers
 // ── 지도 초기화 ──
 function initVMap(){
   if(vMap) return;
-  // SDK 로딩 대기
-  if(typeof vw === 'undefined' || typeof vw.ol3 === 'undefined'){
+  if(typeof vw === 'undefined'){
     setTimeout(initVMap, 300); return;
   }
-
-  // 브이월드 2D 지도 생성
-  vMap = new vw.ol3.map({
-    target: 'vmap',
-    basemapId: 'Satellite',   // 'Base' | 'Satellite' | 'white'
-    zoom: 17,
-    center: [126.9780, 37.5665]
-  });
-
-  // 지적도 WMS 레이어 (필지 경계 표시)
-  const cadastralLayer = new vw.ol3.layer.Wms({
-    id: 'cadastral',
-    url: 'https://api.vworld.kr/req/wms',
-    params: {
-      LAYERS: 'lt_c_landinfobaseinfo',
-      FORMAT: 'image/png',
-      TRANSPARENT: 'true',
-      key: VWORLD_KEY
-    },
-    opacity: 0.7
-  });
-  vMap.addLayer(cadastralLayer);
-
-  // 지도 클릭 이벤트 → 필지 WFS 조회
-  vMap.on('singleclick', function(e){
-    const coord = e.coordinate; // [lng, lat] in EPSG:4326
-    const multiSelect = e.originalEvent?.ctrlKey || e.originalEvent?.metaKey || false;
-    fetchLotAtPoint(coord[0], coord[1], multiSelect);
-  });
+  try {
+    vMap = vw.map({
+      basemap: vw.BasemapType.GRAPHIC,
+      zoom: 15,
+      lng: 126.9780,
+      lat: 37.5665,
+      container: 'vmap'
+    });
+  } catch(e){
+    console.warn('vworld map init:', e);
+  }
 }
 
-// ── 주소 검색 ──
-async function searchAddr(){
+// ── 주소 검색 (JSONP) ──
+function searchAddr(){
   const q = $('addr-search').value.trim();
   if(!q){ showToast('주소를 입력해 주세요'); return; }
   setSearchStatus('검색 중…');
   $('search-results').style.display = 'none';
 
-  const base = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0`
-    + `&crs=EPSG:4326&size=10&page=1&format=json&errorformat=json&key=${VWORLD_KEY}`
-    + `&query=${encodeURIComponent(q)}`;
+  // 지번(동) 우선 → 도로명 재시도
+  searchByJsonp(q, 'parcel', function(items){
+    if(items.length){ renderResults(items); return; }
+    searchByJsonp(q, 'road', function(items2){
+      if(items2.length){ renderResults(items2); return; }
+      setSearchStatus('검색 결과가 없습니다');
+    });
+  });
+}
 
-  // 지번(동 이름) 우선 → 도로명 → 장소명 순서
-  const urls = [
-    base + `&type=address&category=parcel`,
-    base + `&type=address&category=road`,
-    base + `&type=place`
-  ];
+function searchByJsonp(q, category, cb){
+  const cbName = 'vwcb_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  const script = document.createElement('script');
+  const timer = setTimeout(function(){ cleanup(); cb([]); }, 6000);
 
-  try{
-    for(const url of urls){
-      const res = await fetch(url);
-      const data = await res.json();
-      const items = data.response?.result?.items || [];
-      if(items.length){ renderResults(items); return; }
-    }
-    setSearchStatus('검색 결과가 없습니다');
-  } catch(e){
-    setSearchStatus('검색에 실패했습니다');
-    console.error('searchAddr error:', e);
+  function cleanup(){
+    clearTimeout(timer);
+    delete window[cbName];
+    if(script.parentNode) script.parentNode.removeChild(script);
   }
+
+  window[cbName] = function(data){
+    cleanup();
+    cb(data?.response?.result?.items || []);
+  };
+  script.onerror = function(){ cleanup(); cb([]); };
+  script.src = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0`
+    + `&crs=EPSG:4326&size=10&page=1`
+    + `&query=${encodeURIComponent(q)}`
+    + `&type=address&category=${category}`
+    + `&format=json&errorformat=json`
+    + `&callback=${cbName}&key=${VWORLD_KEY}`;
+  document.body.appendChild(script);
 }
 
 function renderResults(items){
@@ -863,25 +854,11 @@ function selectResult(addr, lng, lat){
 
   // 지도 이동
   if(vMap){
-    try{
-      // ol3 뷰 방식
-      const view = vMap.getView();
-      const center = ol.proj.fromLonLat([lng, lat]);
-      view.animate({ center, zoom: 18, duration: 600 });
-    } catch(e){
-      // 대안: setCenter API
-      try { vMap.setCenter(lng, lat, 18); } catch(e2){}
-    }
-    // 핀 마커 (기존 제거 후 재추가)
-    if(vMarker){ try{ vMap.removeLayer(vMarker); }catch(e){} vMarker = null; }
-    try{
-      vMarker = new vw.ol3.layer.Marker({
-        id: 'searchPin',
-        position: [lng, lat],
-        label: addr.length > 22 ? addr.slice(0,22)+'…' : addr
-      });
-      vMap.addLayer(vMarker);
-    } catch(e){ console.warn('marker error:', e); }
+    try { vMap.setCenter(lng, lat); vMap.setZoom(18); } catch(e){}
+    try {
+      if(vMarker) vMap.removeMarker(vMarker);
+      vMarker = vMap.addMarker({ lng, lat, label: addr.length>22 ? addr.slice(0,22)+'…' : addr });
+    } catch(e){}
   }
 }
 
@@ -889,7 +866,7 @@ function clearSearch(){
   state.searchMarker = null;
   $('selected-location').style.display = 'none';
   setSearchStatus('');
-  if(vMarker && vMap){ vMap.removeLayer(vMarker); vMarker = null; }
+  if(vMarker && vMap){ try{ vMap.removeMarker(vMarker); }catch(e){} vMarker = null; }
 }
 
 // ── 필지 클릭 → WFS 면적 조회 ──
