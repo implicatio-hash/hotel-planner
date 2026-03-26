@@ -801,7 +801,6 @@ function initVMap(){
     fetchLotJsonp(coord[0], coord[1], e.originalEvent?.ctrlKey||false);
   });
 }
-}
 
 // Ctrl 키 추적 (다중 선택)
 window.addEventListener('keydown', e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=true; });
