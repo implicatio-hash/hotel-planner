@@ -298,7 +298,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         <div style="display:flex;gap:6px;">
           <input type="text" id="addr-search" placeholder="동·읍면 또는 도로명 입력"
             onkeydown="if(event.key==='Enter')searchAddr()">
-          <button class="btn btn-primary btn-sm" onclick="searchAddr()" style="flex-shrink:0;padding:7px 11px;">🔍</button>
+          <button class="btn btn-primary btn-sm" onclick="searchAddr()" style="flex-shrink:0;padding:7px 11px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);">🔍</button>
         </div>
         <div id="search-status" style="margin-top:5px;font-size:10px;color:var(--text3);min-height:14px;"></div>
       </div>
@@ -311,7 +311,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <!-- 선택된 위치 (X없음, 위경도 없음) -->
       <div id="selected-location" style="display:none;">
         <div class="info-box blue" style="padding:9px 11px;">
-          <div style="font-size:9px;color:#3b82f6;font-weight:700;margin-bottom:4px;">📍 선택된 위치</div>
+          <div style="font-size:9px;color:#3b82f6;font-weight:700;margin-bottom:4px;">📍 기준 주소</div>
           <div id="selected-addr-parcel" style="font-weight:700;font-size:11px;line-height:1.5;"></div>
           <div id="selected-addr-road" style="font-size:10px;color:#3b82f6;opacity:.8;margin-top:1px;"></div>
         </div>
@@ -355,26 +355,24 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 <div id="step-1" class="step-panel" style="flex-direction:row;">
   <div id="panel" style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
-      <h2>대지 정보 확인</h2>
-      <p>용도지역과 건폐율·용적률을 입력하세요</p>
+      <h2>대지 정보</h2>
     </div>
     <div id="panel-body">
+
+      <!-- 대지 면적 (앞 페이지 연동, 읽기 전용) -->
       <div class="form-group">
         <label>대지 면적 (㎡)</label>
-        <input type="number" id="site-area" value="2400" min="100">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="text" id="site-area" readonly
+            style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
+          <span style="font-size:10px;color:var(--text3);white-space:nowrap;">합산값</span>
+        </div>
       </div>
-      <div class="form-group">
-        <label>용도지역</label>
-        <select id="zone-type" onchange="applyZonePreset()">
-          <option value="3종일반">3종 일반주거지역</option>
-          <option value="준주거">준주거지역</option>
-          <option value="일반상업" selected>일반상업지역</option>
-          <option value="중심상업">중심상업지역</option>
-          <option value="근린상업">근린상업지역</option>
-          <option value="준공업">준공업지역</option>
-          <option value="직접입력">직접 입력</option>
-        </select>
-      </div>
+
+      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+      <!-- 규모 한계 입력 -->
+      <div class="sec-label" style="margin-bottom:8px;">규모 한계</div>
       <div class="input-row">
         <div class="form-group">
           <label>건폐율 (%)</label>
@@ -386,12 +384,13 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         </div>
       </div>
       <div class="form-group">
-        <label>도로폭 (접도 최대, m)</label>
-        <input type="number" id="road-width" value="12" min="4">
+        <label>최대 높이 (m)</label>
+        <input type="number" id="max-height" value="90" min="10" step="1">
       </div>
-      <button class="btn btn-primary btn-full" onclick="calcSiteInfo()">정보 확인 →</button>
 
-      <div id="site-result" style="display:none;margin-top:8px;">
+      <button class="btn btn-primary btn-full" onclick="calcSiteInfo()" style="margin-top:8px;">확인 →</button>
+
+      <div id="site-result" style="display:none;margin-top:10px;">
         <div class="info-grid">
           <div class="info-card">
             <div class="ic-label">최대 건축 면적</div>
@@ -402,23 +401,18 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <div><span class="ic-val" id="max-gfa">0</span><span class="ic-unit">m²</span></div>
           </div>
         </div>
-        <div style="margin-top:10px;">
-          <button class="btn btn-primary btn-full" onclick="goStep(2)">다음: 지상 볼륨 산정 →</button>
-        </div>
+        <button class="btn btn-primary btn-full" style="margin-top:10px;" onclick="goStep(2)">다음: 지상 볼륨 산정 →</button>
       </div>
+
     </div>
   </div>
-  <div style="flex:1;padding:24px;overflow-y:auto;">
-    <div style="max-width:600px;margin:0 auto;">
-      <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;">용도지역별 건폐율 / 용적률 기준</h3>
-      <table style="width:100%;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-        <thead><tr>
-          <th style="background:var(--bg3);padding:8px 12px;text-align:left;font-size:11px;border-bottom:1px solid var(--border);">용도지역</th>
-          <th style="background:var(--bg3);padding:8px 12px;text-align:center;font-size:11px;border-bottom:1px solid var(--border);">건폐율</th>
-          <th style="background:var(--bg3);padding:8px 12px;text-align:center;font-size:11px;border-bottom:1px solid var(--border);">용적률</th>
-        </tr></thead>
-        <tbody id="zone-table-body"></tbody>
-      </table>
+
+  <!-- 우측: 선택 필지 외곽선 배치도 -->
+  <div style="flex:1;position:relative;background:var(--bg3);display:flex;align-items:center;justify-content:center;">
+    <canvas id="lot-outline-canvas" style="max-width:100%;max-height:100%;"></canvas>
+    <div style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text3);
+      background:rgba(255,255,255,.88);padding:4px 10px;border-radius:5px;border:1px solid var(--border);">
+      선택 필지 합산 외곽선
     </div>
   </div>
 </div>
@@ -747,6 +741,7 @@ function goStep(idx){
     b.classList.toggle('active',+b.dataset.step===idx);
   });
   if(idx===0){ if(vMap) vMap.updateSize(); else initVMap(); }
+  if(idx===1){ syncStep1(); drawLotOutline(); }
   if(idx===4){ drawBohChart(); updateBohAreas(); }
   if(idx===5){ initThreeJS(); }
   if(idx===6){ buildFloorTable(); recalcFAR(); }
@@ -1035,7 +1030,7 @@ function updateSelectedLots(){
   const lots = [...selectedLots.values()];
   const total = lots.reduce((s, l) => s + (l.area || 0), 0);
   $('lot-count').textContent = lots.length;
-  $('lot-area-disp').textContent = Math.round(total) + ' m²';
+  $('lot-area-disp').textContent = total.toFixed(2) + ' m²';
   const wrap = $('selected-lots');
   if(!lots.length){
     wrap.innerHTML = '<div class="info-box" style="text-align:center;color:var(--text3);">지도에서 필지를 클릭하세요</div>';
@@ -1045,12 +1040,12 @@ function updateSelectedLots(){
   wrap.innerHTML = lots.map(l =>
     `<div class="search-result-item" style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
       <span style="flex:1;font-size:10px;line-height:1.4;">${l.addr}</span>
-      <span style="font-weight:700;color:var(--accent);white-space:nowrap;">${l.area ? Math.round(l.area)+' m²' : '면적 미상'}</span>
+      <span style="font-weight:700;color:var(--accent);white-space:nowrap;">${l.area ? l.area.toFixed(2)+' m²' : '조회 중…'}</span>
       <button onclick="removeLot('${l.pnu}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;flex-shrink:0;">✕</button>
     </div>`
   ).join('');
-  state.siteArea = Math.round(total);
-  $('total-site-area').textContent = Math.round(total) + ' m²';
+  state.siteArea = total;
+  $('total-site-area').textContent = total.toFixed(2) + ' m²';
   $('lots-summary').style.display = 'block';
 }
 
@@ -1102,16 +1097,103 @@ function buildZoneTable(){
     </tr>`).join('');
 }
 
+// Step 1 진입 시 대지면적 연동
+function syncStep1(){
+  const area = state.siteArea || 0;
+  const el = $('site-area');
+  if(el) el.value = area.toFixed(2);
+}
+
+// 선택 필지 외곽선 캔버스 그리기
+function drawLotOutline(){
+  const canvas = $('lot-outline-canvas');
+  if(!canvas) return;
+  const wrap = canvas.parentElement;
+  const W = wrap.clientWidth  || 600;
+  const H = wrap.clientHeight || 500;
+  canvas.width  = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#f0f1f4';
+  ctx.fillRect(0,0,W,H);
+
+  const features = window._lotSource ? window._lotSource.getFeatures() : [];
+  if(!features.length){
+    ctx.fillStyle = '#aab2c8';
+    ctx.font = '13px Pretendard,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('선택된 필지 없음', W/2, H/2);
+    return;
+  }
+
+  // 전체 extent 계산
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  features.forEach(f=>{
+    const ext = f.getGeometry().getExtent();
+    if(ext[0]<minX) minX=ext[0]; if(ext[1]<minY) minY=ext[1];
+    if(ext[2]>maxX) maxX=ext[2]; if(ext[3]>maxY) maxY=ext[3];
+  });
+
+  const pad = 60;
+  const scaleX = (W - pad*2) / (maxX - minX || 1);
+  const scaleY = (H - pad*2) / (maxY - minY || 1);
+  const scale  = Math.min(scaleX, scaleY);
+  const offX   = pad + ((W - pad*2) - (maxX - minX)*scale) / 2;
+  const offY   = pad + ((H - pad*2) - (maxY - minY)*scale) / 2;
+
+  function toCanvas(cx, cy){
+    return [offX + (cx - minX)*scale, H - (offY + (cy - minY)*scale)];
+  }
+
+  function drawRing(ring){
+    if(!ring.length) return;
+    const [sx, sy] = toCanvas(ring[0][0], ring[0][1]);
+    ctx.moveTo(sx, sy);
+    for(let i=1;i<ring.length;i++){
+      const [px,py] = toCanvas(ring[i][0], ring[i][1]);
+      ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+
+  // 채움
+  ctx.beginPath();
+  features.forEach(f=>{
+    const geom = f.getGeometry();
+    const type = geom.getType();
+    if(type==='Polygon'){
+      geom.getCoordinates().forEach(ring => drawRing(ring));
+    } else if(type==='MultiPolygon'){
+      geom.getCoordinates().forEach(poly => poly.forEach(ring => drawRing(ring)));
+    }
+  });
+  ctx.fillStyle   = 'rgba(37,99,235,0.15)';
+  ctx.strokeStyle = '#2563eb';
+  ctx.lineWidth   = 2;
+  ctx.fill();
+  ctx.stroke();
+
+  // 면적 텍스트
+  const total = [...selectedLots.values()].reduce((s,l)=>s+(l.area||0),0);
+  if(total>0){
+    ctx.fillStyle = '#2563eb';
+    ctx.font = 'bold 13px Pretendard,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`합산 면적 ${total.toFixed(2)} ㎡`, W/2, H-18);
+  }
+}
+
 function calcSiteInfo(){
-  const sa=n('site-area')||state.siteArea;
-  const bcr=n('bcr'), far=n('far');
-  state.siteArea=sa; state.bcr=bcr; state.far=far;
-  const mc=Math.floor(sa*bcr/100);
-  const mg=Math.floor(sa*far/100);
-  state.maxCoverage=mc; state.maxGFA=mg;
-  $('max-coverage').textContent=mc.toLocaleString();
-  $('max-gfa').textContent=mg.toLocaleString();
-  $('site-result').style.display='block';
+  const sa = state.siteArea || parseFloat($('site-area')?.value) || 0;
+  const bcr = n('bcr'), far = n('far');
+  state.bcr = bcr; state.far = far;
+  const mc = Math.floor(sa * bcr / 100);
+  const mg = Math.floor(sa * far / 100);
+  state.maxCoverage = mc; state.maxGFA = mg;
+  $('max-coverage').textContent = mc.toLocaleString();
+  $('max-gfa').textContent = mg.toLocaleString();
+  $('site-result').style.display = 'block';
 }
 
 // ═══════════════════════════════════════════
