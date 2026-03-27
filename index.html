@@ -964,17 +964,33 @@ function fetchLotByGFI(evt, pixel, coord, multiSelect){
     const pnu  = props.pnu  || String(Date.now());
     const addr = props.addr || props.jibun || '주소 미상';
 
-    // geometry에서 면적 계산 (EPSG:3857 기준 m²)
-    let area = 0;
+    // geometry → 지도 하이라이트용
     let olGeom = null;
     if(f.geometry){
-      try{
-        olGeom = new ol.format.GeoJSON().readGeometry(f.geometry);
-        area = Math.abs(olGeom.getArea ? olGeom.getArea() : 0);
-      }catch(e){}
+      try{ olGeom = new ol.format.GeoJSON().readGeometry(f.geometry); }catch(e){}
     }
 
-    toggleLot(pnu, addr, area, olGeom);
+    // 먼저 geometry로 임시 등록 후, getLandCharacteristics로 등록 면적 갱신
+    toggleLot(pnu, addr, 0, olGeom);
+
+    // getLandCharacteristics JSONP → 등록 토지면적(lndpclAr) 조회
+    const lcCb = 'lc_' + Date.now();
+    const lcScript = document.createElement('script');
+    window[lcCb] = function(data){
+      delete window[lcCb];
+      if(lcScript.parentNode) lcScript.parentNode.removeChild(lcScript);
+      const field = data?.landCharacteristicss?.field;
+      const area = field && field.length ? parseFloat(field[0].lndpclAr || 0) : 0;
+      // 이미 선택된 필지 면적 갱신
+      if(selectedLots.has(pnu)){
+        selectedLots.get(pnu).area = area;
+        updateSelectedLots();
+      }
+    };
+    lcScript.onerror = function(){ delete window[lcCb]; if(lcScript.parentNode) lcScript.parentNode.removeChild(lcScript); };
+    lcScript.src = `https://api.vworld.kr/ned/data/getLandCharacteristics`
+      + `?key=${VWORLD_KEY}&pnu=${encodeURIComponent(pnu)}&format=json&numOfRows=1&pageNo=1&callback=${lcCb}`;
+    document.body.appendChild(lcScript);
     setSearchStatus('');
   };
 
