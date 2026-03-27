@@ -747,7 +747,7 @@ function goStep(idx){
     b.classList.toggle('active',+b.dataset.step===idx);
   });
   if(idx===0){ if(vMap){ vMap.updateSize(); loadCadastralWFS(); } else initVMap(); }
-  if(idx===1){ syncStep1(); drawLotOutline(); }
+  if(idx===1){ syncStep1(); loadSetbackLayer().then(()=>drawLotOutline()); }
   if(idx===4){ drawBohChart(); updateBohAreas(); }
   if(idx===5){ initThreeJS(); }
   if(idx===6){ buildFloorTable(); recalcFAR(); }
@@ -784,7 +784,7 @@ function initVMap(){
       fill: new ol.style.Fill({ color: 'rgba(180,185,195,0.15)' }),
       stroke: new ol.style.Stroke({ color: '#9ca3af', width: 1 })
     }),
-    minZoom: 15
+    minZoom: 14
   });
 
   // 선택 필지 하이라이트 (파란색)
@@ -810,7 +810,7 @@ function initVMap(){
       center: ol.proj.fromLonLat([126.9780, 37.5665]),
       zoom: 15,
       minZoom: 7,
-      maxZoom: 19
+      maxZoom: 21
     }),
     controls: []
   });
@@ -844,7 +844,7 @@ let _cadastralLoading = false;
 function loadCadastralWFS(){
   if(!vMap || _cadastralLoading) return;
   const zoom = vMap.getView().getZoom();
-  if(zoom < 15){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
+  if(zoom < 14){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
 
   _cadastralLoading = true;
   const ext = vMap.getView().calculateExtent(vMap.getSize());
@@ -1286,19 +1286,45 @@ function drawLotOutline(){
     const bf = new ol.Feature({ geometry: boundaryGeom });
     bf.set('type','boundary');
     outlineSource.addFeature(bf);
-    try {
-      const sg = turf.buffer(merged, -3, { units:'meters' });
-      if(sg){ const sgm = fmt.readGeometry(sg.geometry); sgm.transform('EPSG:4326','EPSG:3857'); const sf = new ol.Feature({ geometry: sgm }); sf.set('type','setback'); outlineSource.addFeature(sf); }
-    } catch(e){}
+
+    // 건축한계선: SHP 데이터에서 선택 필지 내부 영역만 clip
+    addSetbackFromSHP(merged, outlineSource);
   } else {
     features.forEach(f => { const c = f.clone(); c.set('type','boundary'); outlineSource.addFeature(c); });
   }
 
-  // 항상 fit (버그2: 재진입 시 zoom 초기화)
+  // 항상 fit (재진입 시 zoom 초기화)
   const ext = outlineSource.getExtent();
   if(ext && ext[0] !== Infinity){
     window._step1Map.getView().fit(ext, { padding:[60,60,60,60], maxZoom:19, duration:300 });
   }
+}
+
+// SHP에서 선택 필지 내부 건축한계선만 clip해서 표시
+function addSetbackFromSHP(mergedGeoJSON, outlineSource){
+  if(!window._shpLayer) return;
+  const fmt = new ol.format.GeoJSON();
+  const shpFeatures = window._shpLayer.getSource().getFeatures();
+  if(!shpFeatures.length) return;
+
+  shpFeatures.forEach(shpF => {
+    try {
+      // SHP feature를 EPSG:4326 GeoJSON으로 변환
+      const clone = shpF.getGeometry().clone();
+      clone.transform('EPSG:3857','EPSG:4326');
+      const shpGJ = { type:'Feature', geometry: JSON.parse(fmt.writeGeometry(clone)) };
+
+      // 선택 필지(mergedGeoJSON)와 교차하는 부분만 추출
+      const clipped = turf.intersect(mergedGeoJSON, shpGJ);
+      if(!clipped) return;
+
+      const clippedGeom = fmt.readGeometry(clipped.geometry);
+      clippedGeom.transform('EPSG:4326','EPSG:3857');
+      const sf = new ol.Feature({ geometry: clippedGeom });
+      sf.set('type','setback');
+      outlineSource.addFeature(sf);
+    } catch(e){}
+  });
 }
 
 
