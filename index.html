@@ -744,7 +744,7 @@ function goStep(idx){
   document.querySelectorAll('.step-btn').forEach(b=>{
     b.classList.toggle('active',+b.dataset.step===idx);
   });
-  if(idx===0){ if(vMap) vMap.updateSize(); else initVMap(); }
+  if(idx===0){ if(vMap){ vMap.updateSize(); loadCadastralWFS(); } else initVMap(); }
   if(idx===1){ syncStep1(); drawLotOutline(); }
   if(idx===4){ drawBohChart(); updateBohAreas(); }
   if(idx===5){ initThreeJS(); }
@@ -766,36 +766,32 @@ let selectedLots = new Map();
 function initVMap(){
   if(vMap) return;
 
-  // 브이월드 기본지도 (WMTS)
+  // 기본지도 (WMTS)
   const baseLayer = new ol.layer.Tile({
     source: new ol.source.XYZ({
       url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
     })
   });
 
-  // 연속지적도 WMS (작동 확인된 기본 스타일)
-  const cadastralLayer = new ol.layer.Image({
-    source: new ol.source.ImageWMS({
-      url: 'https://api.vworld.kr/req/wms',
-      params: {
-        LAYERS: 'lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun',
-        STYLES: 'lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line',
-        FORMAT: 'image/png',
-        TRANSPARENT: 'TRUE',
-        key: VWORLD_KEY
-      }
+  // 지적도 벡터 레이어 (WFS — 회색)
+  const cadastralSource = new ol.source.Vector();
+  window._cadastralSource = cadastralSource;
+  const cadastralLayer = new ol.layer.Vector({
+    source: cadastralSource,
+    style: new ol.style.Style({
+      fill: new ol.style.Fill({ color: 'rgba(180,185,195,0.15)' }),
+      stroke: new ol.style.Stroke({ color: '#9ca3af', width: 1 })
     }),
-    opacity: 0.9
+    minZoom: 15
   });
-  window._cadastralWMS = cadastralLayer.getSource();
 
-  // 선택 필지 하이라이트 (파란색 50% 투명 채움)
+  // 선택 필지 하이라이트 (파란색)
   const lotSource = new ol.source.Vector();
   window._lotSource = lotSource;
   const lotLayer = new ol.layer.Vector({
     source: lotSource,
     style: new ol.style.Style({
-      fill: new ol.style.Fill({ color: 'rgba(37,99,235,0.5)' }),
+      fill: new ol.style.Fill({ color: 'rgba(37,99,235,0.45)' }),
       stroke: new ol.style.Stroke({ color: '#2563eb', width: 2.5 })
     })
   });
@@ -817,12 +813,93 @@ function initVMap(){
     controls: []
   });
 
-  // 지도 클릭 → GetFeatureInfo JSONP로 필지 속성 조회
-  vMap.on('singleclick', function(e){
-    const pixel = e.pixel;
-    const coord = ol.proj.toLonLat(e.coordinate);
-    fetchLotByGFI(e, pixel, coord);
+  // 지도 이동 끝 → 현재 범위 WFS 로드
+  let _wfsTimer = null;
+  vMap.on('moveend', function(){
+    clearTimeout(_wfsTimer);
+    _wfsTimer = setTimeout(loadCadastralWFS, 200);
   });
+
+  // 클릭 → 벡터에서 직접 필지 특정 (GetFeatureInfo 불필요)
+  vMap.on('singleclick', function(e){
+    let hit = false;
+    vMap.forEachFeatureAtPixel(e.pixel, function(feature, layer){
+      if(hit || layer !== cadastralLayer) return;
+      hit = true;
+      const props = feature.get('props') || {};
+      const pnu  = props.pnu  || String(Date.now());
+      const addr = props.addr || props.jibun || '주소 미상';
+      const olGeom = feature.getGeometry();
+      toggleLot(pnu, addr, 0, olGeom);
+      // 등록 면적 조회
+      fetchLandArea(pnu);
+    }, { hitTolerance: 4 });
+  });
+}
+
+// WFS JSONP로 현재 화면 범위 지적도 로드
+let _cadastralLoading = false;
+function loadCadastralWFS(){
+  if(!vMap || _cadastralLoading) return;
+  const zoom = vMap.getView().getZoom();
+  if(zoom < 15){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
+
+  _cadastralLoading = true;
+  const ext = vMap.getView().calculateExtent(vMap.getSize());
+  const [minLng, minLat, maxLng, maxLat] = ol.proj.transformExtent(ext, 'EPSG:3857', 'EPSG:4326');
+
+  const cbName = 'cad_' + Date.now();
+  const script = document.createElement('script');
+  const timer = setTimeout(()=>{ _cadastralLoading=false; cleanup(); }, 10000);
+  function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+
+  window[cbName] = function(data){
+    _cadastralLoading = false; cleanup();
+    const features = data && data.features || [];
+    if(!features.length) return;
+    const fmt = new ol.format.GeoJSON();
+    const src = window._cadastralSource;
+    if(!src) return;
+    // 기존 feature 중 현재 범위 밖 것만 제거, 새 것 추가 (중복 pnu 스킵)
+    const existingPnus = new Set(src.getFeatures().map(f => f.get('props')?.pnu));
+    features.forEach(f => {
+      const pnu = f.properties?.pnu;
+      if(pnu && existingPnus.has(pnu)) return;
+      try {
+        const olF = fmt.readFeature(f, { dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
+        olF.set('props', f.properties);
+        src.addFeature(olF);
+      } catch(e){}
+    });
+  };
+  script.onerror = ()=>{ _cadastralLoading=false; cleanup(); };
+  // BBOX: EPSG:4326에서 (ymin,xmin,ymax,xmax)
+  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
+    + `&typename=lp_pa_cbnd_bubun`
+    + `&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
+    + `&srsname=EPSG:4326&maxfeatures=200`
+    + `&output=text/javascript&format_options=callback:${cbName}`
+    + `&key=${VWORLD_KEY}`;
+  document.body.appendChild(script);
+}
+
+// 등록 면적 조회 (getLandCharacteristics)
+function fetchLandArea(pnu){
+  const lcCb = 'lc_' + Date.now();
+  const s = document.createElement('script');
+  window[lcCb] = function(data){
+    delete window[lcCb]; if(s.parentNode) s.parentNode.removeChild(s);
+    const field = data?.landCharacteristicss?.field;
+    const area = field && field.length ? parseFloat(field[0].lndpclAr || 0) : 0;
+    if(selectedLots.has(pnu)){
+      selectedLots.get(pnu).area = area;
+      updateSelectedLots();
+    }
+  };
+  s.onerror = ()=>{ delete window[lcCb]; if(s.parentNode) s.parentNode.removeChild(s); };
+  s.src = `https://api.vworld.kr/ned/data/getLandCharacteristics`
+    + `?key=${VWORLD_KEY}&pnu=${encodeURIComponent(pnu)}&format=json&numOfRows=1&pageNo=1&callback=${lcCb}`;
+  document.body.appendChild(s);
 }
 
 // Ctrl 키 추적
@@ -933,81 +1010,6 @@ function clearSearch(){
 
 // ── 필지 클릭 → WFS JSONP로 속성 조회 ──
 // ── 필지 클릭 → WMS GetFeatureInfo JSONP ──
-function fetchLotByGFI(evt, pixel, coord, multiSelect){
-  setSearchStatus('필지 조회 중…');
-
-  const view = vMap.getView();
-  const mapSize = vMap.getSize();
-  const extent = view.calculateExtent(mapSize);
-  const w = mapSize[0], h = mapSize[1];
-  const i = Math.round(pixel[0]);
-  const j = Math.round(pixel[1]);
-  const bbox = extent[0]+','+extent[1]+','+extent[2]+','+extent[3];
-
-  document.querySelectorAll('script.gfi-script').forEach(s=>s.remove());
-
-  const script = document.createElement('script');
-  script.className = 'gfi-script';
-  const timer = setTimeout(()=>{
-    script.remove(); delete window.parseResponse;
-    setSearchStatus('필지 정보 없음');
-  }, 8000);
-
-  window.parseResponse = function(data){
-    clearTimeout(timer); script.remove(); delete window.parseResponse;
-    const features = (data && data.features) ? data.features : [];
-    if(!features.length){ setSearchStatus('필지 정보 없음'); return; }
-
-    const f = features[0];
-    const props = f.properties || {};
-    const pnu  = props.pnu  || String(Date.now());
-    const addr = props.addr || props.jibun || '주소 미상';
-
-    // geometry → 지도 하이라이트용
-    let olGeom = null;
-    if(f.geometry){
-      try{ olGeom = new ol.format.GeoJSON().readGeometry(f.geometry); }catch(e){}
-    }
-
-    // 먼저 geometry로 임시 등록 후, getLandCharacteristics로 등록 면적 갱신
-    toggleLot(pnu, addr, 0, olGeom);
-
-    // getLandCharacteristics JSONP → 등록 토지면적(lndpclAr) 조회
-    const lcCb = 'lc_' + Date.now();
-    const lcScript = document.createElement('script');
-    window[lcCb] = function(data){
-      delete window[lcCb];
-      if(lcScript.parentNode) lcScript.parentNode.removeChild(lcScript);
-      const field = data?.landCharacteristicss?.field;
-      const area = field && field.length ? parseFloat(field[0].lndpclAr || 0) : 0;
-      // 이미 선택된 필지 면적 갱신
-      if(selectedLots.has(pnu)){
-        selectedLots.get(pnu).area = area;
-        updateSelectedLots();
-      }
-    };
-    lcScript.onerror = function(){ delete window[lcCb]; if(lcScript.parentNode) lcScript.parentNode.removeChild(lcScript); };
-    lcScript.src = `https://api.vworld.kr/ned/data/getLandCharacteristics`
-      + `?key=${VWORLD_KEY}&pnu=${encodeURIComponent(pnu)}&format=json&numOfRows=1&pageNo=1&callback=${lcCb}`;
-    document.body.appendChild(lcScript);
-    setSearchStatus('');
-  };
-
-  script.onerror = function(){
-    clearTimeout(timer); script.remove(); delete window.parseResponse;
-    setSearchStatus('필지 정보 없음');
-  };
-
-  script.src = 'https://api.vworld.kr/req/wms'
-    + '?service=WMS&version=1.3.0&request=GetFeatureInfo'
-    + '&layers=lp_pa_cbnd_bubun&query_layers=lp_pa_cbnd_bubun'
-    + `&bbox=${bbox}&crs=EPSG:3857`
-    + `&width=${w}&height=${h}&i=${i}&j=${j}`
-    + '&info_format=text/javascript&feature_count=1'
-    + `&key=${VWORLD_KEY}`;
-  document.body.appendChild(script);
-}
-
 // 기본 다중 선택 (Ctrl 불필요 — 재클릭 시 해제)
 function toggleLot(pnu, addr, area, olGeom){
   if(selectedLots.has(pnu)){
@@ -1126,10 +1128,10 @@ function drawLotOutline(){
       const clone = f.getGeometry().clone();
       clone.transform('EPSG:3857','EPSG:4326');
       const geom = JSON.parse(fmt.writeGeometry(clone));
-      return turf.buffer({ type:'Feature', geometry: geom }, 0.0005, { units:'degrees' });
+      return turf.buffer({ type:'Feature', geometry: geom }, 0.000005, { units:'degrees' });
     });
     const unioned = geojsons.reduce((acc, cur) => turf.union(acc, cur));
-    merged = turf.buffer(unioned, -0.0005, { units:'degrees' }) || unioned;
+    merged = turf.buffer(unioned, -0.000005, { units:'degrees' }) || unioned;
   } catch(e){ console.warn('turf union:', e); }
 
   // step1Map 초기화 (최초 1회)
@@ -1805,6 +1807,7 @@ function exportSummary(){
 window.addEventListener('DOMContentLoaded',()=>{
   buildZoneTable();
   initVMap();
+  setTimeout(loadCadastralWFS, 500);
 });
 </script>
 </body>
