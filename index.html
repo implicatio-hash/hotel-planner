@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://map.vworld.kr/js/vworldMapInit.js.do?version=2.0&apiKey=F6A1D87B-4FE7-3E62-9D90-11C694E11A53"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@9.2.4/ol.css">
+<script src="https://cdn.jsdelivr.net/npm/ol@9.2.4/dist/ol.js"></script>
 <style>
 /* ───── RESET & FONTS ───── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -763,41 +764,55 @@ let vMarker = null;        // 검색 핀
 let selectedLots = new Map(); // pnu → {pnu, addr, area}
 let lotLayers = [];        // WFS polygon layers
 
-// ── 지도 초기화 ──
+// ── 지도 초기화 (OpenLayers + 브이월드 WMTS) ──
 function initVMap(){
   if(vMap) return;
-  if(typeof vw === 'undefined' || typeof vw.ol3 === 'undefined'){
-    setTimeout(initVMap, 200); return;
-  }
 
-  // vw.ol3.Map
-vMap = new vw.ol3.Map({
-    target: 'vmap',
-    basemapType: vw.ol3.BasemapType.GRAPHIC,
-    zoom: 15,
-    lng: 126.9780,
-    lat: 37.5665
+  // 브이월드 기본지도 타일 레이어
+  const baseLayer = new ol.layer.Tile({
+    source: new ol.source.XYZ({
+      url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`,
+      crossOrigin: 'anonymous'
+    })
   });
 
   // 지적도 WMS 레이어 (필지 경계)
-  try {
-    const cadastral = new vw.ol3.layer.Wms({
-      id: 'cadastral',
+  const cadastralLayer = new ol.layer.Tile({
+    source: new ol.source.TileWMS({
       url: 'https://api.vworld.kr/req/wms',
       params: {
         LAYERS: 'lt_c_landinfobaseinfo',
         FORMAT: 'image/png',
         TRANSPARENT: 'true',
         key: VWORLD_KEY
-      }
-    });
-    vMap.addLayer(cadastral);
-  } catch(e){ console.warn('cadastral layer:', e); }
+      },
+      crossOrigin: 'anonymous'
+    }),
+    opacity: 0.7
+  });
+
+  // 마커 레이어
+  const markerSource = new ol.source.Vector();
+  const markerLayer = new ol.layer.Vector({ source: markerSource });
+  vMarker = { source: markerSource };
+
+  // OpenLayers 지도 생성
+  vMap = new ol.Map({
+    target: 'vmap',
+    layers: [baseLayer, cadastralLayer, markerLayer],
+    view: new ol.View({
+      center: ol.proj.fromLonLat([126.9780, 37.5665]),
+      zoom: 15,
+      minZoom: 7,
+      maxZoom: 19
+    }),
+    controls: ol.control.defaults({ attribution: false })
+  });
 
   // 지도 클릭 → 필지 조회
   vMap.on('singleclick', function(e){
     const coord = ol.proj.toLonLat(e.coordinate);
-    fetchLotJsonp(coord[0], coord[1], e.originalEvent?.ctrlKey||false);
+    fetchLotJsonp(coord[0], coord[1], e.originalEvent?.ctrlKey || false);
   });
 }
 
@@ -880,29 +895,31 @@ function selectResult(parcel, road, lng, lat){
 
 function moveMapTo(lng, lat){
   if(!vMap) return;
-  try{
-    const view = vMap.getView();
-    const center = ol.proj.fromLonLat([lng, lat]);
-    view.animate({ center, zoom: 18, duration: 500 });
-  } catch(e){ console.warn('moveMapTo:', e); }
+  const center = ol.proj.fromLonLat([lng, lat]);
+  vMap.getView().animate({ center, zoom: 18, duration: 500 });
 
-  // 마커
-  if(vMarker){ try{ vMap.removeLayer(vMarker); }catch(e){} vMarker=null; }
-  try{
-    vMarker = new vw.ol3.layer.Marker({
-      id: 'searchPin',
-      lng: lng,
-      lat: lat
+  // 마커 갱신
+  if(vMarker?.source){
+    vMarker.source.clear();
+    const feature = new ol.Feature({
+      geometry: new ol.geom.Point(ol.proj.fromLonLat([lng, lat]))
     });
-    vMap.addLayer(vMarker);
-  } catch(e){ console.warn('marker:', e); }
+    feature.setStyle(new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: 8,
+        fill: new ol.style.Fill({ color: '#2563eb' }),
+        stroke: new ol.style.Stroke({ color: '#fff', width: 2.5 })
+      })
+    }));
+    vMarker.source.addFeature(feature);
+  }
 }
 
 function clearSearch(){
   state.searchMarker = null;
   $('selected-location').style.display = 'none';
   setSearchStatus('');
-  if(vMarker && vMap){ try{ vMap.removeObject(vMarker); }catch(e){} vMarker = null; }
+  if(vMarker?.source) vMarker.source.clear();
 }
 
 // ── 필지 클릭 → 속성 JSONP 조회 ──
