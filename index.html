@@ -771,15 +771,13 @@ function initVMap(){
   }
 
   // vw.ol3.Map
-  const mapOptions = new vw.ol3.MapOptions({
+vMap = new vw.ol3.Map({
+    target: 'vmap',
     basemapType: vw.ol3.BasemapType.GRAPHIC,
     zoom: 15,
-    minZoom: 7,
-    maxZoom: 19,
     lng: 126.9780,
     lat: 37.5665
   });
-  vMap = new vw.ol3.Map('vmap', mapOptions);
 
   // 지적도 WMS 레이어 (필지 경계)
   try {
