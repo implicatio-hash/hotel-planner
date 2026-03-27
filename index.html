@@ -344,7 +344,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
   <!-- 브이월드 지도 -->
   <div id="site-map" style="flex:1;position:relative;">
-    <div id="vmap" style="width:100%;height:100%;"></div>
+    <div id="vmap" style="width:100%;height:100%;filter:grayscale(100%) sepia(20%) hue-rotate(190deg) saturate(60%) brightness(1.05);"></div>
     <div id="map-hint" style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
       background:rgba(255,255,255,.92);padding:5px 10px;border-radius:5px;border:1px solid var(--border);
       z-index:1000;pointer-events:none;">
@@ -1220,25 +1220,20 @@ function drawLotOutline(){
   if(!window._step1Map){
     const outlineSource = new ol.source.Vector();
     window._step1OutlineSource = outlineSource;
+    // 2페이지 지적도 벡터 레이어 (WFS — 회색 선만, 1페이지와 공유 또는 별도 로드)
+    const s1CadSource = new ol.source.Vector();
+    window._step1CadSource = s1CadSource;
+    const s1CadLayer = new ol.layer.Vector({
+      source: s1CadSource,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: '#9ca3af', width: 0.8 })
+      })
+    });
+
     window._step1Map = new ol.Map({
       target: 'step1-map',
       layers: [
-        new ol.layer.Tile({
-          source: new ol.source.XYZ({
-            url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
-          })
-        }),
-        new ol.layer.Image({
-          source: new ol.source.ImageWMS({
-            url: 'https://api.vworld.kr/req/wms',
-            params: {
-              LAYERS: 'lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun',
-              STYLES: 'lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line',
-              FORMAT: 'image/png', TRANSPARENT: 'TRUE', key: VWORLD_KEY
-            }
-          }),
-          opacity: 0.9
-        }),
+        s1CadLayer,
         new ol.layer.Vector({
           source: outlineSource,
           style: function(feature){
@@ -1278,7 +1273,49 @@ function drawLotOutline(){
   const ext = outlineSource.getExtent();
   if(ext && ext[0] !== Infinity){
     window._step1Map.getView().fit(ext, { padding:[60,60,60,60], maxZoom:19, duration:300 });
+    // 지적도 WFS 로드 (현재 범위)
+    setTimeout(loadStep1CadWFS, 400);
   }
+}
+
+// 2페이지 지적도 WFS 로드
+let _s1CadLoading = false;
+function loadStep1CadWFS(){
+  if(!window._step1Map || _s1CadLoading) return;
+  _s1CadLoading = true;
+  const view = window._step1Map.getView();
+  const size = window._step1Map.getSize();
+  if(!size) { _s1CadLoading=false; return; }
+  const ext = view.calculateExtent(size);
+  const [minLng,minLat,maxLng,maxLat] = ol.proj.transformExtent(ext,'EPSG:3857','EPSG:4326');
+  const cbName = 's1cad_' + Date.now();
+  const script = document.createElement('script');
+  const timer = setTimeout(()=>{ _s1CadLoading=false; cleanup(); }, 10000);
+  function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+  window[cbName] = function(data){
+    _s1CadLoading=false; cleanup();
+    const feats = data && data.features || [];
+    if(!feats.length) return;
+    const fmt = new ol.format.GeoJSON();
+    const src = window._step1CadSource;
+    if(!src) return;
+    const existing = new Set(src.getFeatures().map(f=>f.get('pnu')));
+    feats.forEach(f=>{
+      const pnu = f.properties?.pnu;
+      if(pnu && existing.has(pnu)) return;
+      try {
+        const olF = fmt.readFeature(f,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});
+        olF.set('pnu', pnu);
+        src.addFeature(olF);
+      }catch(e){}
+    });
+  };
+  script.onerror = ()=>{ _s1CadLoading=false; cleanup(); };
+  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
+    +`&typename=lp_pa_cbnd_bubun&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
+    +`&srsname=EPSG:4326&maxfeatures=300`
+    +`&output=text/javascript&format_options=callback:${cbName}&key=${VWORLD_KEY}`;
+  document.body.appendChild(script);
 }
 
 // SHP에서 선택 필지 내부 건축한계선만 clip해서 표시
