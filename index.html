@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@9.2.4/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@9.2.4/dist/ol.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <style>
 /* ───── RESET & FONTS ───── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -407,12 +408,15 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     </div>
   </div>
 
-  <!-- 우측: 선택 필지 외곽선 배치도 -->
-  <div style="flex:1;position:relative;background:var(--bg3);display:flex;align-items:center;justify-content:center;">
-    <canvas id="lot-outline-canvas" style="max-width:100%;max-height:100%;"></canvas>
-    <div style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text3);
-      background:rgba(255,255,255,.88);padding:4px 10px;border-radius:5px;border:1px solid var(--border);">
-      선택 필지 합산 외곽선
+  <!-- 우측: 벡터 기반 배치도 (ol.Map) -->
+  <div style="flex:1;position:relative;">
+    <div id="step1-map" style="width:100%;height:100%;"></div>
+    <div style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
+      background:rgba(255,255,255,.9);padding:4px 10px;border-radius:5px;border:1px solid var(--border);
+      z-index:100;pointer-events:none;">
+      <span style="display:inline-block;width:16px;height:2px;background:#e74c3c;vertical-align:middle;margin-right:4px;"></span>대지경계선
+      &nbsp;&nbsp;
+      <span style="display:inline-block;width:16px;height:0;border-top:2px dashed #e67e22;vertical-align:middle;margin-right:4px;"></span>건축한계선(3m)
     </div>
   </div>
 </div>
@@ -1106,167 +1110,106 @@ function syncStep1(){
 
 // 선택 필지 외곽선 캔버스 그리기
 function drawLotOutline(){
-  const canvas = $('lot-outline-canvas');
-  if(!canvas) return;
-  const wrap = canvas.parentElement;
-  const W = wrap.clientWidth  || 800;
-  const H = wrap.clientHeight || 600;
-  canvas.width  = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-
-  // 배경 (회색 = 도로/주변 대지)
-  ctx.fillStyle = '#d4d8df';
-  ctx.fillRect(0,0,W,H);
-
   const features = window._lotSource ? window._lotSource.getFeatures() : [];
-  if(!features.length){
-    ctx.fillStyle = '#aab2c8';
-    ctx.font = '13px Pretendard,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('선택된 필지 없음', W/2, H/2);
-    return;
-  }
+  if(!features.length) return;
 
-  // 전체 extent
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  features.forEach(f=>{
-    const ext = f.getGeometry().getExtent();
-    if(ext[0]<minX) minX=ext[0]; if(ext[1]<minY) minY=ext[1];
-    if(ext[2]>maxX) maxX=ext[2]; if(ext[3]>maxY) maxY=ext[3];
-  });
+  // ── Turf.js로 필지 Union (병합) ──
+  const fmt = new ol.format.GeoJSON();
+  let merged = null;
+  try {
+    // EPSG:3857 → EPSG:4326 변환 후 union
+    const geojsons = features.map(f => {
+      const clone = f.getGeometry().clone();
+      clone.transform('EPSG:3857','EPSG:4326');
+      return { type:'Feature', geometry: JSON.parse(fmt.writeGeometry(clone)) };
+    });
+    merged = geojsons.reduce((acc, cur) => turf.union(acc, cur));
+  } catch(e) { console.warn('turf union:', e); }
 
-  // 주변 여백 (도로 공간)
-  const dW = (maxX-minX)*0.6, dH = (maxY-minY)*0.6;
-  const viewMinX=minX-dW, viewMinY=minY-dH, viewMaxX=maxX+dW, viewMaxY=maxY+dH;
+  // ── step1Map 초기화 (최초 1회만 생성) ──
+  if(!window._step1Map){
+    // 기본지도
+    const baseLayer = new ol.layer.Tile({
+      source: new ol.source.XYZ({
+        url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
+      })
+    });
+    // 지적도 WMS
+    const cadastral = new ol.layer.Image({
+      source: new ol.source.ImageWMS({
+        url: 'https://api.vworld.kr/req/wms',
+        params: {
+          LAYERS: 'lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun',
+          STYLES: 'lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line',
+          FORMAT: 'image/png', TRANSPARENT: 'TRUE', key: VWORLD_KEY
+        }
+      }),
+      opacity: 0.9
+    });
+    // 대지경계선 + 건축한계선 벡터 레이어
+    const outlineSource = new ol.source.Vector();
+    window._step1OutlineSource = outlineSource;
+    const outlineLayer = new ol.layer.Vector({
+      source: outlineSource,
+      style: function(feature){
+        const type = feature.get('type');
+        if(type === 'boundary') return new ol.style.Style({
+          stroke: new ol.style.Stroke({ color: '#e74c3c', width: 2.5 })
+        });
+        if(type === 'setback') return new ol.style.Style({
+          stroke: new ol.style.Stroke({ color: '#e67e22', width: 1.5, lineDash: [8,5] })
+        });
+      }
+    });
 
-  const pad = 20;
-  const scaleX = (W-pad*2)/(viewMaxX-viewMinX);
-  const scaleY = (H-pad*2)/(viewMaxY-viewMinY);
-  const scale  = Math.min(scaleX, scaleY);
-  const offX   = pad + ((W-pad*2)-(viewMaxX-viewMinX)*scale)/2;
-  const offY   = pad + ((H-pad*2)-(viewMaxY-viewMinY)*scale)/2;
-
-  function tc(cx,cy){ return [offX+(cx-viewMinX)*scale, H-(offY+(cy-viewMinY)*scale)]; }
-
-  function pathRings(rings){
-    rings.forEach(ring=>{
-      if(!ring.length) return;
-      const [sx,sy]=tc(ring[0][0],ring[0][1]);
-      ctx.moveTo(sx,sy);
-      for(let i=1;i<ring.length;i++){const [px,py]=tc(ring[i][0],ring[i][1]); ctx.lineTo(px,py);}
-      ctx.closePath();
+    window._step1Map = new ol.Map({
+      target: 'step1-map',
+      layers: [baseLayer, cadastral, outlineLayer],
+      view: new ol.View({ center: ol.proj.fromLonLat([126.978, 37.566]), zoom: 17 }),
+      controls: []
     });
   }
 
-  function allRings(){
-    const rings=[];
-    features.forEach(f=>{
-      const g=f.getGeometry(), t=g.getType();
-      if(t==='Polygon') g.getCoordinates().forEach(r=>rings.push(r));
-      else if(t==='MultiPolygon') g.getCoordinates().forEach(poly=>poly.forEach(r=>rings.push(r)));
+  const outlineSource = window._step1OutlineSource;
+  outlineSource.clear();
+
+  if(merged){
+    // 대지경계선 (union 외곽)
+    const boundaryGeom = fmt.readGeometry(merged.geometry);
+    boundaryGeom.transform('EPSG:4326','EPSG:3857');
+    const boundaryFeat = new ol.Feature({ geometry: boundaryGeom });
+    boundaryFeat.set('type','boundary');
+    outlineSource.addFeature(boundaryFeat);
+
+    // 건축한계선 (buffer -3m in EPSG:3857 단위)
+    try {
+      const setbackGeoJSON = turf.buffer(merged, -3, { units:'meters' });
+      if(setbackGeoJSON){
+        const setbackGeom = fmt.readGeometry(setbackGeoJSON.geometry);
+        setbackGeom.transform('EPSG:4326','EPSG:3857');
+        const setbackFeat = new ol.Feature({ geometry: setbackGeom });
+        setbackFeat.set('type','setback');
+        outlineSource.addFeature(setbackFeat);
+      }
+    } catch(e){}
+
+    // 지도 범위를 병합 필지로 맞춤
+    const ext = boundaryGeom.getExtent();
+    window._step1Map.getView().fit(ext, { padding:[40,40,40,40], duration:300 });
+  } else {
+    // union 실패 시 개별 feature 그대로 표시
+    features.forEach(f => {
+      const clone = f.clone();
+      clone.set('type','boundary');
+      outlineSource.addFeature(clone);
     });
-    return rings;
+    const ext = outlineSource.getExtent();
+    window._step1Map.getView().fit(ext, { padding:[40,40,40,40], duration:300 });
   }
 
-  const rings = allRings();
-
-  // 1. 도로 WMS 오버레이 (crossOrigin 없이 — tainted canvas 허용)
-  const bbox = [viewMinX,viewMinY,viewMaxX,viewMaxY].join(',');
-  const wmsUrl = 'https://api.vworld.kr/req/wms'
-    + '?service=WMS&version=1.3.0&request=GetMap'
-    + '&layers=lt_l_sprd,lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun'
-    + '&styles=,lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line'
-    + '&format=image/png&transparent=true&crs=EPSG:3857'
-    + `&bbox=${bbox}&width=${W}&height=${H}`
-    + `&key=${VWORLD_KEY}`;
-
-  const img = new Image(); // crossOrigin 생략 → tainted 허용
-  img.onload = function(){
-    ctx.save();
-    ctx.drawImage(img,0,0,W,H);
-    ctx.restore();
-    drawOverlays(); // 도로 위에 대지경계선, 건축한계선 그리기
-  };
-  img.onerror = function(){ drawOverlays(); }; // WMS 실패 시 그냥 진행
-  img.src = wmsUrl;
-
-  function drawOverlays(){
-    // 2. 대지 내부 흰색 채움 (윤곽선만, 채색 최소화)
-    ctx.save();
-    ctx.beginPath();
-    pathRings(rings);
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fill('evenodd');
-    ctx.restore();
-
-    // 3. 건축한계선 (대지경계 안쪽 점선 — 시각적 오프셋)
-    // canvas transform으로 살짝 축소해 표현
-    const cx=(offX+(maxX-viewMinX)*scale+offX+(minX-viewMinX)*scale)/2;
-    const cy=(H-offY-(maxY-viewMinY)*scale+H-offY-(minY-viewMinY)*scale)/2;
-    const setbackRatio = 1 - (3*scale)/(Math.max((maxX-minX),(maxY-minY))*scale/2 + 1);
-    ctx.save();
-    ctx.translate(cx,cy);
-    ctx.scale(setbackRatio, setbackRatio);
-    ctx.translate(-cx,-cy);
-    ctx.beginPath();
-    pathRings(rings);
-    ctx.strokeStyle = '#e67e22';
-    ctx.lineWidth = 1.5 / setbackRatio;
-    ctx.setLineDash([6,4]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-
-    // 4. 대지경계선 (빨간 실선, 외곽만)
-    ctx.save();
-    ctx.beginPath();
-    pathRings(rings);
-    ctx.strokeStyle = '#e74c3c';
-    ctx.lineWidth = 2.5;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.restore();
-
-    // 5. 나침반
-    ctx.save();
-    ctx.font = 'bold 11px Pretendard,sans-serif';
-    ctx.fillStyle = '#374151';
-    ctx.textAlign = 'center';
-    ctx.fillText('N', W-20, 22);
-    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(W-20,26); ctx.lineTo(W-20,38); ctx.stroke();
-    ctx.restore();
-
-    // 6. 범례
-    ctx.save();
-    ctx.font = '10px Pretendard,sans-serif';
-    ctx.textAlign = 'left';
-    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(12,H-32); ctx.lineTo(28,H-32); ctx.stroke();
-    ctx.fillStyle = '#374151'; ctx.fillText('대지경계선', 32, H-29);
-    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 1.2; ctx.setLineDash([5,3]);
-    ctx.beginPath(); ctx.moveTo(12,H-16); ctx.lineTo(28,H-16); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillText('건축한계선 (3m)', 32, H-13);
-    ctx.restore();
-
-    // 7. 면적
-    const total = [...selectedLots.values()].reduce((s,l)=>s+(l.area||0),0);
-    if(total>0){
-      ctx.save();
-      ctx.font = 'bold 12px Pretendard,sans-serif';
-      ctx.fillStyle = '#1a1d26';
-      ctx.textAlign = 'center';
-      const tw = ctx.measureText(`대지면적  ${total.toFixed(2)} ㎡`).width;
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.fillRect(W/2-tw/2-6, H-26, tw+12, 18);
-      ctx.fillStyle = '#1a1d26';
-      ctx.fillText(`대지면적  ${total.toFixed(2)} ㎡`, W/2, H-13);
-      ctx.restore();
-    }
-  }
+  window._step1Map.updateSize();
 }
+
 
 function calcSiteInfo(){
   const sa = state.siteArea || parseFloat($('site-area')?.value) || 0;
