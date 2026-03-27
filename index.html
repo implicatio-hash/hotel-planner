@@ -1327,38 +1327,73 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
 
   _shpGeoJSONs.forEach(shpGJ => {
     try {
-      // 1차: bbox 필터
+      // 1차: bbox 필터 (넉넉하게)
       const sBbox = turf.bbox(shpGJ);
       if(sBbox[2] < mBbox[0] || sBbox[0] > mBbox[2] ||
          sBbox[3] < mBbox[1] || sBbox[1] > mBbox[3]) return;
 
-      // MultiLineString의 각 line 처리
       const coords = shpGJ.geometry.type === 'MultiLineString'
         ? shpGJ.geometry.coordinates
         : [shpGJ.geometry.coordinates];
 
       coords.forEach(line => {
-        let insidePts = [];
+        // 각 선분(segment)을 개별 처리
+        // 점이 내부이거나, 선분이 폴리곤과 교차하는 경우 모두 포함
+        let currentSeg = [];
+
         for(let i = 0; i < line.length; i++){
-          const inPoly = turf.booleanPointInPolygon(turf.point(line[i]), mergedGeoJSON);
-          if(inPoly){
-            insidePts.push(line[i]);
-          } else {
-            if(insidePts.length >= 2){
-              const gj = { type:'LineString', coordinates: insidePts };
-              const olGeom = fmt.readGeometry(gj);
-              olGeom.transform('EPSG:4326','EPSG:3857');
-              const sf = new ol.Feature({ geometry: olGeom });
-              sf.set('type','setback');
-              outlineSource.addFeature(sf);
-              clippedCount++;
+          const ptIn = turf.booleanPointInPolygon(turf.point(line[i]), mergedGeoJSON);
+
+          if(ptIn){
+            // 점이 내부 — 현재 segment에 추가
+            if(currentSeg.length === 0 && i > 0){
+              // 이전 점이 외부였지만 선분이 폴리곤 경계를 지나 들어온 경우
+              // 교차점 계산해서 시작점으로 추가
+              const seg = turf.lineString([line[i-1], line[i]]);
+              const xpts = turf.lineIntersect(seg, mergedGeoJSON);
+              if(xpts.features.length > 0){
+                currentSeg.push(xpts.features[0].geometry.coordinates);
+              }
             }
-            insidePts = [];
+            currentSeg.push(line[i]);
+          } else {
+            // 점이 외부
+            if(currentSeg.length > 0){
+              // 내부에서 외부로 나가는 경우 — 교차점 추가 후 segment 저장
+              const seg = turf.lineString([line[i-1], line[i]]);
+              const xpts = turf.lineIntersect(seg, mergedGeoJSON);
+              if(xpts.features.length > 0){
+                currentSeg.push(xpts.features[0].geometry.coordinates);
+              }
+              if(currentSeg.length >= 2){
+                const olGeom = fmt.readGeometry({ type:'LineString', coordinates: currentSeg });
+                olGeom.transform('EPSG:4326','EPSG:3857');
+                const sf = new ol.Feature({ geometry: olGeom });
+                sf.set('type','setback');
+                outlineSource.addFeature(sf);
+                clippedCount++;
+              }
+              currentSeg = [];
+            } else if(i > 0){
+              // 양 끝점 모두 외부지만 선분이 폴리곤을 관통하는 경우
+              const seg = turf.lineString([line[i-1], line[i]]);
+              const xpts = turf.lineIntersect(seg, mergedGeoJSON);
+              if(xpts.features.length >= 2){
+                // 두 교차점 사이가 폴리곤 내부 구간
+                const pts = xpts.features.map(f => f.geometry.coordinates);
+                const olGeom = fmt.readGeometry({ type:'LineString', coordinates: pts });
+                olGeom.transform('EPSG:4326','EPSG:3857');
+                const sf = new ol.Feature({ geometry: olGeom });
+                sf.set('type','setback');
+                outlineSource.addFeature(sf);
+                clippedCount++;
+              }
+            }
           }
         }
-        if(insidePts.length >= 2){
-          const gj = { type:'LineString', coordinates: insidePts };
-          const olGeom = fmt.readGeometry(gj);
+        // 마지막 segment 처리
+        if(currentSeg.length >= 2){
+          const olGeom = fmt.readGeometry({ type:'LineString', coordinates: currentSeg });
           olGeom.transform('EPSG:4326','EPSG:3857');
           const sf = new ol.Feature({ geometry: olGeom });
           sf.set('type','setback');
