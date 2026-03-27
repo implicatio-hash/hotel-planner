@@ -418,7 +418,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       z-index:100;pointer-events:none;">
       <span style="display:inline-block;width:16px;height:2px;background:#e74c3c;vertical-align:middle;margin-right:4px;"></span>대지경계선
       &nbsp;&nbsp;
-      <span style="display:inline-block;width:16px;height:0;border-top:2px dashed #e67e22;vertical-align:middle;margin-right:4px;"></span>건축한계선(3m)
+      <span style="display:inline-block;width:16px;height:0;border-top:2px dashed #e67e22;vertical-align:middle;margin-right:4px;"></span>건축한계선
     </div>
   </div>
 </div>
@@ -1203,12 +1203,10 @@ function drawLotOutline(){
       const clone = f.getGeometry().clone();
       clone.transform('EPSG:3857','EPSG:4326');
       const geom = JSON.parse(fmt.writeGeometry(clone));
-      // 미세 팽창 (갭 메우기) — steps:1로 round 최소화
-      return turf.buffer({ type:'Feature', geometry: geom }, 0.000003, { units:'degrees', steps:1 });
+      return { type:'Feature', geometry: geom };
     });
-    const unioned = geojsons.reduce((acc, cur) => turf.union(acc, cur));
-    // 미세 축소 복원 — steps:1로 직각 유지
-    merged = turf.buffer(unioned, -0.000003, { units:'degrees', steps:1 }) || unioned;
+    // buffer 없이 직접 union (꼭지점 왜곡 없음)
+    merged = geojsons.reduce((acc, cur) => turf.union(acc, cur));
   } catch(e){ console.warn('turf union:', e); }
 
   // step1Map 초기화 (최초 1회)
@@ -1280,27 +1278,51 @@ function drawLotOutline(){
 function addSetbackFromSHP(mergedGeoJSON, outlineSource){
   if(!_shpLoaded || !_shpGeoJSONs.length) return;
   const fmt = new ol.format.GeoJSON();
-
-  // 선택 필지 bbox로 먼저 필터링 (성능)
   const mBbox = turf.bbox(mergedGeoJSON);
-
   let clippedCount = 0;
+
   _shpGeoJSONs.forEach(shpGJ => {
     try {
-      // bbox 교차 여부 먼저 확인
+      // bbox 1차 필터
       const sBbox = turf.bbox(shpGJ);
       if(sBbox[2] < mBbox[0] || sBbox[0] > mBbox[2] ||
          sBbox[3] < mBbox[1] || sBbox[1] > mBbox[3]) return;
 
-      // 선택 필지 내부만 clip
-      const clipped = turf.intersect(mergedGeoJSON, shpGJ);
-      if(!clipped || !clipped.geometry) return;
+      // MultiLineString의 각 LineString을 필지 폴리곤으로 clip
+      // turf.booleanIntersects로 교차 확인 후 lineSplit 적용
+      if(!turf.booleanIntersects(mergedGeoJSON, shpGJ)) return;
 
-      const clippedGeom = fmt.readGeometry(clipped.geometry);
-      clippedGeom.transform('EPSG:4326','EPSG:3857');
-      const sf = new ol.Feature({ geometry: clippedGeom });
-      sf.set('type','setback');
-      outlineSource.addFeature(sf);
+      // 각 line segment를 분리해서 필지 내부 여부 확인
+      const coords = shpGJ.geometry.coordinates; // [[pt,pt,...], ...]
+      const clippedLines = [];
+
+      coords.forEach(line => {
+        const insidePts = [];
+        // 선분 단위로 필지 내부 점만 추출
+        for(let i = 0; i < line.length; i++){
+          const pt = turf.point(line[i]);
+          if(turf.booleanPointInPolygon(pt, mergedGeoJSON)){
+            insidePts.push(line[i]);
+          } else if(insidePts.length > 0){
+            // 내부 → 외부로 나갈 때 현재 segment 저장 후 리셋
+            if(insidePts.length >= 2) clippedLines.push([...insidePts]);
+            insidePts.length = 0;
+          }
+        }
+        if(insidePts.length >= 2) clippedLines.push([...insidePts]);
+      });
+
+      if(!clippedLines.length) return;
+
+      // LineString들을 ol.Feature로 추가
+      clippedLines.forEach(line => {
+        const gj = { type:'LineString', coordinates: line };
+        const olGeom = fmt.readGeometry(gj);
+        olGeom.transform('EPSG:4326','EPSG:3857');
+        const sf = new ol.Feature({ geometry: olGeom });
+        sf.set('type','setback');
+        outlineSource.addFeature(sf);
+      });
       clippedCount++;
     } catch(e){}
   });
@@ -1914,7 +1936,7 @@ function exportSummary(){
 window.addEventListener('DOMContentLoaded',()=>{
   buildZoneTable();
   initVMap();
-  setTimeout(()=>{ loadCadastralWFS(); loadSetbackLayer(); }, 500);
+  setTimeout(()=>{ loadSetbackLayer(); }, 500);
 });
 </script>
 </body>
