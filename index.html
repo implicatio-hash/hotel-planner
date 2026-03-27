@@ -776,17 +776,21 @@ function initVMap(){
     })
   });
 
-  // 지적도: WFS JSONP로 필지 폴리곤 벡터 직접 표시
-  const cadastralSource = new ol.source.Vector();
-  const cadastralLayer = new ol.layer.Vector({
-    source: cadastralSource,
-    style: new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: '#e67e22', width: 1 }),
-      fill: new ol.style.Fill({ color: 'rgba(230,126,34,0.05)' })
+  // 지적도: ImageWMS (crossOrigin 없이 — tainted canvas 허용)
+  const cadastralLayer = new ol.layer.Image({
+    source: new ol.source.ImageWMS({
+      url: 'https://api.vworld.kr/req/wms',
+      params: {
+        LAYERS: 'lt_c_landinfobaseinfo',
+        FORMAT: 'image/png',
+        TRANSPARENT: 'TRUE',
+        key: VWORLD_KEY
+      }
+      // crossOrigin 의도적으로 생략 → 브라우저가 img처럼 로드
     }),
-    minZoom: 16  // 너무 넓은 범위엔 표시 안 함
+    opacity: 0.6
   });
-  window._cadastralSource = cadastralSource;
+  window._cadastralSource = null; // WFS 미사용
 
   // 선택 필지 하이라이트 레이어
   const lotSource = new ol.source.Vector();
@@ -817,64 +821,12 @@ function initVMap(){
     controls: [],
   });
 
-  // 지도 이동 끝날 때 → 지적도 필지 자동 로드
-  vMap.on('moveend', function(){
-    const zoom = vMap.getView().getZoom();
-    if(zoom < 14) { if(window._cadastralSource) window._cadastralSource.clear(); return; }
-    loadCadastralInView();
-  });
-
   // 지도 클릭 → 필지 조회
   vMap.on('singleclick', function(e){
     const coord = ol.proj.toLonLat(e.coordinate);
     fetchLotJsonp(coord[0], coord[1], e.originalEvent?.ctrlKey || false);
   });
-
-  // 초기 로드 (렌더링 완료 후)
-  vMap.once('rendercomplete', function(){
-    loadCadastralInView();
-  });
 }
-
-// 현재 화면 범위 WFS 조회 → 지적도 폴리곤 자동 표시
-let _cadastralLoading = false;
-function loadCadastralInView(){
-  if(_cadastralLoading) return;
-  _cadastralLoading = true;
-  const ext = vMap.getView().calculateExtent(vMap.getSize());
-  const [minX, minY, maxX, maxY] = ol.proj.transformExtent(ext,'EPSG:3857','EPSG:4326');
-  const cbName = 'vwcad_' + Date.now();
-  const script = document.createElement('script');
-  const timer = setTimeout(()=>{ _cadastralLoading=false; cleanup(); }, 8000);
-  function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
-  window[cbName] = function(data){
-    _cadastralLoading = false; cleanup();
-    const features = data?.features || [];
-    console.log('[cadastral] 응답 features:', features.length, data);
-    if(!features.length) return;
-    const src = window._cadastralSource;
-    if(!src) return;
-    src.clear();
-    const fmt = new ol.format.GeoJSON();
-    features.forEach(f => {
-      try{
-        const olF = fmt.readFeature(f,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});
-        olF.set('pnu', f.properties?.pnu || '');
-        olF.set('addr', f.properties?.addr_ld || '');
-        olF.set('area', parseFloat(f.properties?.lndpclAr||0));
-        src.addFeature(olF);
-      }catch(e){}
-    });
-  };
-  script.onerror = ()=>{ _cadastralLoading=false; cleanup(); console.warn('[cadastral] script onerror — WFS JSONP 미지원일 수 있음'); };
-  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
-    + `&typeName=lt_c_landinfobaseinfo`
-    + `&bbox=${minX},${minY},${maxX},${maxY},EPSG:4326`
-    + `&propertyName=pnu,addr_ld,lndpclAr`
-    + `&maxFeatures=200`
-    + `&outputFormat=application/json`
-    + `&callback=${cbName}&key=${VWORLD_KEY}`;
-  document.body.appendChild(script);
 }
 
 // Ctrl 키 추적 (다중 선택)
@@ -983,25 +935,8 @@ function clearSearch(){
   if(vMarker?.source) vMarker.source.clear();
 }
 
-// ── 필지 클릭 → 이미 로드된 지적도에서 조회, 없으면 WFS JSONP ──
+// ── 필지 클릭 → WFS JSONP로 속성 조회 ──
 function fetchLotJsonp(lng, lat, multiSelect){
-  // 먼저 화면에 이미 로드된 cadastral feature에서 찾기
-  if(window._cadastralSource){
-    const clickPt = ol.proj.fromLonLat([lng, lat]);
-    const found = window._cadastralSource.getFeatures().find(f => {
-      const geom = f.getGeometry();
-      return geom && geom.intersectsCoordinate(clickPt);
-    });
-    if(found){
-      const pnu  = found.get('pnu')  || String(Date.now());
-      const addr = found.get('addr') || '주소 미상';
-      const area = found.get('area') || 0;
-      toggleLot(pnu, addr, area, lng, lat, found, multiSelect);
-      return;
-    }
-  }
-
-  // fallback: WFS JSONP 직접 조회
   setSearchStatus('필지 조회 중…');
   const cbName = 'vwlot_' + Date.now();
   const script = document.createElement('script');
@@ -1020,7 +955,7 @@ function fetchLotJsonp(lng, lat, multiSelect){
     toggleLot(pnu, addr, area, lng, lat, f, multiSelect);
     setSearchStatus('');
   };
-  script.onerror = ()=>{ cleanup(); setSearchStatus('필지 조회 실패'); };
+  script.onerror = ()=>{ cleanup(); setSearchStatus('필지 조회 실패 (WFS 미지원)'); };
   script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
     + `&typeName=lt_c_landinfobaseinfo`
     + `&bbox=${lng-0.00005},${lat-0.00005},${lng+0.00005},${lat+0.00005},EPSG:4326`
