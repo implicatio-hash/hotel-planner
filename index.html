@@ -776,20 +776,25 @@ function initVMap(){
     })
   });
 
-  // 지적도 WMS 레이어 (필지 경계)
+  // 지적도 타일 레이어 (WMTS — CORS 없음)
   const cadastralLayer = new ol.layer.Tile({
-    source: new ol.source.TileWMS({
-      url: 'https://api.vworld.kr/req/wms',
-      params: {
-        LAYERS: 'lt_c_landinfobaseinfo',
-        FORMAT: 'image/png',
-        TRANSPARENT: 'true',
-        key: VWORLD_KEY
-      },
+    source: new ol.source.XYZ({
+      url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/cadastral/{z}/{y}/{x}.png`,
       crossOrigin: 'anonymous'
     }),
-    opacity: 0.7
+    opacity: 0.6
   });
+
+  // 선택 필지 하이라이트 레이어
+  const lotSource = new ol.source.Vector();
+  const lotLayer = new ol.layer.Vector({
+    source: lotSource,
+    style: new ol.style.Style({
+      fill: new ol.style.Fill({ color: 'rgba(37,99,235,0.18)' }),
+      stroke: new ol.style.Stroke({ color: '#2563eb', width: 2 })
+    })
+  });
+  window._lotSource = lotSource;
 
   // 마커 레이어
   const markerSource = new ol.source.Vector();
@@ -799,7 +804,7 @@ function initVMap(){
   // OpenLayers 지도 생성
   vMap = new ol.Map({
     target: 'vmap',
-    layers: [baseLayer, cadastralLayer, markerLayer],
+    layers: [baseLayer, cadastralLayer, lotLayer, markerLayer],
     view: new ol.View({
       center: ol.proj.fromLonLat([126.9780, 37.5665]),
       zoom: 15,
@@ -922,12 +927,12 @@ function clearSearch(){
   if(vMarker?.source) vMarker.source.clear();
 }
 
-// ── 필지 클릭 → 속성 JSONP 조회 ──
+// ── 필지 클릭 → WFS JSONP (geometry + 면적) ──
 function fetchLotJsonp(lng, lat, multiSelect){
   setSearchStatus('필지 조회 중…');
   const cbName = 'vwlot_' + Date.now();
   const script = document.createElement('script');
-  const timer = setTimeout(function(){ cleanup(); setSearchStatus('필지 조회 시간 초과'); }, 6000);
+  const timer = setTimeout(function(){ cleanup(); setSearchStatus('필지 조회 시간 초과'); }, 8000);
 
   function cleanup(){
     clearTimeout(timer);
@@ -937,38 +942,60 @@ function fetchLotJsonp(lng, lat, multiSelect){
 
   window[cbName] = function(data){
     cleanup();
-    const features = data?.response?.result?.featureCollection?.features || [];
+    const features = data?.features
+      || data?.response?.result?.featureCollection?.features || [];
     if(!features.length){ setSearchStatus('필지 정보 없음'); return; }
 
-    const f = features[0].properties || {};
-    const pnu  = f.pnu  || f.PNU  || String(Date.now());
-    const addr = f.addr || f.ADDR || f.jibunAddr || '주소 미상';
-    const area = parseFloat(f.lndpclAr || f.LNDPCLAR || f.area || 0);
+    const f = features[0];
+    const props = f.properties || {};
+    const pnu  = props.pnu  || props.PNU  || String(Date.now());
+    const addr = props.addr_ld || props.addr || props.ADDR || '주소 미상';
+    const area = parseFloat(props.lndpclAr || props.LNDPCLAR || 0);
 
-    if(!multiSelect) selectedLots.clear();
-    if(selectedLots.has(pnu)){ selectedLots.delete(pnu); }
-    else { selectedLots.set(pnu, {pnu, addr, area, lng, lat}); }
+    if(!multiSelect){
+      selectedLots.clear();
+      if(window._lotSource) window._lotSource.clear();
+    }
 
+    if(selectedLots.has(pnu)){
+      selectedLots.delete(pnu);
+      if(window._lotSource){
+        const existing = window._lotSource.getFeatures().find(ft => ft.get('pnu')===pnu);
+        if(existing) window._lotSource.removeFeature(existing);
+      }
+    } else {
+      selectedLots.set(pnu, {pnu, addr, area, lng, lat});
+      // geometry → 지도 하이라이트
+      if(f.geometry && window._lotSource){
+        try{
+          const olFeature = new ol.format.GeoJSON().readFeature(f, {
+            dataProjection: 'EPSG:4326',
+            featureProjection: 'EPSG:3857'
+          });
+          olFeature.set('pnu', pnu);
+          window._lotSource.addFeature(olFeature);
+        }catch(e){}
+      }
+    }
     updateSelectedLots();
     setSearchStatus('');
   };
 
   script.onerror = function(){
     cleanup();
-    // fallback: 면적 없이 좌표만 저장
     const pnu = 'manual_' + Date.now();
-    if(!multiSelect) selectedLots.clear();
+    if(!multiSelect){ selectedLots.clear(); if(window._lotSource) window._lotSource.clear(); }
     selectedLots.set(pnu, {pnu, addr:'선택된 필지', area:0, lng, lat});
     updateSelectedLots();
     setSearchStatus('');
   };
 
-  // 브이월드 속성 조회 (JSONP)
-  script.src = `https://api.vworld.kr/req/data?service=data&request=GetFeature&version=2.0`
-    + `&data=LT_C_LANDINFOBASEINFO`
-    + `&geomfilter=POINT(${lng}%20${lat})`
-    + `&columns=pnu,addr,lndpclAr`
-    + `&format=json&errorformat=json`
+  // WFS GetFeature JSONP — geometry 포함
+  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
+    + `&typeName=lt_c_landinfobaseinfo`
+    + `&bbox=${lng-0.00005},${lat-0.00005},${lng+0.00005},${lat+0.00005},EPSG:4326`
+    + `&propertyName=pnu,addr_ld,lndpclAr`
+    + `&outputFormat=application/json`
     + `&callback=${cbName}&key=${VWORLD_KEY}`;
   document.body.appendChild(script);
 }
