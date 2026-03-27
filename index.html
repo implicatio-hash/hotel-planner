@@ -759,56 +759,52 @@ function goStep(idx){
 // ═══════════════════════════════════════════
 const VWORLD_KEY = 'F6A1D87B-4FE7-3E62-9D90-11C694E11A53';
 
-let vMap = null;           // vworld map object
-let vMarker = null;        // 검색 핀
-let selectedLots = new Map(); // pnu → {pnu, addr, area}
-let lotLayers = [];        // WFS polygon layers
+let vMap = null;
+let vMarker = null;
+let selectedLots = new Map();
 
-// ── 지도 초기화 (OpenLayers + 브이월드 WMTS) ──
+// ── 지도 초기화 ──
 function initVMap(){
   if(vMap) return;
 
-  // 브이월드 기본지도 타일 레이어
+  // 브이월드 기본지도 (WMTS)
   const baseLayer = new ol.layer.Tile({
     source: new ol.source.XYZ({
-      url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`,
-      crossOrigin: 'anonymous'
+      url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
     })
   });
 
-  // 지적도: ImageWMS (crossOrigin 없이 — tainted canvas 허용)
+  // 연속지적도 WMS (crossOrigin 생략 → tainted 허용, CORS 우회)
   const cadastralLayer = new ol.layer.Image({
     source: new ol.source.ImageWMS({
       url: 'https://api.vworld.kr/req/wms',
       params: {
-        LAYERS: 'lt_c_landinfobaseinfo',
+        LAYERS: 'lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun',
+        STYLES: 'lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line',
         FORMAT: 'image/png',
         TRANSPARENT: 'TRUE',
         key: VWORLD_KEY
       }
-      // crossOrigin 의도적으로 생략 → 브라우저가 img처럼 로드
     }),
-    opacity: 0.6
+    opacity: 0.7
   });
-  window._cadastralSource = null; // WFS 미사용
 
-  // 선택 필지 하이라이트 레이어
+  // 선택 필지 하이라이트
   const lotSource = new ol.source.Vector();
+  window._lotSource = lotSource;
   const lotLayer = new ol.layer.Vector({
     source: lotSource,
     style: new ol.style.Style({
-      fill: new ol.style.Fill({ color: 'rgba(37,99,235,0.18)' }),
-      stroke: new ol.style.Stroke({ color: '#2563eb', width: 2 })
+      fill: new ol.style.Fill({ color: 'rgba(37,99,235,0.2)' }),
+      stroke: new ol.style.Stroke({ color: '#2563eb', width: 2.5 })
     })
   });
-  window._lotSource = lotSource;
 
   // 마커 레이어
   const markerSource = new ol.source.Vector();
-  const markerLayer = new ol.layer.Vector({ source: markerSource });
   vMarker = { source: markerSource };
+  const markerLayer = new ol.layer.Vector({ source: markerSource });
 
-  // OpenLayers 지도 생성
   vMap = new ol.Map({
     target: 'vmap',
     layers: [baseLayer, cadastralLayer, lotLayer, markerLayer],
@@ -818,18 +814,17 @@ function initVMap(){
       minZoom: 7,
       maxZoom: 19
     }),
-    controls: [],
+    controls: []
   });
 
-  // 지도 클릭 → 필지 조회
+  // 지도 클릭 → 필지 WFS JSONP 조회
   vMap.on('singleclick', function(e){
     const coord = ol.proj.toLonLat(e.coordinate);
-    fetchLotJsonp(coord[0], coord[1], e.originalEvent?.ctrlKey || false);
+    fetchLotByPoint(coord[0], coord[1], e.originalEvent?.ctrlKey || false);
   });
 }
-}
 
-// Ctrl 키 추적 (다중 선택)
+// Ctrl 키 추적
 window.addEventListener('keydown', e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=true; });
 window.addEventListener('keyup',   e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=false; });
 
@@ -936,31 +931,48 @@ function clearSearch(){
 }
 
 // ── 필지 클릭 → WFS JSONP로 속성 조회 ──
-function fetchLotJsonp(lng, lat, multiSelect){
+// ── 필지 클릭 → WFS JSONP (공식 파라미터: output=text/javascript, format_options=callback:cbName) ──
+function fetchLotByPoint(lng, lat, multiSelect){
   setSearchStatus('필지 조회 중…');
   const cbName = 'vwlot_' + Date.now();
   const script = document.createElement('script');
-  const timer = setTimeout(()=>{ cleanup(); setSearchStatus('필지 조회 시간 초과'); }, 8000);
-  function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+  const timer = setTimeout(()=>{ cleanup(); setSearchStatus('필지 정보 없음'); }, 8000);
 
+  function cleanup(){
+    clearTimeout(timer);
+    delete window[cbName];
+    if(script.parentNode) script.parentNode.removeChild(script);
+  }
+
+  // 공식 JSONP 콜백: format_options=callback:함수명
   window[cbName] = function(data){
     cleanup();
-    const features = data?.features || [];
+    const features = (data && data.features) ? data.features : [];
     if(!features.length){ setSearchStatus('필지 정보 없음'); return; }
     const f = features[0];
     const props = f.properties || {};
-    const pnu  = props.pnu     || String(Date.now());
-    const addr = props.addr_ld || props.addr || '주소 미상';
+    const pnu  = props.pnu      || String(Date.now());
+    const addr = props.addr_ld  || props.addr || '주소 미상';
     const area = parseFloat(props.lndpclAr || 0);
     toggleLot(pnu, addr, area, lng, lat, f, multiSelect);
     setSearchStatus('');
   };
-  script.onerror = ()=>{ cleanup(); setSearchStatus('필지 조회 실패 (WFS 미지원)'); };
-  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
-    + `&typeName=lt_c_landinfobaseinfo`
-    + `&bbox=${lng-0.00005},${lat-0.00005},${lng+0.00005},${lat+0.00005},EPSG:4326`
-    + `&propertyName=pnu,addr_ld,lndpclAr`
-    + `&outputFormat=application/json&callback=${cbName}&key=${VWORLD_KEY}`;
+
+  script.onerror = function(){ cleanup(); setSearchStatus('필지 정보 없음'); };
+
+  // 연속지적도 WFS명: lp_pa_cbnd_bubun
+  // BBOX는 EPSG:4326일 때 (ymin,xmin,ymax,xmax) 순서
+  const d = 0.00003;
+  script.src = 'https://api.vworld.kr/req/wfs'
+    + '?service=WFS&version=1.1.0&request=GetFeature'
+    + '&typename=lp_pa_cbnd_bubun'
+    + `&bbox=${lat-d},${lng-d},${lat+d},${lng+d}`
+    + '&srsname=EPSG:4326'
+    + '&propertyname=pnu,addr_ld,lndpclAr'
+    + '&maxfeatures=5'
+    + '&output=text/javascript'
+    + `&format_options=callback:${cbName}`
+    + `&key=${VWORLD_KEY}`;
   document.body.appendChild(script);
 }
 
