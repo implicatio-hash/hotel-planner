@@ -344,7 +344,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
   <!-- 브이월드 지도 -->
   <div id="site-map" style="flex:1;position:relative;">
-    <div id="vmap" style="width:100%;height:100%;filter:grayscale(100%) sepia(20%) hue-rotate(190deg) saturate(60%) brightness(1.05);"></div>
+    <div id="vmap" style="width:100%;height:100%;"></div>
     <div id="map-hint" style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
       background:rgba(255,255,255,.92);padding:5px 10px;border-radius:5px;border:1px solid var(--border);
       z-index:1000;pointer-events:none;">
@@ -768,21 +768,28 @@ let selectedLots = new Map();
 function initVMap(){
   if(vMap) return;
 
-  // 기본지도 (WMTS)
+  // 기본지도 (WMTS) — 무채색+파란 오버레이 (타일 레이어에만 적용)
   const baseLayer = new ol.layer.Tile({
     source: new ol.source.XYZ({
       url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
     })
   });
+  // 타일 레이어 canvas에만 CSS filter 적용 (벡터 레이어는 영향 없음)
+  baseLayer.on('prerender', function(e){
+    e.context.filter = 'grayscale(100%) sepia(15%) hue-rotate(195deg) saturate(70%) brightness(1.08)';
+  });
+  baseLayer.on('postrender', function(e){
+    e.context.filter = 'none';
+  });
 
-  // 지적도 벡터 레이어 (WFS — 회색)
+  // 지적도 벡터 레이어 (WFS — 은은한 파란색 선)
   const cadastralSource = new ol.source.Vector();
   window._cadastralSource = cadastralSource;
   const cadastralLayer = new ol.layer.Vector({
     source: cadastralSource,
     style: new ol.style.Style({
-      fill: new ol.style.Fill({ color: 'rgba(180,185,195,0.15)' }),
-      stroke: new ol.style.Stroke({ color: '#9ca3af', width: 1 })
+      fill: new ol.style.Fill({ color: 'rgba(147,197,253,0.08)' }),
+      stroke: new ol.style.Stroke({ color: '#93c5fd', width: 1 })
     }),
     minZoom: 14
   });
