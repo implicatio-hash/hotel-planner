@@ -10,6 +10,8 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@9.2.4/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@9.2.4/dist/ol.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 /* ───── RESET & FONTS ───── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -881,6 +883,105 @@ function loadCadastralWFS(){
     + `&output=text/javascript&format_options=callback:${cbName}`
     + `&key=${VWORLD_KEY}`;
   document.body.appendChild(script);
+}
+
+// ── 건축한계선 SHP 로드 (GitHub Raw) ──
+const SHP_URL = 'https://raw.githubusercontent.com/implicatio-hash/hotel-planner/main/C_UQ163_LM.zip';
+// EPSG:5174 → EPSG:3857 변환 정의
+const PROJ5174 = '+proj=tmerc +lat_0=38 +lon_0=127.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +towgs84=-115.8,474.99,674.11,1.16,-2.31,-1.63,6.43 +units=m +no_defs';
+
+let _shpLoaded = false;
+let _shpLayer = null;
+
+async function loadSetbackLayer(){
+  if(_shpLoaded) return;
+  if(typeof JSZip === 'undefined' || typeof proj4 === 'undefined') return;
+
+  try {
+    proj4.defs('EPSG:5174', PROJ5174);
+    const toWGS84 = proj4('EPSG:5174', 'EPSG:4326');
+
+    const resp = await fetch(SHP_URL);
+    const buf  = await resp.arrayBuffer();
+    const zip  = await JSZip.loadAsync(buf);
+
+    // SHP 파일 추출
+    const shpFile = Object.keys(zip.files).find(n => n.toLowerCase().endsWith('.shp'));
+    if(!shpFile) return;
+    const shpBuf = await zip.files[shpFile].async('arraybuffer');
+
+    // SHP 파싱 (폴리곤/폴리라인)
+    const features = parseSHP(shpBuf, toWGS84);
+    if(!features.length) return;
+
+    const fmt = new ol.format.GeoJSON();
+    const src = new ol.source.Vector();
+    features.forEach(f => {
+      try {
+        const olF = fmt.readFeature(f, { dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
+        src.addFeature(olF);
+      } catch(e){}
+    });
+
+    _shpLayer = new ol.layer.Vector({
+      source: src,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: '#e67e22', width: 1.2, lineDash: [6,4] })
+      }),
+      opacity: 0.85
+    });
+    vMap.addLayer(_shpLayer);
+    _shpLoaded = true;
+    console.log('건축한계선 로드 완료:', features.length, '개');
+  } catch(e){ console.warn('SHP load error:', e); }
+}
+
+function parseSHP(buf, proj){
+  const view = new DataView(buf);
+  const features = [];
+  let offset = 100; // 헤더 스킵
+
+  while(offset < view.byteLength - 8){
+    const contentLen = view.getInt32(offset + 4, false) * 2; // big-endian, 16bit words
+    if(contentLen <= 0 || offset + 8 + contentLen > view.byteLength) break;
+    const shapeType = view.getInt32(offset + 8, true);
+
+    // 3=PolyLine, 5=Polygon, 13=PolyLineZ, 15=PolygonZ
+    if(shapeType === 3 || shapeType === 5 || shapeType === 13 || shapeType === 15){
+      try {
+        const numParts = view.getInt32(offset + 44, true);
+        const numPoints = view.getInt32(offset + 48, true);
+        const partsOffset = offset + 52;
+        const pointsOffset = partsOffset + numParts * 4;
+
+        const parts = [];
+        for(let p=0; p<numParts; p++) parts.push(view.getInt32(partsOffset + p*4, true));
+
+        const allPts = [];
+        for(let p=0; p<numPoints; p++){
+          const x = view.getFloat64(pointsOffset + p*16, true);
+          const y = view.getFloat64(pointsOffset + p*16 + 8, true);
+          const [lng, lat] = proj.forward([x, y]);
+          allPts.push([lng, lat]);
+        }
+
+        const rings = parts.map((start, i) => {
+          const end = i < parts.length-1 ? parts[i+1] : numPoints;
+          return allPts.slice(start, end);
+        });
+
+        const geomType = (shapeType === 5 || shapeType === 15) ? 'Polygon' : 'MultiLineString';
+        features.push({
+          type: 'Feature',
+          geometry: geomType === 'Polygon'
+            ? { type:'Polygon', coordinates: rings }
+            : { type:'MultiLineString', coordinates: rings }
+        });
+      } catch(e){}
+    }
+    offset += 8 + contentLen;
+  }
+  return features;
 }
 
 // 등록 면적 조회 (getLandCharacteristics)
@@ -1807,7 +1908,7 @@ function exportSummary(){
 window.addEventListener('DOMContentLoaded',()=>{
   buildZoneTable();
   initVMap();
-  setTimeout(loadCadastralWFS, 500);
+  setTimeout(()=>{ loadCadastralWFS(); loadSetbackLayer(); }, 500);
 });
 </script>
 </body>
