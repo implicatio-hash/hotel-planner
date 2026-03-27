@@ -820,10 +820,9 @@ function initVMap(){
 
   // 지도 클릭 → GetFeatureInfo JSONP로 필지 속성 조회
   vMap.on('singleclick', function(e){
-    const pixel = e.pixel;         // 화면 픽셀 [x, y]
+    const pixel = e.pixel;
     const coord = ol.proj.toLonLat(e.coordinate);
-    const multi = e.originalEvent?.ctrlKey || false;
-    fetchLotByGFI(e, pixel, coord, multi);
+    fetchLotByGFI(e, pixel, coord);
   });
 }
 
@@ -946,76 +945,68 @@ function fetchLotByGFI(evt, pixel, coord, multiSelect){
   const j = Math.round(pixel[1]);
   const bbox = extent[0]+','+extent[1]+','+extent[2]+','+extent[3];
 
-  // 기존 스크립트 제거
   document.querySelectorAll('script.gfi-script').forEach(s=>s.remove());
 
   const script = document.createElement('script');
   script.className = 'gfi-script';
   const timer = setTimeout(()=>{
-    script.remove();
-    delete window.parseResponse;
+    script.remove(); delete window.parseResponse;
     setSearchStatus('필지 정보 없음');
   }, 8000);
 
-  // 브이월드 GFI는 format_options 무시하고 항상 parseResponse() 호출
   window.parseResponse = function(data){
-    clearTimeout(timer);
-    script.remove();
-    delete window.parseResponse;
+    clearTimeout(timer); script.remove(); delete window.parseResponse;
     const features = (data && data.features) ? data.features : [];
     if(!features.length){ setSearchStatus('필지 정보 없음'); return; }
+
     const f = features[0];
     const props = f.properties || {};
-    const pnu  = props.pnu     || String(Date.now());
-    const addr = props.addr_ld || props.jibun || '주소 미상';
-    const area = parseFloat(props.lndpclAr || props.shape_area || 0);
-    toggleLot(pnu, addr, area, coord[0], coord[1], multiSelect);
+    const pnu  = props.pnu  || String(Date.now());
+    const addr = props.addr || props.jibun || '주소 미상';
+
+    // geometry에서 면적 계산 (EPSG:3857 기준 m²)
+    let area = 0;
+    let olGeom = null;
+    if(f.geometry){
+      try{
+        olGeom = new ol.format.GeoJSON().readGeometry(f.geometry);
+        area = Math.abs(olGeom.getArea ? olGeom.getArea() : 0);
+      }catch(e){}
+    }
+
+    toggleLot(pnu, addr, area, olGeom);
     setSearchStatus('');
   };
 
   script.onerror = function(){
-    clearTimeout(timer);
-    script.remove();
-    delete window.parseResponse;
+    clearTimeout(timer); script.remove(); delete window.parseResponse;
     setSearchStatus('필지 정보 없음');
   };
 
   script.src = 'https://api.vworld.kr/req/wms'
     + '?service=WMS&version=1.3.0&request=GetFeatureInfo'
-    + '&layers=lp_pa_cbnd_bubun'
-    + '&query_layers=lp_pa_cbnd_bubun'
-    + `&bbox=${bbox}`
-    + '&crs=EPSG:3857'
-    + `&width=${w}&height=${h}`
-    + `&i=${i}&j=${j}`
-    + '&info_format=text/javascript'
-    + '&feature_count=1'
+    + '&layers=lp_pa_cbnd_bubun&query_layers=lp_pa_cbnd_bubun'
+    + `&bbox=${bbox}&crs=EPSG:3857`
+    + `&width=${w}&height=${h}&i=${i}&j=${j}`
+    + '&info_format=text/javascript&feature_count=1'
     + `&key=${VWORLD_KEY}`;
   document.body.appendChild(script);
 }
 
-function toggleLot(pnu, addr, area, lng, lat, multiSelect){
-  if(!multiSelect){
-    selectedLots.clear();
-    if(window._lotSource) window._lotSource.clear();
-  }
+// 기본 다중 선택 (Ctrl 불필요 — 재클릭 시 해제)
+function toggleLot(pnu, addr, area, olGeom){
   if(selectedLots.has(pnu)){
+    // 재클릭 → 선택 해제
     selectedLots.delete(pnu);
     if(window._lotSource){
       const ex = window._lotSource.getFeatures().find(f => f.get('pnu') === pnu);
       if(ex) window._lotSource.removeFeature(ex);
     }
   } else {
-    selectedLots.set(pnu, {pnu, addr, area, lng, lat});
-    // 클릭 지점 중심으로 작은 사각형 하이라이트 (geometry 없을 때 fallback)
-    if(window._lotSource){
-      const pt = ol.proj.fromLonLat([lng, lat]);
-      const d = 20; // meters
-      const geom = new ol.geom.Polygon([[
-        [pt[0]-d, pt[1]-d], [pt[0]+d, pt[1]-d],
-        [pt[0]+d, pt[1]+d], [pt[0]-d, pt[1]+d], [pt[0]-d, pt[1]-d]
-      ]]);
-      const feat = new ol.Feature({ geometry: geom });
+    // 신규 선택 (다중 누적)
+    selectedLots.set(pnu, {pnu, addr, area});
+    if(window._lotSource && olGeom){
+      const feat = new ol.Feature({ geometry: olGeom });
       feat.set('pnu', pnu);
       window._lotSource.addFeature(feat);
     }
