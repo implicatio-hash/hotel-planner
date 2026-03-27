@@ -869,6 +869,7 @@ function loadCadastralInView(){
     + `&outputFormat=application/json`
     + `&callback=${cbName}&key=${VWORLD_KEY}`;
   document.body.appendChild(script);
+}
 
 // Ctrl 키 추적 (다중 선택)
 window.addEventListener('keydown', e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=true; });
