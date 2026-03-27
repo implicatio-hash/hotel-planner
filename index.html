@@ -1055,6 +1055,10 @@ function updateSelectedLots(){
 
 function removeLot(pnu){
   selectedLots.delete(pnu);
+  if(window._lotSource){
+    const ex = window._lotSource.getFeatures().find(f => f.get('pnu') === pnu);
+    if(ex) window._lotSource.removeFeature(ex);
+  }
   updateSelectedLots();
 }
 
@@ -1108,106 +1112,90 @@ function syncStep1(){
   if(el) el.value = area.toFixed(2);
 }
 
-// 선택 필지 외곽선 캔버스 그리기
+// 선택 필지 외곽선 그리기 (ol.Map 벡터 기반)
 function drawLotOutline(){
   const features = window._lotSource ? window._lotSource.getFeatures() : [];
   if(!features.length) return;
 
-  // ── Turf.js로 필지 Union (병합) ──
   const fmt = new ol.format.GeoJSON();
+
+  // Turf.js Union (미세 갭 극복: 0.5m 팽창 후 union, 다시 축소)
   let merged = null;
   try {
-    // EPSG:3857 → EPSG:4326 변환 후 union
     const geojsons = features.map(f => {
       const clone = f.getGeometry().clone();
       clone.transform('EPSG:3857','EPSG:4326');
-      return { type:'Feature', geometry: JSON.parse(fmt.writeGeometry(clone)) };
+      const geom = JSON.parse(fmt.writeGeometry(clone));
+      return turf.buffer({ type:'Feature', geometry: geom }, 0.0005, { units:'degrees' });
     });
-    merged = geojsons.reduce((acc, cur) => turf.union(acc, cur));
-  } catch(e) { console.warn('turf union:', e); }
+    const unioned = geojsons.reduce((acc, cur) => turf.union(acc, cur));
+    merged = turf.buffer(unioned, -0.0005, { units:'degrees' }) || unioned;
+  } catch(e){ console.warn('turf union:', e); }
 
-  // ── step1Map 초기화 (최초 1회만 생성) ──
+  // step1Map 초기화 (최초 1회)
   if(!window._step1Map){
-    // 기본지도
-    const baseLayer = new ol.layer.Tile({
-      source: new ol.source.XYZ({
-        url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
-      })
-    });
-    // 지적도 WMS
-    const cadastral = new ol.layer.Image({
-      source: new ol.source.ImageWMS({
-        url: 'https://api.vworld.kr/req/wms',
-        params: {
-          LAYERS: 'lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun',
-          STYLES: 'lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line',
-          FORMAT: 'image/png', TRANSPARENT: 'TRUE', key: VWORLD_KEY
-        }
-      }),
-      opacity: 0.9
-    });
-    // 대지경계선 + 건축한계선 벡터 레이어
     const outlineSource = new ol.source.Vector();
     window._step1OutlineSource = outlineSource;
-    const outlineLayer = new ol.layer.Vector({
-      source: outlineSource,
-      style: function(feature){
-        const type = feature.get('type');
-        if(type === 'boundary') return new ol.style.Style({
-          stroke: new ol.style.Stroke({ color: '#e74c3c', width: 2.5 })
-        });
-        if(type === 'setback') return new ol.style.Style({
-          stroke: new ol.style.Stroke({ color: '#e67e22', width: 1.5, lineDash: [8,5] })
-        });
-      }
-    });
-
     window._step1Map = new ol.Map({
       target: 'step1-map',
-      layers: [baseLayer, cadastral, outlineLayer],
+      layers: [
+        new ol.layer.Tile({
+          source: new ol.source.XYZ({
+            url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
+          })
+        }),
+        new ol.layer.Image({
+          source: new ol.source.ImageWMS({
+            url: 'https://api.vworld.kr/req/wms',
+            params: {
+              LAYERS: 'lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun',
+              STYLES: 'lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line',
+              FORMAT: 'image/png', TRANSPARENT: 'TRUE', key: VWORLD_KEY
+            }
+          }),
+          opacity: 0.9
+        }),
+        new ol.layer.Vector({
+          source: outlineSource,
+          style: function(feature){
+            const t = feature.get('type');
+            if(t === 'boundary') return new ol.style.Style({
+              stroke: new ol.style.Stroke({ color: '#e74c3c', width: 2.5 })
+            });
+            if(t === 'setback') return new ol.style.Style({
+              stroke: new ol.style.Stroke({ color: '#e67e22', width: 1.5, lineDash: [8,5] })
+            });
+          }
+        })
+      ],
       view: new ol.View({ center: ol.proj.fromLonLat([126.978, 37.566]), zoom: 17 }),
       controls: []
     });
   }
 
+  window._step1Map.updateSize();
   const outlineSource = window._step1OutlineSource;
   outlineSource.clear();
 
   if(merged){
-    // 대지경계선 (union 외곽)
     const boundaryGeom = fmt.readGeometry(merged.geometry);
     boundaryGeom.transform('EPSG:4326','EPSG:3857');
-    const boundaryFeat = new ol.Feature({ geometry: boundaryGeom });
-    boundaryFeat.set('type','boundary');
-    outlineSource.addFeature(boundaryFeat);
-
-    // 건축한계선 (buffer -3m in EPSG:3857 단위)
+    const bf = new ol.Feature({ geometry: boundaryGeom });
+    bf.set('type','boundary');
+    outlineSource.addFeature(bf);
     try {
-      const setbackGeoJSON = turf.buffer(merged, -3, { units:'meters' });
-      if(setbackGeoJSON){
-        const setbackGeom = fmt.readGeometry(setbackGeoJSON.geometry);
-        setbackGeom.transform('EPSG:4326','EPSG:3857');
-        const setbackFeat = new ol.Feature({ geometry: setbackGeom });
-        setbackFeat.set('type','setback');
-        outlineSource.addFeature(setbackFeat);
-      }
+      const sg = turf.buffer(merged, -3, { units:'meters' });
+      if(sg){ const sgm = fmt.readGeometry(sg.geometry); sgm.transform('EPSG:4326','EPSG:3857'); const sf = new ol.Feature({ geometry: sgm }); sf.set('type','setback'); outlineSource.addFeature(sf); }
     } catch(e){}
-
-    // 지도 범위를 병합 필지로 맞춤
-    const ext = boundaryGeom.getExtent();
-    window._step1Map.getView().fit(ext, { padding:[40,40,40,40], duration:300 });
   } else {
-    // union 실패 시 개별 feature 그대로 표시
-    features.forEach(f => {
-      const clone = f.clone();
-      clone.set('type','boundary');
-      outlineSource.addFeature(clone);
-    });
-    const ext = outlineSource.getExtent();
-    window._step1Map.getView().fit(ext, { padding:[40,40,40,40], duration:300 });
+    features.forEach(f => { const c = f.clone(); c.set('type','boundary'); outlineSource.addFeature(c); });
   }
 
-  window._step1Map.updateSize();
+  // 항상 fit (버그2: 재진입 시 zoom 초기화)
+  const ext = outlineSource.getExtent();
+  if(ext && ext[0] !== Infinity){
+    window._step1Map.getView().fit(ext, { padding:[60,60,60,60], maxZoom:19, duration:300 });
+  }
 }
 
 
