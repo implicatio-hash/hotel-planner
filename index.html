@@ -820,7 +820,7 @@ function initVMap(){
   // 지도 이동 끝날 때 → 지적도 필지 자동 로드
   vMap.on('moveend', function(){
     const zoom = vMap.getView().getZoom();
-    if(zoom < 16) { if(window._cadastralSource) window._cadastralSource.clear(); return; }
+    if(zoom < 14) { if(window._cadastralSource) window._cadastralSource.clear(); return; }
     loadCadastralInView();
   });
 
@@ -828,6 +828,11 @@ function initVMap(){
   vMap.on('singleclick', function(e){
     const coord = ol.proj.toLonLat(e.coordinate);
     fetchLotJsonp(coord[0], coord[1], e.originalEvent?.ctrlKey || false);
+  });
+
+  // 초기 로드 (렌더링 완료 후)
+  vMap.once('rendercomplete', function(){
+    loadCadastralInView();
   });
 }
 
@@ -845,6 +850,7 @@ function loadCadastralInView(){
   window[cbName] = function(data){
     _cadastralLoading = false; cleanup();
     const features = data?.features || [];
+    console.log('[cadastral] 응답 features:', features.length, data);
     if(!features.length) return;
     const src = window._cadastralSource;
     if(!src) return;
@@ -860,7 +866,7 @@ function loadCadastralInView(){
       }catch(e){}
     });
   };
-  script.onerror = ()=>{ _cadastralLoading=false; cleanup(); };
+  script.onerror = ()=>{ _cadastralLoading=false; cleanup(); console.warn('[cadastral] script onerror — WFS JSONP 미지원일 수 있음'); };
   script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
     + `&typeName=lt_c_landinfobaseinfo`
     + `&bbox=${minX},${minY},${maxX},${maxY},EPSG:4326`
