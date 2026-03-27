@@ -397,7 +397,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <div><span class="ic-val" id="max-coverage">0</span><span class="ic-unit">m²</span></div>
           </div>
           <div class="info-card">
-            <div class="ic-label">용적 산정 면적</div>
+            <div class="ic-label">용적률 산정 연면적</div>
             <div><span class="ic-val" id="max-gfa">0</span><span class="ic-unit">m²</span></div>
           </div>
         </div>
@@ -1115,8 +1115,8 @@ function drawLotOutline(){
   canvas.height = H;
   const ctx = canvas.getContext('2d');
 
-  // 배경
-  ctx.fillStyle = '#e8ecf0';
+  // 배경 (회색 = 도로/주변 대지)
+  ctx.fillStyle = '#d4d8df';
   ctx.fillRect(0,0,W,H);
 
   const features = window._lotSource ? window._lotSource.getFeatures() : [];
@@ -1128,7 +1128,7 @@ function drawLotOutline(){
     return;
   }
 
-  // 전체 extent + 여백
+  // 전체 extent
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   features.forEach(f=>{
     const ext = f.getGeometry().getExtent();
@@ -1136,160 +1136,136 @@ function drawLotOutline(){
     if(ext[2]>maxX) maxX=ext[2]; if(ext[3]>maxY) maxY=ext[3];
   });
 
-  // 도로 표현을 위해 주변 여백 확보 (필지 크기의 50%)
-  const dW = (maxX-minX) * 0.5;
-  const dH = (maxY-minY) * 0.5;
-  minX -= dW; minY -= dH; maxX += dW; maxY += dH;
+  // 주변 여백 (도로 공간)
+  const dW = (maxX-minX)*0.6, dH = (maxY-minY)*0.6;
+  const viewMinX=minX-dW, viewMinY=minY-dH, viewMaxX=maxX+dW, viewMaxY=maxY+dH;
 
-  const pad = 40;
-  const scaleX = (W - pad*2) / (maxX - minX || 1);
-  const scaleY = (H - pad*2) / (maxY - minY || 1);
+  const pad = 20;
+  const scaleX = (W-pad*2)/(viewMaxX-viewMinX);
+  const scaleY = (H-pad*2)/(viewMaxY-viewMinY);
   const scale  = Math.min(scaleX, scaleY);
-  const offX   = pad + ((W - pad*2) - (maxX - minX)*scale) / 2;
-  const offY   = pad + ((H - pad*2) - (maxY - minY)*scale) / 2;
+  const offX   = pad + ((W-pad*2)-(viewMaxX-viewMinX)*scale)/2;
+  const offY   = pad + ((H-pad*2)-(viewMaxY-viewMinY)*scale)/2;
 
-  function toCanvas(cx, cy){
-    return [offX + (cx - minX)*scale, H - (offY + (cy - minY)*scale)];
-  }
+  function tc(cx,cy){ return [offX+(cx-viewMinX)*scale, H-(offY+(cy-viewMinY)*scale)]; }
 
-  function collectRings(features){
-    const rings = [];
-    features.forEach(f=>{
-      const geom = f.getGeometry();
-      const type = geom.getType();
-      if(type==='Polygon'){
-        geom.getCoordinates().forEach(r => rings.push(r));
-      } else if(type==='MultiPolygon'){
-        geom.getCoordinates().forEach(poly => poly.forEach(r => rings.push(r)));
-      }
-    });
-    return rings;
-  }
-
-  function drawRings(rings){
-    rings.forEach(ring => {
+  function pathRings(rings){
+    rings.forEach(ring=>{
       if(!ring.length) return;
-      const [sx,sy] = toCanvas(ring[0][0], ring[0][1]);
+      const [sx,sy]=tc(ring[0][0],ring[0][1]);
       ctx.moveTo(sx,sy);
-      for(let i=1;i<ring.length;i++){
-        const [px,py] = toCanvas(ring[i][0], ring[i][1]);
-        ctx.lineTo(px,py);
-      }
+      for(let i=1;i<ring.length;i++){const [px,py]=tc(ring[i][0],ring[i][1]); ctx.lineTo(px,py);}
       ctx.closePath();
     });
   }
 
-  // ── 1. 도로 영역 (WMS 대신 인접 외부 공간 회색으로 표현) ──
-  // 도로처럼 보이도록 필지 외부를 약간 밝은 회색으로 채움
-  ctx.fillStyle = '#d0d5dc';
-  ctx.fillRect(0,0,W,H);
-
-  // ── 2. 인접 대지(비선택) 영역 표현 - 밝은 베이지 ──
-  ctx.fillStyle = '#e8ecf0';
-  ctx.fillRect(0,0,W,H);
-
-  // ── 3. 전체 필지 합산 영역 (내부 밝게) ──
-  const allRings = collectRings(features);
-  ctx.save();
-  ctx.beginPath();
-  drawRings(allRings);
-  ctx.fillStyle = '#f5f6f8';  // 대지 내부 - 거의 흰색
-  ctx.fill('evenodd');
-  ctx.restore();
-
-  // ── 4. 건축한계선 (대지경계에서 안쪽 오프셋, 점선) ──
-  // 픽셀 기준 setback: 도로폭에 따라 3~6m → 스케일로 변환
-  const setbackM = 3; // 기본 3m
-  const setbackPx = setbackM * scale;
-  ctx.save();
-  ctx.beginPath();
-  drawRings(allRings);
-  ctx.strokeStyle = '#e67e22';
-  ctx.lineWidth = 1.2;
-  ctx.setLineDash([6, 4]);
-  // 내부 축소는 canvas clip으로 표현
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
-
-  // ── 5. 대지 경계선 (외곽선만, 굵은 실선) ──
-  ctx.save();
-  ctx.beginPath();
-  drawRings(allRings);
-  ctx.strokeStyle = '#e74c3c';
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-  ctx.restore();
-
-  // ── 6. 도로명 방향 힌트 (나침반) ──
-  ctx.save();
-  ctx.font = '10px Pretendard,sans-serif';
-  ctx.fillStyle = '#6b7280';
-  ctx.textAlign = 'center';
-  ctx.fillText('N↑', W - 24, 28);
-  ctx.restore();
-
-  // ── 7. 범례 ──
-  ctx.save();
-  ctx.font = '10px Pretendard,sans-serif';
-  ctx.textAlign = 'left';
-  // 대지경계선
-  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
-  ctx.beginPath(); ctx.moveTo(12,H-38); ctx.lineTo(32,H-38); ctx.stroke();
-  ctx.fillStyle = '#374151'; ctx.fillText('대지경계선', 36, H-35);
-  // 건축한계선
-  ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 1.2; ctx.setLineDash([5,3]);
-  ctx.beginPath(); ctx.moveTo(12,H-20); ctx.lineTo(32,H-20); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = '#374151'; ctx.fillText('건축한계선 (3m)', 36, H-17);
-  ctx.restore();
-
-  // ── 8. 면적 표기 ──
-  const total = [...selectedLots.values()].reduce((s,l)=>s+(l.area||0),0);
-  if(total>0){
-    ctx.save();
-    ctx.font = 'bold 12px Pretendard,sans-serif';
-    ctx.fillStyle = '#2563eb';
-    ctx.textAlign = 'center';
-    ctx.fillText(`대지면적 ${total.toFixed(2)} ㎡`, W/2, H-8);
-    ctx.restore();
+  function allRings(){
+    const rings=[];
+    features.forEach(f=>{
+      const g=f.getGeometry(), t=g.getType();
+      if(t==='Polygon') g.getCoordinates().forEach(r=>rings.push(r));
+      else if(t==='MultiPolygon') g.getCoordinates().forEach(poly=>poly.forEach(r=>rings.push(r)));
+    });
+    return rings;
   }
 
-  // ── 9. WMS 도로 레이어 오버레이 (img 태그로 비동기 로드) ──
-  // extent를 EPSG:4326으로 변환해서 WMS 요청
-  try {
-    const ext3857 = [
-      minX, minY, maxX, maxY
-    ];
-    // 이미 EPSG:3857이므로 바로 사용
-    const wmsUrl = 'https://api.vworld.kr/req/wms'
-      + '?service=WMS&version=1.3.0&request=GetMap'
-      + '&layers=lt_l_sprd'
-      + '&styles=&format=image/png&transparent=true'
-      + `&crs=EPSG:3857&bbox=${ext3857.join(',')}`
-      + `&width=${W}&height=${H}`
-      + `&key=${VWORLD_KEY}`;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function(){
-      // 도로 이미지를 캔버스 아래에 삽입 (다시 그리기)
+  const rings = allRings();
+
+  // 1. 도로 WMS 오버레이 (crossOrigin 없이 — tainted canvas 허용)
+  const bbox = [viewMinX,viewMinY,viewMaxX,viewMaxY].join(',');
+  const wmsUrl = 'https://api.vworld.kr/req/wms'
+    + '?service=WMS&version=1.3.0&request=GetMap'
+    + '&layers=lt_l_sprd,lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun'
+    + '&styles=,lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line'
+    + '&format=image/png&transparent=true&crs=EPSG:3857'
+    + `&bbox=${bbox}&width=${W}&height=${H}`
+    + `&key=${VWORLD_KEY}`;
+
+  const img = new Image(); // crossOrigin 생략 → tainted 허용
+  img.onload = function(){
+    ctx.save();
+    ctx.drawImage(img,0,0,W,H);
+    ctx.restore();
+    drawOverlays(); // 도로 위에 대지경계선, 건축한계선 그리기
+  };
+  img.onerror = function(){ drawOverlays(); }; // WMS 실패 시 그냥 진행
+  img.src = wmsUrl;
+
+  function drawOverlays(){
+    // 2. 대지 내부 흰색 채움 (윤곽선만, 채색 최소화)
+    ctx.save();
+    ctx.beginPath();
+    pathRings(rings);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fill('evenodd');
+    ctx.restore();
+
+    // 3. 건축한계선 (대지경계 안쪽 점선 — 시각적 오프셋)
+    // canvas transform으로 살짝 축소해 표현
+    const cx=(offX+(maxX-viewMinX)*scale+offX+(minX-viewMinX)*scale)/2;
+    const cy=(H-offY-(maxY-viewMinY)*scale+H-offY-(minY-viewMinY)*scale)/2;
+    const setbackRatio = 1 - (3*scale)/(Math.max((maxX-minX),(maxY-minY))*scale/2 + 1);
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.scale(setbackRatio, setbackRatio);
+    ctx.translate(-cx,-cy);
+    ctx.beginPath();
+    pathRings(rings);
+    ctx.strokeStyle = '#e67e22';
+    ctx.lineWidth = 1.5 / setbackRatio;
+    ctx.setLineDash([6,4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // 4. 대지경계선 (빨간 실선, 외곽만)
+    ctx.save();
+    ctx.beginPath();
+    pathRings(rings);
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    // 5. 나침반
+    ctx.save();
+    ctx.font = 'bold 11px Pretendard,sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', W-20, 22);
+    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(W-20,26); ctx.lineTo(W-20,38); ctx.stroke();
+    ctx.restore();
+
+    // 6. 범례
+    ctx.save();
+    ctx.font = '10px Pretendard,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(12,H-32); ctx.lineTo(28,H-32); ctx.stroke();
+    ctx.fillStyle = '#374151'; ctx.fillText('대지경계선', 32, H-29);
+    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 1.2; ctx.setLineDash([5,3]);
+    ctx.beginPath(); ctx.moveTo(12,H-16); ctx.lineTo(28,H-16); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillText('건축한계선 (3m)', 32, H-13);
+    ctx.restore();
+
+    // 7. 면적
+    const total = [...selectedLots.values()].reduce((s,l)=>s+(l.area||0),0);
+    if(total>0){
       ctx.save();
-      ctx.globalAlpha = 0.6;
-      ctx.drawImage(img, 0, 0, W, H);
-      ctx.globalAlpha = 1.0;
+      ctx.font = 'bold 12px Pretendard,sans-serif';
+      ctx.fillStyle = '#1a1d26';
+      ctx.textAlign = 'center';
+      const tw = ctx.measureText(`대지면적  ${total.toFixed(2)} ㎡`).width;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(W/2-tw/2-6, H-26, tw+12, 18);
+      ctx.fillStyle = '#1a1d26';
+      ctx.fillText(`대지면적  ${total.toFixed(2)} ㎡`, W/2, H-13);
       ctx.restore();
-      // 대지경계선 다시 그리기 (도로 위에)
-      ctx.save();
-      ctx.beginPath();
-      drawRings(allRings);
-      ctx.strokeStyle = '#e74c3c';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-      ctx.restore();
-    };
-    img.src = wmsUrl;
-  } catch(e){}
+    }
+  }
 }
 
 function calcSiteInfo(){
