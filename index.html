@@ -1199,13 +1199,20 @@ function drawLotOutline(){
   // Turf.js Union (미세 갭 극복: 0.5m 팽창 후 union, 다시 축소)
   let merged = null;
   try {
+    // 좌표를 소수점 6자리로 스냅 → 인접 필지 공유점 일치 → buffer 없이 깔끔한 union
+    function snapCoords(geom, precision){
+      const p = Math.pow(10, precision);
+      function snapRing(ring){ return ring.map(pt => [Math.round(pt[0]*p)/p, Math.round(pt[1]*p)/p]); }
+      if(geom.type==='Polygon') return {...geom, coordinates: geom.coordinates.map(snapRing)};
+      if(geom.type==='MultiPolygon') return {...geom, coordinates: geom.coordinates.map(poly=>poly.map(snapRing))};
+      return geom;
+    }
     const geojsons = features.map(f => {
       const clone = f.getGeometry().clone();
       clone.transform('EPSG:3857','EPSG:4326');
-      const geom = JSON.parse(fmt.writeGeometry(clone));
+      const geom = snapCoords(JSON.parse(fmt.writeGeometry(clone)), 6);
       return { type:'Feature', geometry: geom };
     });
-    // buffer 없이 직접 union (꼭지점 왜곡 없음)
     merged = geojsons.reduce((acc, cur) => turf.union(acc, cur));
   } catch(e){ console.warn('turf union:', e); }
 
@@ -1283,50 +1290,48 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
 
   _shpGeoJSONs.forEach(shpGJ => {
     try {
-      // bbox 1차 필터
+      // 1차: bbox 필터
       const sBbox = turf.bbox(shpGJ);
       if(sBbox[2] < mBbox[0] || sBbox[0] > mBbox[2] ||
          sBbox[3] < mBbox[1] || sBbox[1] > mBbox[3]) return;
 
-      // MultiLineString의 각 LineString을 필지 폴리곤으로 clip
-      // turf.booleanIntersects로 교차 확인 후 lineSplit 적용
-      if(!turf.booleanIntersects(mergedGeoJSON, shpGJ)) return;
-
-      // 각 line segment를 분리해서 필지 내부 여부 확인
-      const coords = shpGJ.geometry.coordinates; // [[pt,pt,...], ...]
-      const clippedLines = [];
+      // MultiLineString의 각 line 처리
+      const coords = shpGJ.geometry.type === 'MultiLineString'
+        ? shpGJ.geometry.coordinates
+        : [shpGJ.geometry.coordinates];
 
       coords.forEach(line => {
-        const insidePts = [];
-        // 선분 단위로 필지 내부 점만 추출
+        let insidePts = [];
         for(let i = 0; i < line.length; i++){
-          const pt = turf.point(line[i]);
-          if(turf.booleanPointInPolygon(pt, mergedGeoJSON)){
+          const inPoly = turf.booleanPointInPolygon(turf.point(line[i]), mergedGeoJSON);
+          if(inPoly){
             insidePts.push(line[i]);
-          } else if(insidePts.length > 0){
-            // 내부 → 외부로 나갈 때 현재 segment 저장 후 리셋
-            if(insidePts.length >= 2) clippedLines.push([...insidePts]);
-            insidePts.length = 0;
+          } else {
+            if(insidePts.length >= 2){
+              const gj = { type:'LineString', coordinates: insidePts };
+              const olGeom = fmt.readGeometry(gj);
+              olGeom.transform('EPSG:4326','EPSG:3857');
+              const sf = new ol.Feature({ geometry: olGeom });
+              sf.set('type','setback');
+              outlineSource.addFeature(sf);
+              clippedCount++;
+            }
+            insidePts = [];
           }
         }
-        if(insidePts.length >= 2) clippedLines.push([...insidePts]);
+        if(insidePts.length >= 2){
+          const gj = { type:'LineString', coordinates: insidePts };
+          const olGeom = fmt.readGeometry(gj);
+          olGeom.transform('EPSG:4326','EPSG:3857');
+          const sf = new ol.Feature({ geometry: olGeom });
+          sf.set('type','setback');
+          outlineSource.addFeature(sf);
+          clippedCount++;
+        }
       });
-
-      if(!clippedLines.length) return;
-
-      // LineString들을 ol.Feature로 추가
-      clippedLines.forEach(line => {
-        const gj = { type:'LineString', coordinates: line };
-        const olGeom = fmt.readGeometry(gj);
-        olGeom.transform('EPSG:4326','EPSG:3857');
-        const sf = new ol.Feature({ geometry: olGeom });
-        sf.set('type','setback');
-        outlineSource.addFeature(sf);
-      });
-      clippedCount++;
     } catch(e){}
   });
-  console.log('건축한계선 clip 완료:', clippedCount, '개');
+  if(clippedCount > 0) console.log('건축한계선 clip 완료:', clippedCount, '개');
 }
 
 
