@@ -887,52 +887,26 @@ function loadCadastralWFS(){
 
 // ── 건축한계선 SHP 로드 (GitHub Raw) ──
 const SHP_URL = 'https://raw.githubusercontent.com/implicatio-hash/hotel-planner/main/C_UQ163_LM.zip';
-// EPSG:5174 → EPSG:3857 변환 정의
 const PROJ5174 = '+proj=tmerc +lat_0=38 +lon_0=127.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +towgs84=-115.8,474.99,674.11,1.16,-2.31,-1.63,6.43 +units=m +no_defs';
 
 let _shpLoaded = false;
-let _shpLayer = null;
+let _shpGeoJSONs = []; // WGS84 GeoJSON 배열 — 1페이지 지도에는 추가 안 함
 
 async function loadSetbackLayer(){
   if(_shpLoaded) return;
   if(typeof JSZip === 'undefined' || typeof proj4 === 'undefined') return;
-
   try {
     proj4.defs('EPSG:5174', PROJ5174);
     const toWGS84 = proj4('EPSG:5174', 'EPSG:4326');
-
     const resp = await fetch(SHP_URL);
     const buf  = await resp.arrayBuffer();
     const zip  = await JSZip.loadAsync(buf);
-
-    // SHP 파일 추출
     const shpFile = Object.keys(zip.files).find(n => n.toLowerCase().endsWith('.shp'));
     if(!shpFile) return;
     const shpBuf = await zip.files[shpFile].async('arraybuffer');
-
-    // SHP 파싱 (폴리곤/폴리라인)
-    const features = parseSHP(shpBuf, toWGS84);
-    if(!features.length) return;
-
-    const fmt = new ol.format.GeoJSON();
-    const src = new ol.source.Vector();
-    features.forEach(f => {
-      try {
-        const olF = fmt.readFeature(f, { dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
-        src.addFeature(olF);
-      } catch(e){}
-    });
-
-    _shpLayer = new ol.layer.Vector({
-      source: src,
-      style: new ol.style.Style({
-        stroke: new ol.style.Stroke({ color: '#e67e22', width: 1.2, lineDash: [6,4] })
-      }),
-      opacity: 0.85
-    });
-    vMap.addLayer(_shpLayer);
+    _shpGeoJSONs = parseSHP(shpBuf, toWGS84);
     _shpLoaded = true;
-    console.log('건축한계선 로드 완료:', features.length, '개');
+    console.log('건축한계선 로드 완료:', _shpGeoJSONs.length, '개');
   } catch(e){ console.warn('SHP load error:', e); }
 }
 
@@ -1229,10 +1203,12 @@ function drawLotOutline(){
       const clone = f.getGeometry().clone();
       clone.transform('EPSG:3857','EPSG:4326');
       const geom = JSON.parse(fmt.writeGeometry(clone));
-      return turf.buffer({ type:'Feature', geometry: geom }, 0.000005, { units:'degrees' });
+      // 미세 팽창 (갭 메우기) — steps:1로 round 최소화
+      return turf.buffer({ type:'Feature', geometry: geom }, 0.000003, { units:'degrees', steps:1 });
     });
     const unioned = geojsons.reduce((acc, cur) => turf.union(acc, cur));
-    merged = turf.buffer(unioned, -0.000005, { units:'degrees' }) || unioned;
+    // 미세 축소 복원 — steps:1로 직각 유지
+    merged = turf.buffer(unioned, -0.000003, { units:'degrees', steps:1 }) || unioned;
   } catch(e){ console.warn('turf union:', e); }
 
   // step1Map 초기화 (최초 1회)
@@ -1302,29 +1278,33 @@ function drawLotOutline(){
 
 // SHP에서 선택 필지 내부 건축한계선만 clip해서 표시
 function addSetbackFromSHP(mergedGeoJSON, outlineSource){
-  if(!window._shpLayer) return;
+  if(!_shpLoaded || !_shpGeoJSONs.length) return;
   const fmt = new ol.format.GeoJSON();
-  const shpFeatures = window._shpLayer.getSource().getFeatures();
-  if(!shpFeatures.length) return;
 
-  shpFeatures.forEach(shpF => {
+  // 선택 필지 bbox로 먼저 필터링 (성능)
+  const mBbox = turf.bbox(mergedGeoJSON);
+
+  let clippedCount = 0;
+  _shpGeoJSONs.forEach(shpGJ => {
     try {
-      // SHP feature를 EPSG:4326 GeoJSON으로 변환
-      const clone = shpF.getGeometry().clone();
-      clone.transform('EPSG:3857','EPSG:4326');
-      const shpGJ = { type:'Feature', geometry: JSON.parse(fmt.writeGeometry(clone)) };
+      // bbox 교차 여부 먼저 확인
+      const sBbox = turf.bbox(shpGJ);
+      if(sBbox[2] < mBbox[0] || sBbox[0] > mBbox[2] ||
+         sBbox[3] < mBbox[1] || sBbox[1] > mBbox[3]) return;
 
-      // 선택 필지(mergedGeoJSON)와 교차하는 부분만 추출
+      // 선택 필지 내부만 clip
       const clipped = turf.intersect(mergedGeoJSON, shpGJ);
-      if(!clipped) return;
+      if(!clipped || !clipped.geometry) return;
 
       const clippedGeom = fmt.readGeometry(clipped.geometry);
       clippedGeom.transform('EPSG:4326','EPSG:3857');
       const sf = new ol.Feature({ geometry: clippedGeom });
       sf.set('type','setback');
       outlineSource.addFeature(sf);
+      clippedCount++;
     } catch(e){}
   });
+  console.log('건축한계선 clip 완료:', clippedCount, '개');
 }
 
 
