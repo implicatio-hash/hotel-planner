@@ -774,32 +774,20 @@ function initVMap(){
     })
   });
 
-  // 연속지적도 WMS — 파란색 스타일 (SLD_BODY로 색상 지정)
+  // 연속지적도 WMS (작동 확인된 기본 스타일)
   const cadastralLayer = new ol.layer.Image({
     source: new ol.source.ImageWMS({
       url: 'https://api.vworld.kr/req/wms',
       params: {
         LAYERS: 'lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun',
+        STYLES: 'lp_pa_cbnd_bonbun_line,lp_pa_cbnd_bubun_line',
         FORMAT: 'image/png',
         TRANSPARENT: 'TRUE',
-        key: VWORLD_KEY,
-        SLD_BODY: encodeURIComponent(
-          '<?xml version="1.0"?><StyledLayerDescriptor version="1.0.0">'
-          + '<NamedLayer><Name>lp_pa_cbnd_bubun</Name><UserStyle><FeatureTypeStyle><Rule>'
-          + '<LineSymbolizer><Stroke><CssParameter name="stroke">#2563eb</CssParameter>'
-          + '<CssParameter name="stroke-width">1.2</CssParameter></Stroke></LineSymbolizer>'
-          + '</Rule></FeatureTypeStyle></UserStyle></NamedLayer>'
-          + '<NamedLayer><Name>lp_pa_cbnd_bonbun</Name><UserStyle><FeatureTypeStyle><Rule>'
-          + '<LineSymbolizer><Stroke><CssParameter name="stroke">#2563eb</CssParameter>'
-          + '<CssParameter name="stroke-width">1.2</CssParameter></Stroke></LineSymbolizer>'
-          + '</Rule></FeatureTypeStyle></UserStyle></NamedLayer>'
-          + '</StyledLayerDescriptor>'
-        )
+        key: VWORLD_KEY
       }
     }),
     opacity: 0.9
   });
-  // WMS 소스 저장 (클릭 시 GetFeatureInfo용)
   window._cadastralWMS = cadastralLayer.getSource();
 
   // 선택 필지 하이라이트 (파란색 50% 투명 채움)
