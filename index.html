@@ -1437,14 +1437,13 @@ function sharpInsetPolygon(poly, distM){
 
   const n = coords.length - 1; // 마지막 점 = 첫 점이므로 제외
   // 각 변의 내측 평행선 계산
-  function offsetEdge(p1, p2, dl, dg){
+  function offsetEdge(p1, p2){
     const dx = p2[0]-p1[0], dy = p2[1]-p1[1];
-    const len = Math.sqrt(dx*dx + dy*dy);
-    if(len < 1e-10) return null;
-    // 법선 벡터 (오른쪽 방향 = 내측)
-    const nx = -dy/len, ny = dx/len;
-    // 폴리곤이 CCW인지 CW인지 판별 후 방향 결정
-    const ox = nx*dg, oy = ny*dl;
+    const rawLen = Math.sqrt(dx*dx + dy*dy);
+    if(rawLen < 1e-10) return null;
+    // 법선 벡터 (내측 방향): x=경도에는 dLng, y=위도에는 dLat 적용
+    const ox = (-dy / rawLen) * dLng * sign;
+    const oy = ( dx / rawLen) * dLat * sign;
     return [
       [p1[0]+ox, p1[1]+oy],
       [p2[0]+ox, p2[1]+oy]
@@ -1463,7 +1462,7 @@ function sharpInsetPolygon(poly, distM){
   const edges = [];
   for(let i=0;i<n;i++){
     const j=(i+1)%n;
-    const e = offsetEdge(coords[i], coords[j], dLat*sign, dLng*sign);
+    const e = offsetEdge(coords[i], coords[j]);
     if(e) edges.push(e);
   }
 
