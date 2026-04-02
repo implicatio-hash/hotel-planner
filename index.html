@@ -1248,6 +1248,9 @@ function drawLotOutline(){
             if(t === 'setback') return new ol.style.Style({
               stroke: new ol.style.Stroke({ color: '#e67e22', width: 1.5, lineDash: [8,5] })
             });
+            if(t === 'offset') return new ol.style.Style({
+              stroke: new ol.style.Stroke({ color: '#2563eb', width: 1.5, lineDash: [8,5] })
+            });
           }
         })
       ],
@@ -1269,6 +1272,7 @@ function drawLotOutline(){
 
     // 건축한계선: SHP 데이터에서 선택 필지 내부 영역만 clip
     addSetbackFromSHP(merged, outlineSource);
+    addOffsetLine(merged, outlineSource);
   } else {
     features.forEach(f => { const c = f.clone(); c.set('type','boundary'); outlineSource.addFeature(c); });
   }
@@ -1408,6 +1412,59 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
     } catch(e){}
   });
   if(clippedCount > 0) console.log('건축한계선 clip 완료:', clippedCount, '개');
+}
+
+// 대지경계선 500mm 내측 오프셋 → 건축한계선 폴리곤과 intersect → 파란 점선
+function addOffsetLine(mergedGeoJSON, outlineSource){
+  if(!_shpLoaded || !_shpGeoJSONs.length) return;
+  try {
+    // 1. 대지경계선 -0.5m 내측 오프셋
+    const inset = turf.buffer(mergedGeoJSON, -0.5, { units: 'meters' });
+    if(!inset) return;
+
+    // 2. SHP 피처들을 폴리곤으로 변환 후 union → 건축한계선 폴리곤
+    let setbackPoly = null;
+    _shpGeoJSONs.forEach(shpGJ => {
+      try {
+        let poly = null;
+        if(shpGJ.geometry.type === 'Polygon') {
+          poly = shpGJ;
+        } else if(shpGJ.geometry.type === 'MultiLineString') {
+          // 각 ring을 닫힌 선으로 변환 시도
+          shpGJ.geometry.coordinates.forEach(line => {
+            try {
+              // 시작점과 끝점이 다르면 닫아줌
+              const closed = [...line];
+              const first = closed[0], last = closed[closed.length-1];
+              if(first[0] !== last[0] || first[1] !== last[1]) closed.push(first);
+              if(closed.length >= 4) {
+                const candidate = turf.polygon([closed]);
+                poly = setbackPoly ? turf.union(setbackPoly, candidate) : candidate;
+                setbackPoly = poly;
+              }
+            } catch(e){}
+          });
+          return;
+        }
+        if(poly) setbackPoly = setbackPoly ? turf.union(setbackPoly, poly) : poly;
+      } catch(e){}
+    });
+
+    // 3. 건축한계선 폴리곤이 없으면 inset 전체를 파란 점선으로 표시
+    let result = null;
+    if(setbackPoly) {
+      result = turf.intersect(inset, setbackPoly);
+    }
+    const displayGeom = result || inset;
+
+    // 4. 결과를 파란 점선으로 outlineSource에 추가
+    const fmt = new ol.format.GeoJSON();
+    const olGeom = fmt.readGeometry(displayGeom.geometry, { dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
+    const f = new ol.Feature({ geometry: olGeom });
+    f.set('type', 'offset');
+    outlineSource.addFeature(f);
+    console.log('오프셋 라인 생성 완료:', result ? 'intersect 적용' : 'inset만 사용');
+  } catch(e){ console.warn('addOffsetLine error:', e); }
 }
 
 
