@@ -776,7 +776,7 @@ function initVMap(){
   });
   // 타일 레이어 canvas에만 CSS filter 적용 (벡터 레이어는 영향 없음)
   baseLayer.on('prerender', function(e){
-    e.context.filter = 'grayscale(100%) brightness(1.08) contrast(1.35)';
+    e.context.filter = 'grayscale(100%) contrast(1.35)';
   });
   baseLayer.on('postrender', function(e){
     e.context.filter = 'none';
@@ -791,7 +791,7 @@ function initVMap(){
       fill: new ol.style.Fill({ color: 'rgba(147,197,253,0.08)' }),
       stroke: new ol.style.Stroke({ color: '#93c5fd', width: 1 })
     }),
-    minZoom: 14
+    minZoom: 20
   });
 
   // 선택 필지 하이라이트 (파란색)
@@ -847,7 +847,7 @@ let _cadastralLoading = false;
 function loadCadastralWFS(){
   if(!vMap || _cadastralLoading) return;
   const zoom = vMap.getView().getZoom();
-  if(zoom < 14){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
+  if(zoom < 20){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
 
   _cadastralLoading = true;
   const ext = vMap.getView().calculateExtent(vMap.getSize());
@@ -1060,9 +1060,8 @@ function selectResult(parcel, road, lng, lat){
 function moveMapTo(lng, lat){
   if(!vMap) return;
   const center = ol.proj.fromLonLat([lng, lat]);
-  vMap.getView().animate({ center, zoom: 18, duration: 500 }, function(){
-    setTimeout(loadCadastralWFS, 100);
-  });
+  vMap.getView().animate({ center, zoom: 20, duration: 500 });
+  setTimeout(loadCadastralWFS, 600);
 
   // 마커 갱신
   if(vMarker?.source){
