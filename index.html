@@ -769,7 +769,8 @@ function initVMap(){
   // 기본지도 (WMTS) — 무채색+파란 오버레이 (타일 레이어에만 적용)
   const baseLayer = new ol.layer.Tile({
     source: new ol.source.XYZ({
-      url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
+      url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`,
+      maxZoom: 19
     })
   });
   // 타일 레이어 canvas에만 CSS filter 적용 (벡터 레이어는 영향 없음)
