@@ -1528,81 +1528,81 @@ function testBuildableArea(){
     });
     console.log('4. 필터링된 선분 수:', allLines.length);
 
-    // 5. allLines 각각을 직접 처리 (체인 연결 제거 - 순서 불일치 문제)
+    // 5. 오프셋 폴리곤을 건축한계선 선분들로 순차적으로 clip
     console.log('5. 선분 수:', allLines.length);
 
-    // 6. 각 선분을 오프셋선과 결합해서 건축가능영역 생성
     const outlineSource = window._step1OutlineSource;
     outlineSource.getFeatures().filter(f=>f.get('type')==='buildable').forEach(f=>outlineSource.removeFeature(f));
 
-    let totalArea = 0;
-    let buildableCount = 0;
+    // 오프셋 폴리곤에서 건축한계선 바깥쪽을 순차적으로 제거
+    let result = insetPoly;
 
     allLines.forEach((line, ci) => {
-      console.log(`선분${ci}: 점수=${line.length}`);
-
+      if(!result) return;
       try {
         const setbackLine = turf.lineString(line);
+        // 건축한계선 선분의 중간점
+        const mid = turf.point(line[Math.floor(line.length/2)]);
+        // 중간점이 현재 result 폴리곤 내부인지 확인
+        if(!turf.booleanPointInPolygon(mid, result)) return;
 
-        // 오프셋선을 건축한계선으로 분할 → 거리 0.1m 이내 + 가장 긴 구간 = Line A
-        const insetSegs = turf.lineSplit(insetLine, setbackLine);
-        let lineA = null;
-        let maxLen = -1;
-        insetSegs.features.forEach(seg => {
-          const mid = turf.midpoint(
-            turf.point(seg.geometry.coordinates[0]),
-            turf.point(seg.geometry.coordinates[seg.geometry.coordinates.length-1])
-          );
-          const d = turf.distance(mid, turf.nearestPointOnLine(setbackLine, mid), {units:'meters'});
-          const len = seg.geometry.coordinates.length;
-          if(d < 1.0 && len > maxLen){ maxLen = len; lineA = seg.geometry.coordinates; }
-        });
-        if(!lineA){ console.log(`  체인${ci}: Line A 없음`); return; }
-        console.log(`  체인${ci}: Line A 점수=${lineA.length}`);
-
-        // 건축한계선을 오프셋선으로 분할 → 오프셋 내부 구간 = Line B
-        const setbackSegs = turf.lineSplit(setbackLine, insetLine);
-        let lineB = null;
-        setbackSegs.features.forEach(seg => {
-          const mid = turf.midpoint(
-            turf.point(seg.geometry.coordinates[0]),
-            turf.point(seg.geometry.coordinates[seg.geometry.coordinates.length-1])
-          );
-          if(turf.booleanPointInPolygon(mid, insetPoly)){
-            lineB = seg.geometry.coordinates;
-          }
-        });
-
-        if(!lineB){
-          // 교차점 없음(1번 상황) → 건축한계선이 오프셋 외부 → 건축한계선만 표시(setback으로 이미 표시)
-          console.log(`  체인${ci}: Line B 없음 (1번 상황 - 건축한계선 외부)`);
+        // 선분을 기준으로 result를 split
+        const pieces = turf.lineSplit(turf.polygonToLine(result), setbackLine);
+        if(!pieces || pieces.features.length < 2){
+          // split 안됨 → 건축한계선이 폴리곤과 교차하지 않음 → 건축한계선 안쪽만 남김
+          // difference로 건축한계선 바깥 제거
           return;
         }
-        console.log(`  체인${ci}: Line B 점수=${lineB.length}`);
 
-        // Line A + Line B 이어붙여 닫힌 폴리곤
-        const ring = [...lineA, ...lineB.slice(1)];
-        ring.push(ring[0]); // 강제로 닫기
+        // split된 폴리곤 조각 중 건축한계선 안쪽 조각만 남김
+        // 건축한계선의 법선 방향 안쪽 점을 구해서 판별
+        const p1 = line[0], p2 = line[line.length-1];
+        const dx = p2[0]-p1[0], dy = p2[1]-p1[1];
+        const len = Math.sqrt(dx*dx+dy*dy);
+        // 법선 방향 (왼쪽): (-dy, dx) / len * 작은 거리
+        const offset = 0.00001;
+        const normPt = turf.point([
+          (p1[0]+p2[0])/2 - dy/len*offset,
+          (p1[1]+p2[1])/2 + dx/len*offset
+        ]);
 
-        const buildablePoly = turf.polygon([ring]);
-        const area = turf.area(buildablePoly);
-        console.log(`  체인${ci}: 건축가능영역 면적=${area.toFixed(1)}m²`);
-        totalArea += area;
-        buildableCount++;
+        // pieces에서 normPt를 포함하는 조각 찾기 → 그게 건축한계선 안쪽
+        let kept = null;
+        try {
+          // lineSplit 결과는 LineString이므로 polygon으로 복원 필요
+          // 대신 turf.difference 사용: result에서 건축한계선 바깥 버퍼 제거
+          // 건축한계선을 매우 얇은 버퍼로 만들어 difference
+          const setbackBuf = turf.buffer(setbackLine, 0.0001, {units:'degrees'});
+          const clipped = turf.difference(result, setbackBuf);
+          if(clipped){
+            // clipped가 MultiPolygon이면 건축한계선 안쪽 조각만 선택
+            if(clipped.geometry.type === 'MultiPolygon'){
+              let bestArea = -1;
+              clipped.geometry.coordinates.forEach(coords => {
+                const poly = turf.polygon(coords);
+                const a = turf.area(poly);
+                if(a > bestArea){ bestArea = a; kept = poly; }
+              });
+            } else {
+              kept = clipped;
+            }
+          }
+        } catch(e){}
 
-        const olGeom = fmt.readGeometry(buildablePoly.geometry, {dataProjection:'EPSG:4326', featureProjection:'EPSG:3857'});
-        const bf = new ol.Feature({geometry: olGeom});
-        bf.set('type','buildable');
-        outlineSource.addFeature(bf);
-
-      } catch(e){ console.warn(`  체인${ci} 처리 오류:`, e); }
+        if(kept) result = kept;
+        console.log(`선분${ci}: clip 적용, 면적=${turf.area(result).toFixed(1)}m²`);
+      } catch(e){ console.warn(`선분${ci} 처리 오류:`, e); }
     });
 
-    if(buildableCount > 0){
-      showToast(`✅ 건축가능영역 ${buildableCount}개 / 총 ${totalArea.toFixed(1)}m²`);
-      console.log('완료: 건축가능영역', buildableCount, '개, 총', totalArea.toFixed(1), 'm²');
+    if(result){
+      const area = turf.area(result);
+      console.log('최종 건축가능영역 면적:', area.toFixed(1), 'm²');
+      const olGeom = fmt.readGeometry(result.geometry, {dataProjection:'EPSG:4326', featureProjection:'EPSG:3857'});
+      const bf = new ol.Feature({geometry: olGeom});
+      bf.set('type','buildable');
+      outlineSource.addFeature(bf);
+      showToast(`✅ 건축가능영역 ${area.toFixed(1)}m²`);
     } else {
-      // 건축한계선 없거나 교차 없음 → 오프셋 전체 표시
       const olGeom = fmt.readGeometry(insetPoly.geometry, {dataProjection:'EPSG:4326', featureProjection:'EPSG:3857'});
       const bf = new ol.Feature({geometry: olGeom});
       bf.set('type','buildable');
