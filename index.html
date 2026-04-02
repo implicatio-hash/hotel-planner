@@ -1579,20 +1579,34 @@ function testBuildableArea(){
       try {
         const setbackLine = turf.lineString(chain);
 
-        // 오프셋선을 건축한계선으로 분할 → 건축한계선에 가까운 구간 = Line A
+        // 오프셋선을 건축한계선으로 분할 → 건축한계선에 가까우면서 가장 긴 구간 = Line A
         const insetSegs = turf.lineSplit(insetLine, setbackLine);
         let lineA = null;
-        let minDist = Infinity;
+        let maxLen = -1;
         insetSegs.features.forEach(seg => {
           const mid = turf.midpoint(
             turf.point(seg.geometry.coordinates[0]),
             turf.point(seg.geometry.coordinates[seg.geometry.coordinates.length-1])
           );
           const d = turf.distance(mid, turf.nearestPointOnLine(setbackLine, mid), {units:'meters'});
-          if(d < minDist){ minDist = d; lineA = seg.geometry.coordinates; }
+          const len = seg.geometry.coordinates.length;
+          // 건축한계선 근처(2m 이내)이면서 가장 긴 세그먼트
+          if(d < 2 && len > maxLen){ maxLen = len; lineA = seg.geometry.coordinates; }
         });
+        if(!lineA){
+          // 2m 기준 실패 시 가장 짧은 거리 세그먼트 중 가장 긴 것
+          let minDist = Infinity;
+          insetSegs.features.forEach(seg => {
+            const mid = turf.midpoint(
+              turf.point(seg.geometry.coordinates[0]),
+              turf.point(seg.geometry.coordinates[seg.geometry.coordinates.length-1])
+            );
+            const d = turf.distance(mid, turf.nearestPointOnLine(setbackLine, mid), {units:'meters'});
+            if(d < minDist){ minDist = d; lineA = seg.geometry.coordinates; }
+          });
+        }
         if(!lineA){ console.log(`  체인${ci}: Line A 없음`); return; }
-        console.log(`  체인${ci}: Line A 점수=${lineA.length} 거리=${minDist.toFixed(2)}m`);
+        console.log(`  체인${ci}: Line A 점수=${lineA.length}`);
 
         // 건축한계선을 오프셋선으로 분할 → 오프셋 내부 구간 = Line B
         const setbackSegs = turf.lineSplit(setbackLine, insetLine);
