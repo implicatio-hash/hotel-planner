@@ -351,6 +351,13 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       클릭: 필지 선택 &nbsp;|&nbsp; Ctrl+클릭: 다중 선택 &nbsp;|&nbsp;
       선택: <b id="lot-count">0</b>개 &nbsp;|&nbsp; <b id="lot-area-disp">0 m²</b>
     </div>
+    <!-- 줌 레벨 안내 오버레이 -->
+    <div id="zoom-notice" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);
+      font-size:11px;color:#fff;background:rgba(0,0,0,0.55);padding:5px 14px;
+      border-radius:20px;z-index:1000;pointer-events:none;display:block;
+      backdrop-filter:blur(4px);letter-spacing:.01em;">
+      🔍 필지 선택을 위해 더 확대하세요 (줌 17 이상)
+    </div>
   </div>
 </div>
 
@@ -760,6 +767,9 @@ function goStep(idx){
 // ═══════════════════════════════════════════
 const VWORLD_KEY = 'F6A1D87B-4FE7-3E62-9D90-11C694E11A53';
 
+// ── 지적도 표시 최소 줌 레벨 ──
+const CADASTRAL_MIN_ZOOM = 17;
+
 let vMap = null;
 let vMarker = null;
 let selectedLots = new Map();
@@ -768,30 +778,30 @@ let selectedLots = new Map();
 function initVMap(){
   if(vMap) return;
 
-  // 기본지도 (WMTS) — 무채색+파란 오버레이 (타일 레이어에만 적용)
+  // 기본지도 (WMTS) — 중간톤 + 대비 강화 필터
   const baseLayer = new ol.layer.Tile({
     source: new ol.source.XYZ({
       url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`
     })
   });
-  // 타일 레이어 canvas에만 CSS filter 적용 (벡터 레이어는 영향 없음)
+  // ── [변경 1] 타일 레이어에만 CSS filter 적용: 어둡게 + 대비 강화 ──
   baseLayer.on('prerender', function(e){
-    e.context.filter = 'grayscale(100%) sepia(15%) hue-rotate(195deg) saturate(70%) brightness(1.08)';
+    e.context.filter = 'grayscale(100%) brightness(0.72) contrast(1.25)';
   });
   baseLayer.on('postrender', function(e){
     e.context.filter = 'none';
   });
 
-  // 지적도 벡터 레이어 (WFS — 은은한 파란색 선)
+  // 지적도 벡터 레이어 (WFS) — ── [변경 2] minZoom 17로 상향 ──
   const cadastralSource = new ol.source.Vector();
   window._cadastralSource = cadastralSource;
   const cadastralLayer = new ol.layer.Vector({
     source: cadastralSource,
     style: new ol.style.Style({
       fill: new ol.style.Fill({ color: 'rgba(147,197,253,0.08)' }),
-      stroke: new ol.style.Stroke({ color: '#93c5fd', width: 1 })
+      stroke: new ol.style.Stroke({ color: '#60a5fa', width: 1.2 })
     }),
-    minZoom: 14
+    minZoom: CADASTRAL_MIN_ZOOM   // ← 변경: 14 → 17
   });
 
   // 선택 필지 하이라이트 (파란색)
@@ -822,15 +832,22 @@ function initVMap(){
     controls: []
   });
 
-  // 지도 이동 끝 → 현재 범위 WFS 로드
+  // 지도 이동/줌 변경 → WFS 로드 + 줌 안내 오버레이 갱신
   let _wfsTimer = null;
   vMap.on('moveend', function(){
     clearTimeout(_wfsTimer);
+    updateZoomNotice();
     _wfsTimer = setTimeout(loadCadastralWFS, 200);
   });
 
-  // 클릭 → 벡터에서 직접 필지 특정 (GetFeatureInfo 불필요)
+  // 클릭 → 벡터에서 직접 필지 특정
   vMap.on('singleclick', function(e){
+    // 줌 부족 시 클릭 무시하고 안내
+    const zoom = vMap.getView().getZoom();
+    if(zoom < CADASTRAL_MIN_ZOOM){
+      showToast('필지를 선택하려면 더 확대해 주세요 (줌 17 이상)');
+      return;
+    }
     let hit = false;
     vMap.forEachFeatureAtPixel(e.pixel, function(feature, layer){
       if(hit || layer !== cadastralLayer) return;
@@ -840,18 +857,33 @@ function initVMap(){
       const addr = props.addr || props.jibun || '주소 미상';
       const olGeom = feature.getGeometry();
       toggleLot(pnu, addr, 0, olGeom);
-      // 등록 면적 조회
       fetchLandArea(pnu);
     }, { hitTolerance: 4 });
   });
+
+  // 초기 안내 오버레이 상태 설정
+  updateZoomNotice();
+}
+
+// 줌 안내 오버레이: 줌 17 미만일 때만 표시
+function updateZoomNotice(){
+  const notice = $('zoom-notice');
+  if(!notice || !vMap) return;
+  const zoom = vMap.getView().getZoom();
+  notice.style.display = (zoom < CADASTRAL_MIN_ZOOM) ? 'block' : 'none';
 }
 
 // WFS JSONP로 현재 화면 범위 지적도 로드
+// ── [변경 3] 줌 가드를 CADASTRAL_MIN_ZOOM(17)로 상향 ──
 let _cadastralLoading = false;
 function loadCadastralWFS(){
   if(!vMap || _cadastralLoading) return;
   const zoom = vMap.getView().getZoom();
-  if(zoom < 14){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
+  if(zoom < CADASTRAL_MIN_ZOOM){
+    // 줌 부족 시 기존 지적도 피처 제거 후 반환
+    if(window._cadastralSource) window._cadastralSource.clear();
+    return;
+  }
 
   _cadastralLoading = true;
   const ext = vMap.getView().calculateExtent(vMap.getSize());
@@ -869,7 +901,6 @@ function loadCadastralWFS(){
     const fmt = new ol.format.GeoJSON();
     const src = window._cadastralSource;
     if(!src) return;
-    // 기존 feature 중 현재 범위 밖 것만 제거, 새 것 추가 (중복 pnu 스킵)
     const existingPnus = new Set(src.getFeatures().map(f => f.get('props')?.pnu));
     features.forEach(f => {
       const pnu = f.properties?.pnu;
@@ -882,7 +913,6 @@ function loadCadastralWFS(){
     });
   };
   script.onerror = ()=>{ _cadastralLoading=false; cleanup(); };
-  // BBOX: EPSG:4326에서 (ymin,xmin,ymax,xmax)
   script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
     + `&typename=lp_pa_cbnd_bubun`
     + `&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
@@ -897,7 +927,7 @@ const SHP_URL = 'https://raw.githubusercontent.com/implicatio-hash/hotel-planner
 const PROJ5174 = '+proj=tmerc +lat_0=38 +lon_0=127.0028902777778 +k=1 +x_0=200000 +y_0=500000 +ellps=bessel +towgs84=-115.8,474.99,674.11,1.16,-2.31,-1.63,6.43 +units=m +no_defs';
 
 let _shpLoaded = false;
-let _shpGeoJSONs = []; // WGS84 GeoJSON 배열 — 1페이지 지도에는 추가 안 함
+let _shpGeoJSONs = [];
 
 async function loadSetbackLayer(){
   if(_shpLoaded) return;
@@ -920,14 +950,13 @@ async function loadSetbackLayer(){
 function parseSHP(buf, proj){
   const view = new DataView(buf);
   const features = [];
-  let offset = 100; // 헤더 스킵
+  let offset = 100;
 
   while(offset < view.byteLength - 8){
-    const contentLen = view.getInt32(offset + 4, false) * 2; // big-endian, 16bit words
+    const contentLen = view.getInt32(offset + 4, false) * 2;
     if(contentLen <= 0 || offset + 8 + contentLen > view.byteLength) break;
     const shapeType = view.getInt32(offset + 8, true);
 
-    // 3=PolyLine, 5=Polygon, 13=PolyLineZ, 15=PolygonZ
     if(shapeType === 3 || shapeType === 5 || shapeType === 13 || shapeType === 15){
       try {
         const numParts = view.getInt32(offset + 44, true);
@@ -965,7 +994,7 @@ function parseSHP(buf, proj){
   return features;
 }
 
-// 등록 면적 조회 (getLandCharacteristics)
+// 등록 면적 조회
 function fetchLandArea(pnu){
   const lcCb = 'lc_' + Date.now();
   const s = document.createElement('script');
@@ -984,7 +1013,6 @@ function fetchLandArea(pnu){
   document.body.appendChild(s);
 }
 
-// Ctrl 키 추적
 window.addEventListener('keydown', e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=true; });
 window.addEventListener('keyup',   e => { if(e.key==='Control'||e.key==='Meta') window._ctrlDown=false; });
 
@@ -993,7 +1021,6 @@ function searchAddr(){
   const q = $('addr-search').value.trim();
   if(!q){ showToast('주소를 입력해 주세요'); return; }
   setSearchStatus('검색 중…');
-  // 이전 선택 초기화
   $('search-results').style.display = 'none';
   $('selected-location').style.display = 'none';
   selectedLots.clear();
@@ -1064,9 +1091,9 @@ function selectResult(parcel, road, lng, lat){
 function moveMapTo(lng, lat){
   if(!vMap) return;
   const center = ol.proj.fromLonLat([lng, lat]);
+  // 주소 검색 시 줌 18로 이동 → 지적도가 즉시 보임
   vMap.getView().animate({ center, zoom: 18, duration: 500 });
 
-  // 마커 갱신
   if(vMarker?.source){
     vMarker.source.clear();
     const feature = new ol.Feature({
@@ -1090,19 +1117,14 @@ function clearSearch(){
   if(vMarker?.source) vMarker.source.clear();
 }
 
-// ── 필지 클릭 → WFS JSONP로 속성 조회 ──
-// ── 필지 클릭 → WMS GetFeatureInfo JSONP ──
-// 기본 다중 선택 (Ctrl 불필요 — 재클릭 시 해제)
 function toggleLot(pnu, addr, area, olGeom){
   if(selectedLots.has(pnu)){
-    // 재클릭 → 선택 해제
     selectedLots.delete(pnu);
     if(window._lotSource){
       const ex = window._lotSource.getFeatures().find(f => f.get('pnu') === pnu);
       if(ex) window._lotSource.removeFeature(ex);
     }
   } else {
-    // 신규 선택 (다중 누적)
     selectedLots.set(pnu, {pnu, addr, area});
     if(window._lotSource && olGeom){
       const feat = new ol.Feature({ geometry: olGeom });
@@ -1152,13 +1174,10 @@ function setSearchStatus(msg, type=''){
   el.style.color = type==='green' ? 'var(--green)' : type==='red' ? 'var(--red)' : 'var(--text3)';
 }
 
-
-
 function createProject(){
   if(!selectedLots.size){
     showToast('필지를 선택해 주세요'); return;
   }
-  // state에 대지 정보 저장 후 다음 단계로
   state.lots = [...selectedLots.values()];
   state.siteAddr = state.searchMarker?.addr || state.lots[0]?.addr || '';
   goStep(1);
@@ -1189,24 +1208,20 @@ function buildZoneTable(){
     </tr>`).join('');
 }
 
-// Step 1 진입 시 대지면적 연동
 function syncStep1(){
   const area = state.siteArea || 0;
   const el = $('site-area');
   if(el) el.value = area.toFixed(2);
 }
 
-// 선택 필지 외곽선 그리기 (ol.Map 벡터 기반)
 function drawLotOutline(){
   const features = window._lotSource ? window._lotSource.getFeatures() : [];
   if(!features.length) return;
 
   const fmt = new ol.format.GeoJSON();
 
-  // Turf.js Union (미세 갭 극복: 0.5m 팽창 후 union, 다시 축소)
   let merged = null;
   try {
-    // 좌표를 소수점 6자리로 스냅 → 인접 필지 공유점 일치 → buffer 없이 깔끔한 union
     function snapCoords(geom, precision){
       const p = Math.pow(10, precision);
       function snapRing(ring){ return ring.map(pt => [Math.round(pt[0]*p)/p, Math.round(pt[1]*p)/p]); }
@@ -1223,11 +1238,9 @@ function drawLotOutline(){
     merged = geojsons.reduce((acc, cur) => turf.union(acc, cur));
   } catch(e){ console.warn('turf union:', e); }
 
-  // step1Map 초기화 (최초 1회)
   if(!window._step1Map){
     const outlineSource = new ol.source.Vector();
     window._step1OutlineSource = outlineSource;
-    // 2페이지 지적도 벡터 레이어 (WFS — 회색 선만, 1페이지와 공유 또는 별도 로드)
     const s1CadSource = new ol.source.Vector();
     window._step1CadSource = s1CadSource;
     const s1CadLayer = new ol.layer.Vector({
@@ -1270,22 +1283,18 @@ function drawLotOutline(){
     bf.set('type','boundary');
     outlineSource.addFeature(bf);
 
-    // 건축한계선: SHP 데이터에서 선택 필지 내부 영역만 clip
     addSetbackFromSHP(merged, outlineSource);
   } else {
     features.forEach(f => { const c = f.clone(); c.set('type','boundary'); outlineSource.addFeature(c); });
   }
 
-  // 항상 fit (재진입 시 zoom 초기화)
   const ext = outlineSource.getExtent();
   if(ext && ext[0] !== Infinity){
     window._step1Map.getView().fit(ext, { padding:[60,60,60,60], maxZoom:19, duration:300 });
-    // 지적도 WFS 로드 (현재 범위)
     setTimeout(loadStep1CadWFS, 400);
   }
 }
 
-// 2페이지 지적도 WFS 로드
 let _s1CadLoading = false;
 function loadStep1CadWFS(){
   if(!window._step1Map || _s1CadLoading) return;
@@ -1325,7 +1334,6 @@ function loadStep1CadWFS(){
   document.body.appendChild(script);
 }
 
-// SHP에서 선택 필지 내부 건축한계선만 clip해서 표시
 function addSetbackFromSHP(mergedGeoJSON, outlineSource){
   if(!_shpLoaded || !_shpGeoJSONs.length) return;
   const fmt = new ol.format.GeoJSON();
@@ -1334,7 +1342,6 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
 
   _shpGeoJSONs.forEach(shpGJ => {
     try {
-      // 1차: bbox 필터 (넉넉하게)
       const sBbox = turf.bbox(shpGJ);
       if(sBbox[2] < mBbox[0] || sBbox[0] > mBbox[2] ||
          sBbox[3] < mBbox[1] || sBbox[1] > mBbox[3]) return;
@@ -1344,18 +1351,13 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
         : [shpGJ.geometry.coordinates];
 
       coords.forEach(line => {
-        // 각 선분(segment)을 개별 처리
-        // 점이 내부이거나, 선분이 폴리곤과 교차하는 경우 모두 포함
         let currentSeg = [];
 
         for(let i = 0; i < line.length; i++){
           const ptIn = turf.booleanPointInPolygon(turf.point(line[i]), mergedGeoJSON);
 
           if(ptIn){
-            // 점이 내부 — 현재 segment에 추가
             if(currentSeg.length === 0 && i > 0){
-              // 이전 점이 외부였지만 선분이 폴리곤 경계를 지나 들어온 경우
-              // 교차점 계산해서 시작점으로 추가
               const seg = turf.lineString([line[i-1], line[i]]);
               const xpts = turf.lineIntersect(seg, mergedGeoJSON);
               if(xpts.features.length > 0){
@@ -1364,9 +1366,7 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
             }
             currentSeg.push(line[i]);
           } else {
-            // 점이 외부
             if(currentSeg.length > 0){
-              // 내부에서 외부로 나가는 경우 — 교차점 추가 후 segment 저장
               const seg = turf.lineString([line[i-1], line[i]]);
               const xpts = turf.lineIntersect(seg, mergedGeoJSON);
               if(xpts.features.length > 0){
@@ -1382,11 +1382,9 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
               }
               currentSeg = [];
             } else if(i > 0){
-              // 양 끝점 모두 외부지만 선분이 폴리곤을 관통하는 경우
               const seg = turf.lineString([line[i-1], line[i]]);
               const xpts = turf.lineIntersect(seg, mergedGeoJSON);
               if(xpts.features.length >= 2){
-                // 두 교차점 사이가 폴리곤 내부 구간
                 const pts = xpts.features.map(f => f.geometry.coordinates);
                 const olGeom = fmt.readGeometry({ type:'LineString', coordinates: pts });
                 olGeom.transform('EPSG:4326','EPSG:3857');
@@ -1398,7 +1396,6 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
             }
           }
         }
-        // 마지막 segment 처리
         if(currentSeg.length >= 2){
           const olGeom = fmt.readGeometry({ type:'LineString', coordinates: currentSeg });
           olGeom.transform('EPSG:4326','EPSG:3857');
@@ -1488,7 +1485,6 @@ function calcUnderground(){
   const sa=state.siteArea||2400;
   const mf=ni('mech-floors')||1;
 
-  // 층당 주차 대수 = 바닥면적 × 효율 / 1대당 약 30m²
   const perFloor=Math.floor(sa*eff/30);
   const parkFloors=Math.ceil(pReq/perFloor);
   const totalUnder=parkFloors+mf;
@@ -1592,7 +1588,6 @@ function initThreeJS(){
   scene=new THREE.Scene(); scene.background=new THREE.Color(0xf0f2f6);
   camera=new THREE.PerspectiveCamera(45,W/H,.1,1000);
 
-  // Lights
   scene.add(new THREE.AmbientLight(0xffffff,.9));
   const dl=new THREE.DirectionalLight(0xffffff,1.2);
   dl.position.set(60,120,80); dl.castShadow=true; scene.add(dl);
@@ -1627,7 +1622,6 @@ function initThreeJS(){
   const h=Math.round(state.lobbyHeight+(state.aboveFloors-1)*state.floorHeight);
   $('3d-height').textContent=h+' m';
 
-  // hide loader
   let p=0,pbar=$('progress-bar');
   const pi=setInterval(()=>{p=Math.min(100,p+10);if(pbar)pbar.style.width=p+'%';if(p>=100){clearInterval(pi);const ld=$('loading-3d');if(ld)ld.style.display='none';}},60);
   animate3D();
@@ -1653,7 +1647,6 @@ function buildMasses(){
     mesh.position.set(0,yPos,0); mesh.castShadow=true; mesh.userData={f,yBase:yPos};
     scene.add(mesh); meshes3d.push(mesh);
   }
-  // Underground
   for(let f=1;f<=state.underFloors;f++){
     const geo=new THREE.BoxGeometry(bw+4,3.0,bd+4);
     const mat=new THREE.MeshLambertMaterial({color:0x94a3b8,transparent:true,opacity:.55,wireframe:false});
@@ -1704,12 +1697,10 @@ function generateFloorPlan(){
   const bcr=state.bcr||60;
   const footprint=Math.floor(sa*bcr/100);
   const rows=[];
-  // Underground
   for(let f=under;f>=1;f--){
     const label=`B${f}F`;
     rows.push({floor:label,type:'지하',fac:f===1?'기계실':'주차',area:footprint+Math.floor(footprint*.1),fh:3.0,note:'',locked:false,group:f===1?'주차':'주차'});
   }
-  // Ground floors
   for(let f=1;f<=above;f++){
     let fac,group,area,note='';
     if(f===1){fac='로비';group='공용';area=Math.floor(footprint*1.0);note='1층 진입층';}
@@ -1776,7 +1767,6 @@ function commitEdit(input,i,field){
   const oldV=state.floors[i][field];
   if(newV===oldV){ buildFloorTable(); return; }
 
-  // FAR check (above-ground only, area field)
   if(field==='area' && state.floors[i].type==='지상'){
     const currentFAR_used=state.floors.filter(r=>r.type==='지상').reduce((s,r)=>s+r.area,0);
     const maxGFA=state.maxGFA||(state.siteArea*state.far/100);
@@ -1787,7 +1777,6 @@ function commitEdit(input,i,field){
   const oldRow=state.floors[i];
   oldRow[field]=newV;
 
-  // Proportional redistribution within same group (area changes on above-ground)
   let affected=[];
   if(field==='area' && oldRow.type==='지상'){
     const delta=newV-oldV;
@@ -1829,7 +1818,6 @@ function recalcFAR(){
     fill.style.width=pct+'%';
     fill.style.background=pct>=95?'var(--red)':pct>=80?'var(--orange)':'var(--accent)';
   }
-  // totals
   const total=state.floors.reduce((s,r)=>s+r.area,0);
   const rooms=state.floors.filter(r=>r.fac.includes('객실')||r.fac.includes('스위트')).reduce((s,r)=>s+Math.floor(r.area/32),0);
   const guestArea=state.floors.filter(r=>r.group==='객실').reduce((s,r)=>s+r.area,0);
@@ -1900,12 +1888,10 @@ function drawDiagram(){
   const ox=70,oy=70;
   const gw=cx*scale, gh=cy_*scale;
 
-  // Grid
   ctx.strokeStyle='#e2e4ea'; ctx.lineWidth=.5;
   for(let i=0;i<=cols;i++){ctx.beginPath();ctx.moveTo(ox+i*gw,oy);ctx.lineTo(ox+i*gw,oy+rows_*gh);ctx.stroke();}
   for(let j=0;j<=rows_;j++){ctx.beginPath();ctx.moveTo(ox,oy+j*gh);ctx.lineTo(ox+cols*gw,oy+j*gh);ctx.stroke();}
 
-  // Columns
   ctx.fillStyle='#1e40af';
   for(let i=0;i<=cols;i++)for(let j=0;j<=rows_;j++){ctx.fillRect(ox+i*gw-4,oy+j*gh-4,8,8);}
 
@@ -1917,21 +1903,18 @@ function drawDiagram(){
     drawBasementDiag(ctx,ox,oy,cols,rows_,gw,gh,scale);
   }
 
-  // Dimensions
   ctx.fillStyle='#8b90a0'; ctx.font='10px Pretendard,sans-serif'; ctx.textAlign='center';
   for(let i=0;i<cols;i++) ctx.fillText(cx+'m',ox+i*gw+gw/2,oy-8);
   ctx.textAlign='left';
 }
 
 function drawGuestroomDiag(ctx,ox,oy,cols,rows_,gw,gh,cx,cy_,scale){
-  // Corridor in middle
   const corrY=Math.floor(rows_/2);
   ctx.fillStyle='#f0f9ff'; ctx.fillRect(ox,oy+corrY*gh,cols*gw,gh);
   ctx.strokeStyle='#bae6fd'; ctx.strokeRect(ox,oy+corrY*gh,cols*gw,gh);
   ctx.fillStyle='#0369a1'; ctx.font='bold 11px Pretendard,sans-serif'; ctx.textAlign='center';
   ctx.fillText('복도',ox+cols*gw/2,oy+corrY*gh+gh/2+4);
 
-  // Rooms
   for(let i=0;i<cols;i++){
     for(let j=0;j<rows_;j++){
       if(j===corrY) continue;
@@ -1949,21 +1932,17 @@ function drawGuestroomDiag(ctx,ox,oy,cols,rows_,gw,gh,cx,cy_,scale){
 
 function drawGroundDiag(ctx,ox,oy,cols,rows_,gw,gh,scale){
   const tw=cols*gw,th=rows_*gh;
-  // Lobby
   ctx.fillStyle='#fef9c3'; ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.5;
   ctx.fillRect(ox,oy,tw*.55,th*.6);ctx.strokeRect(ox,oy,tw*.55,th*.6);
   ctx.fillStyle='#92400e'; ctx.font='bold 13px Pretendard,sans-serif'; ctx.textAlign='center';
   ctx.fillText('로비',ox+tw*.55/2,oy+th*.6/2+4);
-  // Restaurant
   ctx.fillStyle='#ede9fe'; ctx.strokeStyle='#a78bfa'; ctx.lineWidth=1.5;
   ctx.fillRect(ox+tw*.57,oy,tw*.43,th*.6);ctx.strokeRect(ox+tw*.57,oy,tw*.43,th*.6);
   ctx.fillStyle='#5b21b6'; ctx.fillText('레스토랑',ox+tw*.57+tw*.43/2,oy+th*.6/2+4);
-  // Drop-off
   ctx.fillStyle='#f0fdf4'; ctx.strokeStyle='#86efac'; ctx.lineWidth=1;
   ctx.fillRect(ox,oy+th*.62,tw*.4,th*.38);ctx.strokeRect(ox,oy+th*.62,tw*.4,th*.38);
   ctx.fillStyle='#166534'; ctx.font='11px Pretendard,sans-serif';
   ctx.fillText('드롭오프 존',ox+tw*.2,oy+th*.62+th*.38/2+4);
-  // BOH
   ctx.fillStyle='#f1f5f9'; ctx.strokeStyle='#94a3b8';
   ctx.fillRect(ox+tw*.42,oy+th*.62,tw*.58,th*.38);ctx.strokeRect(ox+tw*.42,oy+th*.62,tw*.58,th*.38);
   ctx.fillStyle='#475569'; ctx.fillText('BOH / 후문',ox+tw*.42+tw*.58/2,oy+th*.62+th*.38/2+4);
@@ -1973,7 +1952,6 @@ function drawGroundDiag(ctx,ox,oy,cols,rows_,gw,gh,scale){
 
 function drawBasementDiag(ctx,ox,oy,cols,rows_,gw,gh,scale){
   const tw=cols*gw,th=rows_*gh;
-  // Parking slots
   const slotW=gw*.42,slotH=gh*.85,padding=3;
   ctx.fillStyle='#f8fafc';ctx.fillRect(ox,oy,tw,th);
   for(let i=0;i<cols;i++)for(let j=0;j<rows_;j++){
@@ -1985,7 +1963,6 @@ function drawBasementDiag(ctx,ox,oy,cols,rows_,gw,gh,scale){
     ctx.strokeStyle='#a5b4fc';
     ctx.strokeRect(ox+i*gw+gw/2+padding,oy+j*gh+padding,slotW,slotH);
   }
-  // Core
   ctx.fillStyle='#cbd5e1'; ctx.strokeStyle='#64748b'; ctx.lineWidth=2;
   ctx.fillRect(ox+tw*.4,oy+th*.4,tw*.2,th*.25);ctx.strokeRect(ox+tw*.4,oy+th*.4,tw*.2,th*.25);
   ctx.fillStyle='#334155'; ctx.font='bold 11px Pretendard,sans-serif'; ctx.textAlign='center';
