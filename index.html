@@ -1590,7 +1590,7 @@ function testBuildableArea(){
           );
           const d = turf.distance(mid, turf.nearestPointOnLine(setbackLine, mid), {units:'meters'});
           const len = seg.geometry.coordinates.length;
-          if(d < 0.1 && len > maxLen){ maxLen = len; lineA = seg.geometry.coordinates; }
+          if(d < 1.0 && len > maxLen){ maxLen = len; lineA = seg.geometry.coordinates; }
         });
         if(!lineA){ console.log(`  체인${ci}: Line A 없음`); return; }
         console.log(`  체인${ci}: Line A 점수=${lineA.length}`);
