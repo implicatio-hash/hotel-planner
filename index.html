@@ -1521,8 +1521,8 @@ function testBuildableArea(){
       f.geometry.coordinates.forEach(line => {
         // 선분의 중간점이 merged 폴리곤 근처인지 확인
         const mid = line[Math.floor(line.length/2)];
-        const dist = turf.distance(turf.point(mid), merged, { units:'meters' });
-        if(dist < 50) allLines.push([...line]); // 50m 이내 선분만
+        const dist = turf.distance(turf.point(mid), turf.centroid(merged), { units:'meters' });
+        if(dist < 500) allLines.push([...line]);
       });
     });
     console.log('4. 필터링된 선분 수:', allLines.length);
