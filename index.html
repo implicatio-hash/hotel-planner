@@ -1439,7 +1439,7 @@ function sharpInsetPolygon(poly, distM){
       const j=(i+1)%n;
       area += ring3857[i][0]*ring3857[j][1] - ring3857[j][0]*ring3857[i][1];
     }
-    const sign = area > 0 ? -1 : 1;
+    const sign = area > 0 ? 1 : -1;
 
     // 각 변을 distM만큼 내측 평행이동
     function offsetEdge(p1, p2){
