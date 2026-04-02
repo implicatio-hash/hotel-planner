@@ -1449,10 +1449,11 @@ function testBuildableArea(){
     nearby.forEach(f => f.geometry.coordinates.forEach(line => allLines.push([...line])));
     console.log('3. 원본 건축한계선 선분 수:', allLines.length);
 
-    // 4. 중간점이 merged 내부인 선분만 필터링
+    // 4. 필지와 교차하는 선분만 필터링 (booleanIntersects)
     const filteredLines = allLines.filter(line => {
-      const mid = line[Math.floor(line.length/2)];
-      return turf.booleanPointInPolygon(turf.point(mid), merged);
+      try {
+        return turf.booleanIntersects(turf.lineString(line), merged);
+      } catch(e){ return false; }
     });
     console.log('4. 필터링된 선분 수:', filteredLines.length);
 
@@ -1487,8 +1488,9 @@ function testBuildableArea(){
     }
     console.log('6. concave hull 면적:', turf.area(setbackHull).toFixed(1)+'m²');
 
-    // 7. setbackHull과 insetPoly의 교집합 → 건축가능영역
-    const result = turf.intersect(setbackHull, insetPoly);
+    // 7. setbackHull ∩ insetPoly ∩ merged → 건축가능영역
+    const step1 = turf.intersect(setbackHull, merged);   // 필지 경계 안으로 clip
+    const result = step1 ? turf.intersect(step1, insetPoly) : null;  // 0.5m 오프셋 적용
     const final = result || insetPoly;
     const area = turf.area(final);
     console.log('7. 최종 건축가능영역 면적:', area.toFixed(1)+'m²');
