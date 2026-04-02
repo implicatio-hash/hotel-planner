@@ -1554,7 +1554,7 @@ function testBuildableArea(){
 
         // 건축한계선으로 오프셋 폴리곤을 clip
         // 건축한계선에 버퍼를 씌워 difference → 건축한계선 바깥 구간 제거
-        const bufSize = 0.001; // 단위: degrees (~100m), 건축한계선 바깥쪽을 충분히 덮음
+        const bufSize = 0.00005; // 단위: degrees (~5m)
         const setbackBuf = turf.buffer(setbackLine, bufSize, {units:'degrees'});
         const clipped = turf.difference(result, setbackBuf);
 
