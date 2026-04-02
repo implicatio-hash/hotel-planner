@@ -345,11 +345,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <!-- 브이월드 지도 -->
   <div id="site-map" style="flex:1;position:relative;">
     <div id="vmap" style="width:100%;height:100%;"></div>
-    <div id="map-hint" style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
-      background:rgba(255,255,255,.92);padding:5px 10px;border-radius:5px;border:1px solid var(--border);
-      z-index:1000;pointer-events:none;">
-      선택: <b id="lot-count">0</b>개 &nbsp;|&nbsp; <b id="lot-area-disp">0 m²</b>
-    </div>
+
   </div>
 </div>
 
@@ -364,26 +360,20 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <!-- 대지 면적 (앞 페이지 연동, 읽기 전용) -->
       <div class="form-group">
         <label>대지 면적 (㎡)</label>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input type="text" id="site-area" readonly
-            style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
-          <span style="font-size:10px;color:var(--text3);white-space:nowrap;">합산값</span>
-        </div>
+        <input type="text" id="site-area" readonly style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
       <!-- 건축가능 대지면적 -->
       <div class="form-group" id="buildable-area-group" style="display:none;">
         <label>건축가능 대지면적 (㎡)</label>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input type="text" id="buildable-area" readonly
-            style="background:#fff7ed;color:#ea580c;font-weight:700;font-size:14px;cursor:default;border-color:#fed7aa;">
-        </div>
+        <input type="text" id="buildable-area" readonly
+          style="background:#fff7ed;color:#ea580c;font-weight:700;font-size:14px;cursor:default;border-color:#fed7aa;">
       </div>
 
       <div style="height:1px;background:var(--border);margin:4px 0;"></div>
 
       <!-- 규모 한계 입력 -->
-      <div class="sec-label" style="margin-bottom:8px;">규모 한계</div>
+      <div class="form-group" style="margin-bottom:8px;"><label>건축물 규모 설정</label></div>
       <div class="input-row">
         <div class="form-group">
           <label>건폐율 (%)</label>
@@ -799,7 +789,7 @@ function initVMap(){
       fill: new ol.style.Fill({ color: 'rgba(147,197,253,0.08)' }),
       stroke: new ol.style.Stroke({ color: '#93c5fd', width: 1 })
     }),
-    minZoom: 20.5
+    minZoom: 19
   });
 
   // 선택 필지 하이라이트 (파란색)
@@ -831,7 +821,13 @@ function initVMap(){
   });
 
   // 지도 이동 끝 → 현재 범위 WFS 로드
-  vMap.on('moveend', function(){});
+  let _prevZoom = vMap.getView().getZoom();
+  vMap.on('moveend', function(){
+    const zoom = vMap.getView().getZoom();
+    if(_prevZoom < 19 && zoom >= 19) loadCadastralWFS();
+    if(zoom < 19 && window._cadastralSource) window._cadastralSource.clear();
+    _prevZoom = zoom;
+  });
 
   // 클릭 → 벡터에서 직접 필지 특정 (GetFeatureInfo 불필요)
   vMap.on('singleclick', function(e){
@@ -855,7 +851,7 @@ let _cadastralLoading = false;
 function loadCadastralWFS(){
   if(!vMap || _cadastralLoading) return;
   const zoom = vMap.getView().getZoom();
-  if(zoom < 20.5){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
+  if(zoom < 19){ if(window._cadastralSource) window._cadastralSource.clear(); return; }
 
   _cadastralLoading = true;
   const ext = vMap.getView().calculateExtent(vMap.getSize());
@@ -1068,8 +1064,8 @@ function selectResult(parcel, road, lng, lat){
 function moveMapTo(lng, lat){
   if(!vMap) return;
   const center = ol.proj.fromLonLat([lng, lat]);
-  vMap.getView().animate({ center, zoom: 21, duration: 800 });
-  setTimeout(loadCadastralWFS, 900);
+  vMap.getView().animate({ center, zoom: 20, duration: 600 });
+  setTimeout(loadCadastralWFS, 700);
 
   // 마커 갱신
   if(vMarker?.source){
@@ -1122,8 +1118,6 @@ function toggleLot(pnu, addr, area, olGeom){
 function updateSelectedLots(){
   const lots = [...selectedLots.values()];
   const total = lots.reduce((s, l) => s + (l.area || 0), 0);
-  $('lot-count').textContent = lots.length;
-  $('lot-area-disp').textContent = total.toFixed(2) + ' m²';
   const wrap = $('selected-lots');
   if(!lots.length){
     wrap.innerHTML = '<div class="info-box" style="text-align:center;color:var(--text3);">지도에서 필지를 클릭하세요</div>';
@@ -1425,70 +1419,66 @@ function addSetbackFromSHP(mergedGeoJSON, outlineSource){
 
 
 // 각진 내측 오프셋: 각 변을 법선 방향으로 dist만큼 안쪽으로 평행이동 후 교점 연결
+// 각진 내측 오프셋: EPSG:3857(미터 단위)에서 buffer 후 WGS84 역변환
 function sharpInsetPolygon(poly, distM){
-  const coords = poly.geometry.type === 'Polygon'
-    ? poly.geometry.coordinates[0]
-    : poly.geometry.coordinates[0][0];
-
-  // 위도 1도 ≈ 111,000m / 경도 1도 ≈ 111,000m * cos(lat)
-  const lat0 = coords[0][1];
-  const dLat = distM / 111000;
-  const dLng = distM / (111000 * Math.cos(lat0 * Math.PI / 180));
-
-  const n = coords.length - 1; // 마지막 점 = 첫 점이므로 제외
-  // 각 변의 내측 평행선 계산
-  function offsetEdge(p1, p2){
-    const dx = p2[0]-p1[0], dy = p2[1]-p1[1];
-    const rawLen = Math.sqrt(dx*dx + dy*dy);
-    if(rawLen < 1e-10) return null;
-    // 법선 벡터 (내측 방향): x=경도에는 dLng, y=위도에는 dLat 적용
-    const ox = (-dy / rawLen) * dLng * sign;
-    const oy = ( dx / rawLen) * dLat * sign;
-    return [
-      [p1[0]+ox, p1[1]+oy],
-      [p2[0]+ox, p2[1]+oy]
-    ];
-  }
-
-  // 폴리곤 면적 부호로 방향 판별 (음수=CCW)
-  let area = 0;
-  for(let i=0;i<n;i++){
-    const j=(i+1)%n;
-    area += coords[i][0]*coords[j][1] - coords[j][0]*coords[i][1];
-  }
-  const sign = area > 0 ? -1 : 1; // CCW면 내측이 오른쪽(sign=-1)
-
-  // 각 변 평행이동
-  const edges = [];
-  for(let i=0;i<n;i++){
-    const j=(i+1)%n;
-    const e = offsetEdge(coords[i], coords[j]);
-    if(e) edges.push(e);
-  }
-
-  // 인접 변의 교점 계산
-  function lineIntersect(a1,a2,b1,b2){
-    const dx1=a2[0]-a1[0], dy1=a2[1]-a1[1];
-    const dx2=b2[0]-b1[0], dy2=b2[1]-b1[1];
-    const denom=dx1*dy2-dy1*dx2;
-    if(Math.abs(denom)<1e-12) return [(a1[0]+b1[0])/2,(a1[1]+b1[1])/2]; // 평행이면 중점
-    const t=((b1[0]-a1[0])*dy2-(b1[1]-a1[1])*dx2)/denom;
-    return [a1[0]+t*dx1, a1[1]+t*dy1];
-  }
-
-  const newCoords = [];
-  for(let i=0;i<edges.length;i++){
-    const prev = edges[(i-1+edges.length)%edges.length];
-    const curr = edges[i];
-    const pt = lineIntersect(prev[0],prev[1],curr[0],curr[1]);
-    newCoords.push(pt);
-  }
-  newCoords.push(newCoords[0]); // 닫기
-
   try {
-    return turf.polygon([newCoords]);
+    const toMeter = proj4('EPSG:4326', 'EPSG:3857');
+    const toLonLat = proj4('EPSG:3857', 'EPSG:4326');
+
+    // WGS84 → EPSG:3857 변환
+    const ring = poly.geometry.coordinates[0];
+    const ring3857 = ring.map(pt => toMeter.forward(pt));
+
+    // EPSG:3857에서 각 변 평행이동 후 교점 연결
+    const n = ring3857.length - 1;
+
+    // 면적 부호로 방향 판별
+    let area = 0;
+    for(let i=0;i<n;i++){
+      const j=(i+1)%n;
+      area += ring3857[i][0]*ring3857[j][1] - ring3857[j][0]*ring3857[i][1];
+    }
+    const sign = area > 0 ? -1 : 1;
+
+    // 각 변을 distM만큼 내측 평행이동
+    function offsetEdge(p1, p2){
+      const dx=p2[0]-p1[0], dy=p2[1]-p1[1];
+      const len=Math.sqrt(dx*dx+dy*dy);
+      if(len<1e-6) return null;
+      const ox=(-dy/len)*distM*sign;
+      const oy=( dx/len)*distM*sign;
+      return [[p1[0]+ox,p1[1]+oy],[p2[0]+ox,p2[1]+oy]];
+    }
+
+    const edges=[];
+    for(let i=0;i<n;i++){
+      const e=offsetEdge(ring3857[i],ring3857[(i+1)%n]);
+      if(e) edges.push(e);
+    }
+
+    // 인접 변 교점 계산
+    function intersectLines(a1,a2,b1,b2){
+      const dx1=a2[0]-a1[0],dy1=a2[1]-a1[1];
+      const dx2=b2[0]-b1[0],dy2=b2[1]-b1[1];
+      const denom=dx1*dy2-dy1*dx2;
+      if(Math.abs(denom)<1e-10) return [(a2[0]+b1[0])/2,(a2[1]+b1[1])/2];
+      const t=((b1[0]-a1[0])*dy2-(b1[1]-a1[1])*dx2)/denom;
+      return [a1[0]+t*dx1,a1[1]+t*dy1];
+    }
+
+    const newCoords3857=[];
+    for(let i=0;i<edges.length;i++){
+      const prev=edges[(i-1+edges.length)%edges.length];
+      const curr=edges[i];
+      newCoords3857.push(intersectLines(prev[0],prev[1],curr[0],curr[1]));
+    }
+    newCoords3857.push(newCoords3857[0]);
+
+    // EPSG:3857 → WGS84 역변환
+    const newCoordsWGS84=newCoords3857.map(pt=>toLonLat.forward(pt));
+    return turf.polygon([newCoordsWGS84]);
   } catch(e){
-    // 실패 시 turf.buffer fallback
+    console.warn('sharpInsetPolygon 오류, fallback:', e);
     return turf.buffer(poly, -distM, {units:'meters'});
   }
 }
