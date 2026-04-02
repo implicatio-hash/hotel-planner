@@ -1435,7 +1435,7 @@ function testBuildableArea(){
     console.log('1. 필지 merge 완료');
 
     // 2. 0.5m 내측 오프셋
-    const insetPoly = turf.buffer(merged, -0.5, { units:'meters' });
+    const insetPoly = turf.buffer(merged, -0.5, { units:'meters', steps:1 });
     if(!insetPoly){ showToast('오프셋 생성 실패'); return; }
     console.log('2. 오프셋 폴리곤 생성 완료');
 
