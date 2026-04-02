@@ -351,13 +351,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       클릭: 필지 선택 &nbsp;|&nbsp; Ctrl+클릭: 다중 선택 &nbsp;|&nbsp;
       선택: <b id="lot-count">0</b>개 &nbsp;|&nbsp; <b id="lot-area-disp">0 m²</b>
     </div>
-    <!-- 줌 레벨 안내 오버레이 -->
-    <div id="zoom-notice" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);
-      font-size:11px;color:#fff;background:rgba(0,0,0,0.55);padding:5px 14px;
-      border-radius:20px;z-index:1000;pointer-events:none;display:block;
-      backdrop-filter:blur(4px);letter-spacing:.01em;">
-      🔍 필지 선택을 위해 더 확대하세요 (줌 17 이상)
-    </div>
+
   </div>
 </div>
 
@@ -753,7 +747,7 @@ function goStep(idx){
   document.querySelectorAll('.step-btn').forEach(b=>{
     b.classList.toggle('active',+b.dataset.step===idx);
   });
-  if(idx===0){ if(vMap){ vMap.updateSize(); loadCadastralWFS(); } else initVMap(); }
+  if(idx===0){ if(vMap){ vMap.updateSize(); } else initVMap(); }
   if(idx===1){ syncStep1(); loadSetbackLayer().then(()=>drawLotOutline()); }
   if(idx===4){ drawBohChart(); updateBohAreas(); }
   if(idx===5){ initThreeJS(); }
@@ -767,8 +761,10 @@ function goStep(idx){
 // ═══════════════════════════════════════════
 const VWORLD_KEY = 'F6A1D87B-4FE7-3E62-9D90-11C694E11A53';
 
-// ── 지적도 표시 최소 줌 레벨 ──
+// ── 지적도 표시 최소 줌 레벨 (렌더링 전용, WFS 호출과 무관) ──
 const CADASTRAL_MIN_ZOOM = 17;
+// ── 주소 검색 기반 WFS 반경 (미터) ──
+const CADASTRAL_RADIUS_M = 600;
 
 let vMap = null;
 let vMarker = null;
@@ -832,22 +828,13 @@ function initVMap(){
     controls: []
   });
 
-  // 지도 이동/줌 변경 → WFS 로드 + 줌 안내 오버레이 갱신
-  let _wfsTimer = null;
+  // 지도 이동/줌 시 자동 WFS 호출 없음 — 주소 검색 시에만 로드
   vMap.on('moveend', function(){
-    clearTimeout(_wfsTimer);
     updateZoomNotice();
-    _wfsTimer = setTimeout(loadCadastralWFS, 200);
   });
 
   // 클릭 → 벡터에서 직접 필지 특정
   vMap.on('singleclick', function(e){
-    // 줌 부족 시 클릭 무시하고 안내
-    const zoom = vMap.getView().getZoom();
-    if(zoom < CADASTRAL_MIN_ZOOM){
-      showToast('필지를 선택하려면 더 확대해 주세요 (줌 17 이상)');
-      return;
-    }
     let hit = false;
     vMap.forEachFeatureAtPixel(e.pixel, function(feature, layer){
       if(hit || layer !== cadastralLayer) return;
@@ -865,30 +852,27 @@ function initVMap(){
   updateZoomNotice();
 }
 
-// 줌 안내 오버레이: 줌 17 미만일 때만 표시
-function updateZoomNotice(){
-  const notice = $('zoom-notice');
-  if(!notice || !vMap) return;
-  const zoom = vMap.getView().getZoom();
-  notice.style.display = (zoom < CADASTRAL_MIN_ZOOM) ? 'block' : 'none';
-}
+// 줌 안내 오버레이 (현재 미사용 — 요소 없음, 함수만 유지)
+function updateZoomNotice(){ /* noop */ }
 
-// WFS JSONP로 현재 화면 범위 지적도 로드
-// ── [변경 3] 줌 가드를 CADASTRAL_MIN_ZOOM(17)로 상향 ──
+// WFS JSONP — 주소 검색 시 중심 좌표 반경 600m bbox로만 호출
+// moveend 에서는 호출하지 않음
 let _cadastralLoading = false;
-function loadCadastralWFS(){
+function loadCadastralWFS(centerLng, centerLat){
   if(!vMap || _cadastralLoading) return;
-  const zoom = vMap.getView().getZoom();
-  if(zoom < CADASTRAL_MIN_ZOOM){
-    // 줌 부족 시 기존 지적도 피처 제거 후 반환
-    if(window._cadastralSource) window._cadastralSource.clear();
-    return;
-  }
+  if(centerLng === undefined || centerLat === undefined) return;
+
+  // 600m를 위경도 차이로 변환 (위도 1° ≈ 111,000m / 경도 1° ≈ 111,000m × cos(lat))
+  const R = CADASTRAL_RADIUS_M;
+  const dLat = R / 111000;
+  const dLng = R / (111000 * Math.cos(centerLat * Math.PI / 180));
+  const minLat = centerLat - dLat, maxLat = centerLat + dLat;
+  const minLng = centerLng - dLng, maxLng = centerLng + dLng;
+
+  // 새 장소 검색 시 이전 지적도 피처 초기화
+  if(window._cadastralSource) window._cadastralSource.clear();
 
   _cadastralLoading = true;
-  const ext = vMap.getView().calculateExtent(vMap.getSize());
-  const [minLng, minLat, maxLng, maxLat] = ol.proj.transformExtent(ext, 'EPSG:3857', 'EPSG:4326');
-
   const cbName = 'cad_' + Date.now();
   const script = document.createElement('script');
   const timer = setTimeout(()=>{ _cadastralLoading=false; cleanup(); }, 10000);
@@ -913,10 +897,11 @@ function loadCadastralWFS(){
     });
   };
   script.onerror = ()=>{ _cadastralLoading=false; cleanup(); };
+  // BBOX: (ymin, xmin, ymax, xmax) in EPSG:4326
   script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
     + `&typename=lp_pa_cbnd_bubun`
     + `&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
-    + `&srsname=EPSG:4326&maxfeatures=200`
+    + `&srsname=EPSG:4326&maxfeatures=500`
     + `&output=text/javascript&format_options=callback:${cbName}`
     + `&key=${VWORLD_KEY}`;
   document.body.appendChild(script);
@@ -1084,8 +1069,10 @@ function selectResult(parcel, road, lng, lat){
   setSearchStatus('');
   state.searchMarker = {addr: parcel||road, lng, lat};
 
-  if(!vMap){ initVMap(); setTimeout(()=>moveMapTo(lng,lat), 600); return; }
+  if(!vMap){ initVMap(); setTimeout(()=>{ moveMapTo(lng,lat); loadCadastralWFS(lng,lat); }, 600); return; }
   moveMapTo(lng, lat);
+  // 검색 위치 반경 600m 지적도 로드
+  loadCadastralWFS(lng, lat);
 }
 
 function moveMapTo(lng, lat){
