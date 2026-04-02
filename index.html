@@ -1528,56 +1528,21 @@ function testBuildableArea(){
     });
     console.log('4. 필터링된 선분 수:', allLines.length);
 
-    // 5. 선분들을 체인으로 연결
-    function chainLines(lines, tol){
-      const remaining = lines.map(l => ({coords: l, used: false}));
-      const chains = [];
-      remaining.forEach(start => {
-        if(start.used) return;
-        start.used = true;
-        const chain = [...start.coords];
-        let extended = true;
-        while(extended){
-          extended = false;
-          const lastPt = chain[chain.length-1];
-          const firstPt = chain[0];
-          for(let i=0; i<remaining.length; i++){
-            if(remaining[i].used) continue;
-            const s = remaining[i].coords[0];
-            const e = remaining[i].coords[remaining[i].coords.length-1];
-            if(Math.abs(s[0]-lastPt[0])<tol && Math.abs(s[1]-lastPt[1])<tol){
-              chain.push(...remaining[i].coords.slice(1)); remaining[i].used=true; extended=true; break;
-            } else if(Math.abs(e[0]-lastPt[0])<tol && Math.abs(e[1]-lastPt[1])<tol){
-              chain.push(...[...remaining[i].coords].reverse().slice(1)); remaining[i].used=true; extended=true; break;
-            } else if(Math.abs(s[0]-firstPt[0])<tol && Math.abs(s[1]-firstPt[1])<tol){
-              chain.unshift(...remaining[i].coords.slice(0,-1)); remaining[i].used=true; extended=true; break;
-            } else if(Math.abs(e[0]-firstPt[0])<tol && Math.abs(e[1]-firstPt[1])<tol){
-              chain.unshift(...[...remaining[i].coords].reverse().slice(0,-1)); remaining[i].used=true; extended=true; break;
-            }
-          }
-        }
-        chains.push(chain);
-      });
-      return chains;
-    }
+    // 5. allLines 각각을 직접 처리 (체인 연결 제거 - 순서 불일치 문제)
+    console.log('5. 선분 수:', allLines.length);
 
-    const chains = chainLines(allLines, TOL);
-    console.log('5. 체인 수:', chains.length);
-
-    // 6. 각 체인을 오프셋선과 결합해서 건축가능영역 생성
+    // 6. 각 선분을 오프셋선과 결합해서 건축가능영역 생성
     const outlineSource = window._step1OutlineSource;
     outlineSource.getFeatures().filter(f=>f.get('type')==='buildable').forEach(f=>outlineSource.removeFeature(f));
 
     let totalArea = 0;
     let buildableCount = 0;
 
-    chains.forEach((chain, ci) => {
-      const s = chain[0], e = chain[chain.length-1];
-      const isClosed = Math.abs(s[0]-e[0])<TOL && Math.abs(s[1]-e[1])<TOL;
-      console.log(`체인${ci}: 점수=${chain.length} ${isClosed?'닫힘✅':'열림❌'}`);
+    allLines.forEach((line, ci) => {
+      console.log(`선분${ci}: 점수=${line.length}`);
 
       try {
-        const setbackLine = turf.lineString(chain);
+        const setbackLine = turf.lineString(line);
 
         // 오프셋선을 건축한계선으로 분할 → 거리 0.1m 이내 + 가장 긴 구간 = Line A
         const insetSegs = turf.lineSplit(insetLine, setbackLine);
