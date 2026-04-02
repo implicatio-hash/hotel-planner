@@ -761,10 +761,8 @@ function goStep(idx){
 // ═══════════════════════════════════════════
 const VWORLD_KEY = 'F6A1D87B-4FE7-3E62-9D90-11C694E11A53';
 
-// ── 지적도 표시 최소 줌 레벨 (렌더링 전용, WFS 호출과 무관) ──
+// ── 지적도 표시 최소 줌 레벨 (WMTS 타일 렌더링 기준) ──
 const CADASTRAL_MIN_ZOOM = 17;
-// ── 주소 검색 기반 WFS 반경 (미터) ──
-const CADASTRAL_RADIUS_M = 600;
 
 let vMap = null;
 let vMarker = null;
@@ -782,25 +780,22 @@ function initVMap(){
   });
   // ── [변경 1] 타일 레이어에만 CSS filter 적용: 어둡게 + 대비 강화 ──
   baseLayer.on('prerender', function(e){
-    e.context.filter = 'grayscale(100%) brightness(0.72) contrast(1.25)';
+    e.context.filter = 'grayscale(100%) brightness(0.85) contrast(1.4)';
   });
   baseLayer.on('postrender', function(e){
     e.context.filter = 'none';
   });
 
-  // 지적도 벡터 레이어 (WFS) — ── [변경 2] minZoom 17로 상향 ──
-  const cadastralSource = new ol.source.Vector();
-  window._cadastralSource = cadastralSource;
-  const cadastralLayer = new ol.layer.Vector({
-    source: cadastralSource,
-    style: new ol.style.Style({
-      fill: new ol.style.Fill({ color: 'rgba(147,197,253,0.08)' }),
-      stroke: new ol.style.Stroke({ color: '#60a5fa', width: 1.2 })
+  // 지적도 WMTS 타일 레이어 — 항상 완전하게 표시, 누락 없음
+  const cadastralTileLayer = new ol.layer.Tile({
+    source: new ol.source.XYZ({
+      url: `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Cadastral/{z}/{y}/{x}.png`
     }),
-    minZoom: CADASTRAL_MIN_ZOOM   // ← 변경: 14 → 17
+    opacity: 0.85,
+    minZoom: CADASTRAL_MIN_ZOOM
   });
 
-  // 선택 필지 하이라이트 (파란색)
+  // 선택 필지 하이라이트 벡터 레이어 (기존 유지)
   const lotSource = new ol.source.Vector();
   window._lotSource = lotSource;
   const lotLayer = new ol.layer.Vector({
@@ -818,7 +813,7 @@ function initVMap(){
 
   vMap = new ol.Map({
     target: 'vmap',
-    layers: [baseLayer, cadastralLayer, lotLayer, markerLayer],
+    layers: [baseLayer, cadastralTileLayer, lotLayer, markerLayer],
     view: new ol.View({
       center: ol.proj.fromLonLat([126.9780, 37.5665]),
       zoom: 15,
@@ -828,24 +823,15 @@ function initVMap(){
     controls: []
   });
 
-  // 지도 이동/줌 시 자동 WFS 호출 없음 — 주소 검색 시에만 로드
-  vMap.on('moveend', function(){
-    updateZoomNotice();
-  });
+  // 지도 이동/줌 — 자동 WFS 호출 없음
+  vMap.on('moveend', function(){ updateZoomNotice(); });
 
-  // 클릭 → 벡터에서 직접 필지 특정
+  // 클릭 → 클릭 좌표 ±50m WFS 단건 조회로 필지 특정
   vMap.on('singleclick', function(e){
-    let hit = false;
-    vMap.forEachFeatureAtPixel(e.pixel, function(feature, layer){
-      if(hit || layer !== cadastralLayer) return;
-      hit = true;
-      const props = feature.get('props') || {};
-      const pnu  = props.pnu  || String(Date.now());
-      const addr = props.addr || props.jibun || '주소 미상';
-      const olGeom = feature.getGeometry();
-      toggleLot(pnu, addr, 0, olGeom);
-      fetchLandArea(pnu);
-    }, { hitTolerance: 4 });
+    const zoom = vMap.getView().getZoom();
+    if(zoom < CADASTRAL_MIN_ZOOM) return;
+    const [lng, lat] = ol.proj.toLonLat(e.coordinate);
+    fetchLotAtPoint(lng, lat);
   });
 
   // 초기 안내 오버레이 상태 설정
@@ -855,53 +841,38 @@ function initVMap(){
 // 줌 안내 오버레이 (현재 미사용 — 요소 없음, 함수만 유지)
 function updateZoomNotice(){ /* noop */ }
 
-// WFS JSONP — 주소 검색 시 중심 좌표 반경 600m bbox로만 호출
-// moveend 에서는 호출하지 않음
-let _cadastralLoading = false;
-function loadCadastralWFS(centerLng, centerLat){
-  if(!vMap || _cadastralLoading) return;
-  if(centerLng === undefined || centerLat === undefined) return;
+// 클릭 좌표 ±50m WFS 단건 조회 → 필지 1개 특정
+function fetchLotAtPoint(lng, lat){
+  const d = 50 / 111000; // 50m → 위경도
+  const dLng = d / Math.cos(lat * Math.PI / 180);
+  const minLat = lat - d, maxLat = lat + d;
+  const minLng = lng - dLng, maxLng = lng + dLng;
 
-  // 600m를 위경도 차이로 변환 (위도 1° ≈ 111,000m / 경도 1° ≈ 111,000m × cos(lat))
-  const R = CADASTRAL_RADIUS_M;
-  const dLat = R / 111000;
-  const dLng = R / (111000 * Math.cos(centerLat * Math.PI / 180));
-  const minLat = centerLat - dLat, maxLat = centerLat + dLat;
-  const minLng = centerLng - dLng, maxLng = centerLng + dLng;
-
-  // 새 장소 검색 시 이전 지적도 피처 초기화
-  if(window._cadastralSource) window._cadastralSource.clear();
-
-  _cadastralLoading = true;
-  const cbName = 'cad_' + Date.now();
+  const cbName = 'pt_' + Date.now();
   const script = document.createElement('script');
-  const timer = setTimeout(()=>{ _cadastralLoading=false; cleanup(); }, 10000);
+  const timer = setTimeout(()=>{ delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }, 8000);
   function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
 
   window[cbName] = function(data){
-    _cadastralLoading = false; cleanup();
+    cleanup();
     const features = data && data.features || [];
-    if(!features.length) return;
+    if(!features.length){ showToast('필지 정보를 찾을 수 없습니다'); return; }
     const fmt = new ol.format.GeoJSON();
-    const src = window._cadastralSource;
-    if(!src) return;
-    const existingPnus = new Set(src.getFeatures().map(f => f.get('props')?.pnu));
-    features.forEach(f => {
-      const pnu = f.properties?.pnu;
-      if(pnu && existingPnus.has(pnu)) return;
-      try {
-        const olF = fmt.readFeature(f, { dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
-        olF.set('props', f.properties);
-        src.addFeature(olF);
-      } catch(e){}
-    });
+    // 클릭 좌표와 가장 가까운 필지 1개 선택
+    const f = features[0];
+    const pnu  = f.properties?.pnu  || String(Date.now());
+    const addr = f.properties?.addr || f.properties?.jibun || '주소 미상';
+    try {
+      const olGeom = fmt.readGeometry(f.geometry, { dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
+      toggleLot(pnu, addr, 0, olGeom);
+      fetchLandArea(pnu);
+    } catch(e){ console.warn('geometry parse error:', e); }
   };
-  script.onerror = ()=>{ _cadastralLoading=false; cleanup(); };
-  // BBOX: (ymin, xmin, ymax, xmax) in EPSG:4326
+  script.onerror = ()=>{ cleanup(); showToast('필지 조회 실패'); };
   script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
     + `&typename=lp_pa_cbnd_bubun`
     + `&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
-    + `&srsname=EPSG:4326&maxfeatures=500`
+    + `&srsname=EPSG:4326&maxfeatures=5`
     + `&output=text/javascript&format_options=callback:${cbName}`
     + `&key=${VWORLD_KEY}`;
   document.body.appendChild(script);
@@ -1069,10 +1040,8 @@ function selectResult(parcel, road, lng, lat){
   setSearchStatus('');
   state.searchMarker = {addr: parcel||road, lng, lat};
 
-  if(!vMap){ initVMap(); setTimeout(()=>{ moveMapTo(lng,lat); loadCadastralWFS(lng,lat); }, 600); return; }
+  if(!vMap){ initVMap(); setTimeout(()=>{ moveMapTo(lng,lat); }, 600); return; }
   moveMapTo(lng, lat);
-  // 검색 위치 반경 600m 지적도 로드
-  loadCadastralWFS(lng, lat);
 }
 
 function moveMapTo(lng, lat){
