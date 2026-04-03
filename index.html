@@ -451,7 +451,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 <div id="step-2" class="step-panel" style="flex-direction:row;">
 
   <!-- 좌측: 용도 선택 패널 -->
-  <div style="width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+  <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>건축법상 용도 선택</h2>
     </div>
@@ -1832,17 +1832,22 @@ function renderDiagram(){
     row.style.cssText = `height:${h}px;border-radius:4px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;border:${isSelected?'2.5px solid var(--accent)':'1px solid rgba(80,80,80,0.35)'};`;
     row.dataset.fi = fi;
 
-    // 클릭: 선택 / Shift+클릭: 범위 선택
+    // 클릭: 토글 / Shift+클릭: 범위 선택
     row.addEventListener('click', e=>{
       if(e.target.classList.contains('sec-divider')) return;
       if(e.shiftKey && S2.lastClickedFi !== null){
         const lo = Math.min(S2.lastClickedFi, fi);
         const hi = Math.max(S2.lastClickedFi, fi);
         for(let i=lo;i<=hi;i++) S2.selectedFloors.add(i);
-      } else {
-        S2.selectedFloors.clear();
-        S2.selectedFloors.add(fi);
         S2.lastClickedFi = fi;
+      } else {
+        // 같은 층 재클릭 시 선택 해제, 아니면 토글 추가
+        if(S2.selectedFloors.has(fi)){
+          S2.selectedFloors.delete(fi);
+        } else {
+          S2.selectedFloors.add(fi);
+          S2.lastClickedFi = fi;
+        }
       }
       renderDiagram();
     });
@@ -2046,19 +2051,27 @@ function openPopup(e, fi, ci){
 // ── 우클릭 용도 지정 메뉴 ──
 function openUseMenu(e, fi){
   closePopup();
+  // 우클릭한 층이 선택 안 됐으면 자동 선택
+  if(!S2.selectedFloors.has(fi)){
+    S2.selectedFloors.add(fi);
+    S2.lastClickedFi = fi;
+  }
+
   const menu = document.createElement('div');
   menu.className = 'sec-popup';
   menu.style.left = Math.min(e.clientX+4, window.innerWidth-220)+'px';
-  menu.style.top  = Math.min(e.clientY-4, window.innerHeight-300)+'px';
-  menu.style.minWidth = '200px';
+  menu.style.top  = Math.min(e.clientY-4, window.innerHeight-200)+'px';
+  menu.style.minWidth = '180px';
   menu.addEventListener('click', ev=>ev.stopPropagation());
   menu.addEventListener('mousedown', ev=>ev.stopPropagation());
   menu.addEventListener('contextmenu', ev=>ev.preventDefault());
 
+  // 헤더
+  const hdr = document.createElement('div');
+  hdr.style.cssText='font-size:10px;font-weight:700;color:var(--text3);margin-bottom:6px;';
+  hdr.textContent=`용도 지정 (${S2.selectedFloors.size}개 층 선택됨)`;
+
   // 용도 선택 드롭다운
-  const selLabel = document.createElement('div');
-  selLabel.style.cssText='font-size:10px;font-weight:700;color:var(--text3);margin-bottom:4px;';
-  selLabel.textContent='용도 선택';
   const sel = document.createElement('select');
   sel.style.cssText='width:100%;padding:5px 6px;border-radius:5px;border:1px solid var(--border2);font-size:11px;font-family:inherit;margin-bottom:8px;';
   const opts=[
@@ -2069,44 +2082,21 @@ function openUseMenu(e, fi){
   opts.forEach(u=>{ const o=document.createElement('option'); o.value=u?.id||''; o.textContent=u?.label||'미지정'; sel.appendChild(o); });
   sel.addEventListener('mousedown', ev=>ev.stopPropagation());
 
-  // 적용 범위 버튼들
-  const applyLabel = document.createElement('div');
-  applyLabel.style.cssText='font-size:10px;font-weight:700;color:var(--text3);margin-bottom:4px;';
-  applyLabel.textContent='적용 범위';
-
-  function applyUse(targets){
+  // 적용 버튼
+  const applyBtn = document.createElement('button');
+  applyBtn.textContent = '적용';
+  applyBtn.style.cssText='width:100%;padding:6px;font-size:11px;font-weight:600;border-radius:4px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-family:inherit;';
+  applyBtn.addEventListener('mousedown', ev=>ev.stopPropagation());
+  applyBtn.onclick = ()=>{
     const useId = sel.value || null;
-    targets.forEach(i=>{
-      if(S2.floors[i]) S2.floors[i].cells[0].useId = useId;
-    });
+    S2.selectedFloors.forEach(i=>{ if(S2.floors[i]) S2.floors[i].cells[0].useId = useId; });
     renderDiagram();
     closePopup();
-  }
+  };
 
-  const btnData = [
-    { label:'이 층만', fn:()=>applyUse([fi]) },
-    { label:'이하 전체 (1층~현재)', fn:()=>applyUse([...Array(fi+1).keys()]) },
-    { label:'이상 전체 (현재~최상)', fn:()=>applyUse([...Array(S2.floors.length-fi).keys()].map(i=>i+fi)) },
-    { label:'선택 층 전체', fn:()=>applyUse([...S2.selectedFloors]) },
-    { label:'미지정 층 전체', fn:()=>applyUse(S2.floors.map((_,i)=>i).filter(i=>!S2.floors[i].cells[0].useId)) },
-  ];
-
-  btnData.forEach(({label,fn})=>{
-    const btn=document.createElement('button');
-    btn.textContent=label;
-    btn.style.cssText='display:block;width:100%;padding:5px 8px;margin-bottom:3px;font-size:11px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--text2);font-family:inherit;text-align:left;';
-    btn.addEventListener('mousedown',ev=>ev.stopPropagation());
-    btn.addEventListener('mouseover',()=>btn.style.background='var(--accent)');
-    btn.addEventListener('mouseleave',()=>btn.style.background='var(--bg3)');
-    btn.addEventListener('mouseover',()=>{ btn.style.background='var(--accent)'; btn.style.color='#fff'; });
-    btn.addEventListener('mouseleave',()=>{ btn.style.background='var(--bg3)'; btn.style.color='var(--text2)'; });
-    btn.onclick=fn;
-    menu.appendChild(btn);
-  });
-
-  menu.insertBefore(applyLabel, menu.firstChild);
-  menu.insertBefore(sel, menu.firstChild);
-  menu.insertBefore(selLabel, menu.firstChild);
+  menu.appendChild(hdr);
+  menu.appendChild(sel);
+  menu.appendChild(applyBtn);
   document.body.appendChild(menu);
   S2.popupEl = menu;
   setTimeout(()=>document.addEventListener('click', closePopup, {once:true}), 100);
