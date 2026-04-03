@@ -253,7 +253,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 .wide-panel { width: 340px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
 .wide-panel #panel-body { padding: 14px 16px; }
 /* ───── STEP 2 SECTION DIAGRAM ───── */
-.use-btn{padding:7px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid var(--border2);background:var(--bg3);color:var(--text2);text-align:left;transition:all .15s;}
+.use-btn{padding:7px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid var(--border2);background:var(--bg3);color:var(--text2);text-align:center;transition:all .15s;}
 .use-btn.active{color:#fff;border-color:transparent;}
 .sec-block-row{display:flex;width:100%;position:relative;box-sizing:border-box;}
 .sec-block-cell{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;position:relative;overflow:hidden;cursor:pointer;transition:filter .15s;min-width:20px;user-select:none;box-sizing:border-box;}
@@ -1829,7 +1829,7 @@ function renderDiagram(){
     row.className = 'sec-block-row';
     const blockW = Math.max(60, Math.round(widthPct / 100 * 500));
     const isSelected = S2.selectedFloors.has(fi);
-    row.style.cssText = `height:${h}px;border-radius:4px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;border:${isSelected?'2.5px solid var(--accent)':'1px solid rgba(80,80,80,0.35)'};`;
+    row.style.cssText = `height:${h}px;border-radius:6px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;border:${isSelected?'2.5px solid var(--accent)':'1px solid rgba(80,80,80,0.35)'};`;
     row.dataset.fi = fi;
 
     // 클릭: 토글 / Shift+클릭: 범위 선택
