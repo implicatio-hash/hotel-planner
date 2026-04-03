@@ -462,32 +462,51 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
   <!-- 우측: 단면 다이어그램 -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
-    <!-- 상단 툴바 -->
-    <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:8px;flex-shrink:0;">
-      <span style="font-size:11px;font-weight:600;color:var(--text2);">단면 조닝</span>
-      <div style="width:1px;height:16px;background:var(--border);"></div>
-      <span style="font-size:11px;color:var(--text3);">층 클릭: 용도 지정 &nbsp;|&nbsp; 분할 버튼: 수평 분할 &nbsp;|&nbsp; 상단 핸들 드래그: 층 이동</span>
-      <div style="flex:1;"></div>
-      <span style="font-size:11px;color:var(--text3);">총 높이: <b id="total-height-disp">-</b>m &nbsp;|&nbsp; 잔여면적: <b id="remain-area-disp" style="color:var(--accent);">0</b>㎡</span>
+    <!-- 상단 규모 요약 -->
+    <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 24px;flex-shrink:0;text-align:center;">
+      <div style="display:flex;justify-content:center;gap:48px;">
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">총 높이</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-height-disp">-</div>
+          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-height-disp">-</span>m</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">지상층 연면적</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-area-disp">-</div>
+          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-gfa-disp">-</span>㎡ / 잔여 <b id="remain-area-disp" style="color:var(--accent);">-</b>㎡</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">건축면적</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-coverage-disp">-</div>
+          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-coverage-disp">-</span>㎡</div>
+        </div>
+      </div>
     </div>
     <!-- 다이어그램 영역 -->
     <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
       <div style="display:flex;flex-direction:column;gap:0;">
         <!-- 헤더 행 -->
-        <div style="display:flex;align-items:center;">
-          <div style="width:500px;height:24px;background:var(--bg2);border-bottom:2px solid #1a1d26;display:flex;align-items:center;padding:0 8px;box-sizing:border-box;">
-            <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
+        <div style="display:flex;align-items:stretch;">
+          <div id="section-blocks-hdr" style="flex:1;height:24px;background:var(--bg2);border-bottom:2px solid #1a1d26;box-sizing:border-box;"></div>
+          <div style="width:36px;height:24px;background:var(--bg3);border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
           </div>
-          <div style="width:180px;height:24px;background:var(--bg3);border-bottom:2px solid #1a1d26;display:flex;align-items:center;box-sizing:border-box;" id="section-info-hdr">
-            <span style="width:36px;text-align:center;font-size:10px;font-weight:700;color:var(--text2);">층</span>
-            <span style="width:44px;text-align:center;font-size:10px;font-weight:700;color:var(--text2);">층고(m)</span>
-            <span style="flex:1;text-align:right;padding-right:6px;font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
+          <div style="width:50px;height:24px;background:var(--bg3);border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">층고(m)</span>
+          </div>
+          <div style="width:80px;height:24px;background:var(--bg3);border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
           </div>
         </div>
         <!-- 다이어그램 + 정보 -->
         <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
-          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;width:500px;border-top:1px solid #1a1d26;"></div>
-          <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:180px;"></div>
+          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;flex:1;min-width:200px;"></div>
+          <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:166px;flex-shrink:0;"></div>
+        </div>
+        <!-- 지면 표시 -->
+        <div style="display:flex;align-items:center;border-top:2px solid #1a1d26;">
+          <div style="flex:1;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
+          <div style="width:166px;"></div>
         </div>
       </div>
     </div>
@@ -1714,20 +1733,31 @@ function buildFloors(){
 function updateTotals(){
   const totalH    = S2.floors.reduce((s,f)=>s+f.floorH, 0);
   const totalArea = S2.floors.reduce((s,f)=>s+f.area, 0);
-  const maxH      = state.maxHeight || 90;
-  const gfa       = state.maxGFA || 8000;
+  const maxH      = state.maxHeight || 0;
+  const maxGFA    = state.maxGFA || 0;
+  const maxCov    = state.maxCoverage || 0;
+  const remain    = maxGFA - totalArea;
   const heightOver = totalH - maxH;
-  const areaOver   = totalArea - gfa;
 
+  // 총 높이
   if($('total-height-disp')){
-    $('total-height-disp').textContent = totalH.toFixed(1);
-    $('total-height-disp').style.color = heightOver > 0.1 ? 'var(--red)' : 'var(--green)';
+    $('total-height-disp').textContent = totalH.toFixed(1) + 'm';
+    $('total-height-disp').style.color = heightOver > 0.1 ? 'var(--red)' : 'var(--text)';
   }
+  if($('max-height-disp')) $('max-height-disp').textContent = maxH;
+
+  // 연면적
+  if($('total-area-disp')) $('total-area-disp').textContent = Math.round(totalArea).toLocaleString() + '㎡';
+  if($('max-gfa-disp')) $('max-gfa-disp').textContent = Math.round(maxGFA).toLocaleString();
   if($('remain-area-disp')){
-    const remain = -areaOver;
     $('remain-area-disp').textContent = (remain >= 0 ? '+' : '') + Math.round(remain).toLocaleString();
     $('remain-area-disp').style.color = Math.abs(remain) < 1 ? 'var(--green)' : remain < 0 ? 'var(--red)' : 'var(--accent)';
   }
+
+  // 건축면적 (현재 층의 최대 바닥면적)
+  const maxFloorArea = S2.floors.length > 0 ? Math.max(...S2.floors.map(f=>f.area)) : 0;
+  if($('total-coverage-disp')) $('total-coverage-disp').textContent = Math.round(maxFloorArea).toLocaleString() + '㎡';
+  if($('max-coverage-disp')) $('max-coverage-disp').textContent = Math.round(maxCov).toLocaleString();
 }
 
 function getUseColor(useId){ return useId ? (USE_MAP[useId]?.color||'#e2e4ea') : '#e2e4ea'; }
@@ -1739,16 +1769,23 @@ function renderDiagram(){
   if(!blocksEl||!infoEl) return;
 
   const PX_PER_M = 12;
+  const maxCov = state.maxCoverage || Math.max(...S2.floors.map(f=>f.area), 1);
   blocksEl.innerHTML = '';
   infoEl.innerHTML   = '';
 
   S2.floors.forEach((floor, fi)=>{
     const h = Math.max(floor.floorH * PX_PER_M, 28);
+    // 바닥면적 비율로 블록 너비 계산 (최대건축면적 기준 100%)
+    const widthPct = Math.min(100, Math.round(floor.area / maxCov * 100));
 
-    // ── 블록 행 ──
+    // ── 블록 행 (wrapper: 전체 너비, 실제 블록: widthPct%) ──
+    const rowWrap = document.createElement('div');
+    rowWrap.style.cssText = `height:${h}px;display:flex;align-items:stretch;`;
+    rowWrap.dataset.fi = fi;
+
     const row = document.createElement('div');
     row.className = 'sec-block-row';
-    row.style.cssText = `height:${h}px;border-bottom:1px solid rgba(0,0,0,0.15);overflow:hidden;box-sizing:border-box;`;
+    row.style.cssText = `height:${h}px;border-bottom:1px solid rgba(0,0,0,0.15);border-radius:4px;overflow:hidden;box-sizing:border-box;width:${widthPct}%;`;
     row.dataset.fi = fi;
 
     // 면 전체 mousedown → 실제 이동 시에만 드래그 (더블클릭과 구분)
@@ -1800,31 +1837,38 @@ function renderDiagram(){
       row.style.outlineOffset = '2px';
     }
 
-    blocksEl.appendChild(row);
+    rowWrap.appendChild(row);
+    blocksEl.appendChild(rowWrap);
 
     // ── 정보 행 ──
     const infoRow = document.createElement('div');
     infoRow.className = 'sec-info-row';
-    infoRow.style.cssText = `height:${h}px;border-bottom:1px solid var(--border);box-sizing:border-box;`;
+    infoRow.style.cssText = `height:${h}px;width:166px;border-bottom:1px solid var(--border);box-sizing:border-box;display:flex;align-items:center;`;
     infoRow.dataset.fi = fi;
 
+    // 층 번호 (36px)
     const floorLabel = document.createElement('span');
-    floorLabel.className = 'sec-floor-label';
+    floorLabel.style.cssText = 'width:36px;text-align:center;font-size:10px;font-weight:700;color:var(--text2);flex-shrink:0;';
     floorLabel.textContent = (fi+1)+'F';
 
+    // 층고 입력 (50px, 작게)
     const hInput = document.createElement('input');
-    hInput.type='number'; hInput.className='sec-h-input';
+    hInput.type='number';
+    hInput.style.cssText='width:50px;border:1px solid var(--border2);border-radius:3px;background:var(--bg3);font-size:10px;text-align:center;color:var(--text);font-family:inherit;outline:none;padding:1px 2px;flex-shrink:0;';
     hInput.value=floor.floorH; hInput.step=0.1; hInput.min=2.4;
+    hInput.addEventListener('mousedown',e=>e.stopPropagation());
     hInput.addEventListener('change',()=>{
       S2.floors[fi].floorH = parseFloat(hInput.value)||4;
       updateTotals(); renderDiagram();
     });
 
+    // 바닥면적 입력 (나머지, 크게)
     const aInput = document.createElement('input');
-    aInput.type='number'; aInput.className='sec-a-input';
+    aInput.type='number';
+    aInput.style.cssText='flex:1;min-width:60px;border:1px solid var(--border2);border-radius:3px;background:var(--bg3);font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;padding:1px 4px;margin-left:2px;';
     aInput.value=floor.area; aInput.step=10;
-    aInput.style.cssText='flex:1;min-width:50px;border:none;background:transparent;font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;cursor:pointer;padding-right:6px;';
-    aInput.addEventListener('change',()=>{ S2.floors[fi].area=parseInt(aInput.value)||0; updateTotals(); });
+    aInput.addEventListener('mousedown',e=>e.stopPropagation());
+    aInput.addEventListener('change',()=>{ S2.floors[fi].area=parseInt(aInput.value)||0; updateTotals(); renderDiagram(); });
 
     infoRow.appendChild(floorLabel);
     infoRow.appendChild(hInput);
