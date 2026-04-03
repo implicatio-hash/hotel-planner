@@ -255,8 +255,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 /* ───── STEP 2 SECTION DIAGRAM ───── */
 .use-btn{padding:7px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid var(--border2);background:var(--bg3);color:var(--text2);text-align:left;transition:all .15s;}
 .use-btn.active{color:#fff;border-color:transparent;}
-.sec-block-row{display:flex;width:100%;border-bottom:1px solid rgba(0,0,0,0.15);position:relative;box-sizing:border-box;}
-.sec-block-cell{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;position:relative;overflow:hidden;cursor:pointer;transition:filter .15s;min-width:20px;user-select:none;border:1px solid rgba(80,80,80,0.3);box-sizing:border-box;}
+.sec-block-row{display:flex;width:100%;position:relative;box-sizing:border-box;}
+.sec-block-cell{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;position:relative;overflow:hidden;cursor:pointer;transition:filter .15s;min-width:20px;user-select:none;box-sizing:border-box;}
 .sec-block-cell:hover{filter:brightness(1.12);}
 .sec-block-cell.selected{outline:3px solid #fff;outline-offset:-3px;z-index:2;}
 .sec-divider{position:absolute;top:0;bottom:0;width:6px;background:rgba(255,255,255,0.5);cursor:col-resize;z-index:10;transform:translateX(-50%);}
@@ -1674,6 +1674,8 @@ const S2 = {
   floors: [],
   popupEl: null,
   dragSrcFi: null,
+  selectedFloors: new Set(),  // 선택된 층 인덱스
+  lastClickedFi: null,        // Shift+클릭 기준점
 };
 
 function initStep2(){
@@ -1826,11 +1828,29 @@ function renderDiagram(){
     const row = document.createElement('div');
     row.className = 'sec-block-row';
     const blockW = Math.max(60, Math.round(widthPct / 100 * 500));
-    row.style.cssText = `height:${h}px;border-bottom:1px solid rgba(0,0,0,0.15);border-radius:4px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;`;
+    const isSelected = S2.selectedFloors.has(fi);
+    row.style.cssText = `height:${h}px;border-radius:4px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;border:${isSelected?'2.5px solid var(--accent)':'1px solid rgba(80,80,80,0.35)'};`;
     row.dataset.fi = fi;
 
-    // 면 전체 mousedown → 실제 이동 시에만 드래그 (더블클릭과 구분)
+    // 클릭: 선택 / Shift+클릭: 범위 선택
+    row.addEventListener('click', e=>{
+      if(e.target.classList.contains('sec-divider')) return;
+      if(e.shiftKey && S2.lastClickedFi !== null){
+        const lo = Math.min(S2.lastClickedFi, fi);
+        const hi = Math.max(S2.lastClickedFi, fi);
+        for(let i=lo;i<=hi;i++) S2.selectedFloors.add(i);
+      } else {
+        S2.selectedFloors.clear();
+        S2.selectedFloors.add(fi);
+        S2.lastClickedFi = fi;
+      }
+      renderDiagram();
+    });
+    // 우클릭: 용도 지정 컨텍스트 메뉴
+    row.addEventListener('contextmenu', e=>{ e.preventDefault(); openUseMenu(e, fi); });
+    // mousedown: 드래그 (실제 이동 시에만)
     row.addEventListener('mousedown', e=>{
+      if(e.button !== 0) return;
       if(e.target.classList.contains('sec-divider')) return;
       const startX = e.clientX, startY = e.clientY;
       let dragging = false;
@@ -1860,7 +1880,7 @@ function renderDiagram(){
         lbl.textContent = getUseLabel(cell.useId);
         cellEl.appendChild(lbl);
       }
-      // 더블클릭으로 팝업
+      // 더블클릭: 분할/병합/층 추가·삭제 팝업
       cellEl.addEventListener('dblclick', e=>{ e.stopPropagation(); openPopup(e, fi, ci); });
       row.appendChild(cellEl);
 
@@ -1874,9 +1894,9 @@ function renderDiagram(){
     });
     updateDividers(row, floor);
 
-    // 드래그 중 강조 표시
+    // 드래그 강조
     if(S2.dragSrcFi === fi){
-      row.style.outline = '3px solid var(--accent)';
+      row.style.outline = '3px solid #f59e0b';
       row.style.outlineOffset = '2px';
     }
 
@@ -1937,7 +1957,7 @@ function updateDividers(rowEl, floor){
   dividers.forEach((d,i)=>{ cum+=floor.cells[i].ratio; d.style.left=(cum/total*100)+'%'; });
 }
 
-// ── 팝업 (더블클릭) ──
+// ── 더블클릭 팝업: 분할/병합/층 추가·삭제 ──
 function openPopup(e, fi, ci){
   closePopup();
   const floor = S2.floors[fi];
@@ -1947,35 +1967,8 @@ function openPopup(e, fi, ci){
   popup.className = 'sec-popup';
   popup.style.left = Math.min(e.clientX+4, window.innerWidth-200)+'px';
   popup.style.top  = Math.min(e.clientY-10, window.innerHeight-200)+'px';
-
-  // 팝업 내부 클릭은 닫히지 않도록
   popup.addEventListener('click', e=>e.stopPropagation());
   popup.addEventListener('mousedown', e=>e.stopPropagation());
-
-  // 선택된 층 외곽선 강조
-  document.querySelectorAll('.sec-block-row').forEach(r=>r.style.outline='');
-  const rowEl = document.querySelector(`.sec-block-row[data-fi="${fi}"]`);
-  if(rowEl) rowEl.style.cssText += ';border:2.5px solid #1a1d26;';
-
-  // 용도 드롭다운
-  const sel = document.createElement('select');
-  const opts = [
-    {id:'', label:'미지정'},
-    ...[...S2.activeUseIds].map(id=>USE_MAP[id]).filter(Boolean),
-    USE_MAP['parking'], USE_MAP['mep'], USE_MAP['common']
-  ];
-  opts.forEach(u=>{
-    const o = document.createElement('option');
-    o.value = u?.id||'';
-    o.textContent = u?.label||'미지정';
-    if((u?.id||'') === (cell.useId||'')) o.selected=true;
-    sel.appendChild(o);
-  });
-  sel.addEventListener('mousedown', e=>e.stopPropagation());
-  sel.addEventListener('change', ()=>{
-    S2.floors[fi].cells[ci].useId = sel.value||null;
-    renderDiagram();
-  });
 
   // 분할/병합 버튼
   const btns = document.createElement('div');
@@ -1995,21 +1988,21 @@ function openPopup(e, fi, ci){
   btns.appendChild(splitBtn);
   btns.appendChild(mergeBtn);
 
-  // 층 추가 / 삭제 버튼 (두 번째 줄)
+  // 층 추가/삭제
   const btns2 = document.createElement('div');
   btns2.className = 'sec-popup-btns';
   btns2.style.marginTop = '4px';
 
   const addBtn = document.createElement('button');
   addBtn.textContent = '+ 층 추가';
-  addBtn.style.cssText = 'flex:1;padding:4px 2px;font-size:10px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--text2);font-family:inherit;';
+  addBtn.style.cssText='flex:1;padding:4px 2px;font-size:10px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--text2);font-family:inherit;';
   addBtn.addEventListener('mousedown', e=>e.stopPropagation());
   addBtn.onclick = ()=>{ addFloor(fi); closePopup(); };
 
   const delBtn = document.createElement('button');
   delBtn.textContent = '− 층 삭제';
-  delBtn.disabled = S2.floors.length <= 1;
-  delBtn.style.cssText = 'flex:1;padding:4px 2px;font-size:10px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--red);font-family:inherit;';
+  delBtn.disabled = S2.floors.length<=1;
+  delBtn.style.cssText='flex:1;padding:4px 2px;font-size:10px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--red);font-family:inherit;';
   delBtn.addEventListener('mousedown', e=>e.stopPropagation());
   delBtn.onclick = ()=>{ deleteFloor(fi); closePopup(); };
 
@@ -2018,16 +2011,16 @@ function openPopup(e, fi, ci){
 
   // 비율 입력 (분할된 경우)
   if(floor.cells.length>1){
-    const total = floor.cells.reduce((s,c)=>s+c.ratio,0);
-    const pct   = Math.round(cell.ratio/total*100);
-    const pWrap = document.createElement('div');
+    const total=floor.cells.reduce((s,c)=>s+c.ratio,0);
+    const pct=Math.round(cell.ratio/total*100);
+    const pWrap=document.createElement('div');
     pWrap.style.cssText='display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;';
-    const pLbl = document.createElement('span');
+    const pLbl=document.createElement('span');
     pLbl.style.color='var(--text3)'; pLbl.textContent='비율';
-    const pInput = document.createElement('input');
+    const pInput=document.createElement('input');
     pInput.type='number'; pInput.min=5; pInput.max=95; pInput.value=pct;
     pInput.style.cssText='width:50px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;font-size:11px;font-family:inherit;';
-    pInput.addEventListener('mousedown', e=>e.stopPropagation());
+    pInput.addEventListener('mousedown',e=>e.stopPropagation());
     pInput.addEventListener('change',()=>{
       const newPct=Math.max(5,Math.min(95,parseInt(pInput.value)||50));
       const others=floor.cells.filter((_,i)=>i!==ci);
@@ -2043,13 +2036,79 @@ function openPopup(e, fi, ci){
     popup.appendChild(pWrap);
   }
 
-  popup.appendChild(sel);
   popup.appendChild(btns);
   popup.appendChild(btns2);
   document.body.appendChild(popup);
   S2.popupEl = popup;
+  setTimeout(()=>document.addEventListener('click', closePopup, {once:true}), 100);
+}
 
-  // 팝업 외부 클릭 시 닫기 (딜레이 적용)
+// ── 우클릭 용도 지정 메뉴 ──
+function openUseMenu(e, fi){
+  closePopup();
+  const menu = document.createElement('div');
+  menu.className = 'sec-popup';
+  menu.style.left = Math.min(e.clientX+4, window.innerWidth-220)+'px';
+  menu.style.top  = Math.min(e.clientY-4, window.innerHeight-300)+'px';
+  menu.style.minWidth = '200px';
+  menu.addEventListener('click', ev=>ev.stopPropagation());
+  menu.addEventListener('mousedown', ev=>ev.stopPropagation());
+  menu.addEventListener('contextmenu', ev=>ev.preventDefault());
+
+  // 용도 선택 드롭다운
+  const selLabel = document.createElement('div');
+  selLabel.style.cssText='font-size:10px;font-weight:700;color:var(--text3);margin-bottom:4px;';
+  selLabel.textContent='용도 선택';
+  const sel = document.createElement('select');
+  sel.style.cssText='width:100%;padding:5px 6px;border-radius:5px;border:1px solid var(--border2);font-size:11px;font-family:inherit;margin-bottom:8px;';
+  const opts=[
+    {id:'', label:'미지정'},
+    ...[...S2.activeUseIds].map(id=>USE_MAP[id]).filter(Boolean),
+    USE_MAP['parking'], USE_MAP['mep'], USE_MAP['common']
+  ];
+  opts.forEach(u=>{ const o=document.createElement('option'); o.value=u?.id||''; o.textContent=u?.label||'미지정'; sel.appendChild(o); });
+  sel.addEventListener('mousedown', ev=>ev.stopPropagation());
+
+  // 적용 범위 버튼들
+  const applyLabel = document.createElement('div');
+  applyLabel.style.cssText='font-size:10px;font-weight:700;color:var(--text3);margin-bottom:4px;';
+  applyLabel.textContent='적용 범위';
+
+  function applyUse(targets){
+    const useId = sel.value || null;
+    targets.forEach(i=>{
+      if(S2.floors[i]) S2.floors[i].cells[0].useId = useId;
+    });
+    renderDiagram();
+    closePopup();
+  }
+
+  const btnData = [
+    { label:'이 층만', fn:()=>applyUse([fi]) },
+    { label:'이하 전체 (1층~현재)', fn:()=>applyUse([...Array(fi+1).keys()]) },
+    { label:'이상 전체 (현재~최상)', fn:()=>applyUse([...Array(S2.floors.length-fi).keys()].map(i=>i+fi)) },
+    { label:'선택 층 전체', fn:()=>applyUse([...S2.selectedFloors]) },
+    { label:'미지정 층 전체', fn:()=>applyUse(S2.floors.map((_,i)=>i).filter(i=>!S2.floors[i].cells[0].useId)) },
+  ];
+
+  btnData.forEach(({label,fn})=>{
+    const btn=document.createElement('button');
+    btn.textContent=label;
+    btn.style.cssText='display:block;width:100%;padding:5px 8px;margin-bottom:3px;font-size:11px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--text2);font-family:inherit;text-align:left;';
+    btn.addEventListener('mousedown',ev=>ev.stopPropagation());
+    btn.addEventListener('mouseover',()=>btn.style.background='var(--accent)');
+    btn.addEventListener('mouseleave',()=>btn.style.background='var(--bg3)');
+    btn.addEventListener('mouseover',()=>{ btn.style.background='var(--accent)'; btn.style.color='#fff'; });
+    btn.addEventListener('mouseleave',()=>{ btn.style.background='var(--bg3)'; btn.style.color='var(--text2)'; });
+    btn.onclick=fn;
+    menu.appendChild(btn);
+  });
+
+  menu.insertBefore(applyLabel, menu.firstChild);
+  menu.insertBefore(sel, menu.firstChild);
+  menu.insertBefore(selLabel, menu.firstChild);
+  document.body.appendChild(menu);
+  S2.popupEl = menu;
   setTimeout(()=>document.addEventListener('click', closePopup, {once:true}), 100);
 }
 
