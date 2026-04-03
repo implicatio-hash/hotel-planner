@@ -263,7 +263,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 .sec-divider:hover{background:#fff;}
 .sec-drag-handle{position:absolute;top:0;left:0;right:0;height:10px;cursor:ns-resize;z-index:5;display:flex;align-items:center;justify-content:center;opacity:0;}
 .sec-block-row:hover .sec-drag-handle{opacity:1;background:rgba(0,0,0,0.2);}
-.sec-info-row{display:flex;align-items:center;border-bottom:1px dashed var(--border);padding:0 4px;background:var(--bg2);font-size:10px;box-sizing:border-box;}
+.sec-info-row{display:flex;align-items:center;border-bottom:1px dashed #6b7280;padding:0 4px;background:transparent;font-size:10px;box-sizing:border-box;}
 .sec-floor-label{width:30px;font-weight:700;color:var(--text2);text-align:center;flex-shrink:0;}
 .sec-h-input{width:34px;border:none;background:transparent;font-size:10px;text-align:center;color:var(--text);font-family:inherit;outline:none;cursor:pointer;}
 .sec-h-input:focus{background:var(--bg3);border-radius:3px;}
@@ -471,12 +471,12 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">건축면적</div>
           <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-coverage-disp">-</div>
-          <div style="font-size:10px;color:var(--text3);">건폐율 <b id="bcr-disp">-</b>% / 최대 <span id="max-coverage-disp">-</span>㎡ / 잔여 <b id="remain-coverage-disp" style="color:var(--accent);">-</b>㎡</div>
+          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-coverage-disp">-</span>㎡ / 건폐율 <b id="bcr-disp">-</b> / 잔여 <b id="remain-coverage-disp" style="color:var(--accent);">-</b>㎡</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">지상층 연면적</div>
           <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-area-disp">-</div>
-          <div style="font-size:10px;color:var(--text3);">용적률 <b id="far-disp">-</b>% / 최대 <span id="max-gfa-disp">-</span>㎡ / 잔여 <b id="remain-area-disp" style="color:var(--accent);">-</b>㎡</div>
+          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-gfa-disp">-</span>㎡ / 용적률 <b id="far-disp">-</b> / 잔여 <b id="remain-area-disp" style="color:var(--accent);">-</b>㎡</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">총 높이</div>
@@ -1770,8 +1770,22 @@ function updateTotals(){
     $('total-height-disp').style.color = hRemain < -0.01 ? 'var(--red)' : 'var(--text)';
   }
   if($('max-height-disp')) $('max-height-disp').textContent = maxH.toFixed(2);
-  if($('bcr-disp')) $('bcr-disp').textContent = state.bcr || '-';
-  if($('far-disp')) $('far-disp').textContent = state.far || '-';
+  // 현재 면적 기준 건폐율/용적률 계산
+  const siteArea = state.siteArea || 1;
+  const currentBCR = maxFloorArea / siteArea * 100;
+  const currentFAR = totalArea / siteArea * 100;
+  const maxBCR = state.bcr || 0;
+  const maxFAR = state.far || 0;
+  const bcrEl = $('bcr-disp');
+  if(bcrEl){
+    bcrEl.textContent = currentBCR.toFixed(2) + '%';
+    bcrEl.style.color = currentBCR > maxBCR + 0.01 ? 'var(--red)' : 'var(--accent)';
+  }
+  const farEl = $('far-disp');
+  if(farEl){
+    farEl.textContent = currentFAR.toFixed(2) + '%';
+    farEl.style.color = currentFAR > maxFAR + 0.01 ? 'var(--red)' : 'var(--accent)';
+  }
   const remHEl = $('remain-height-disp');
   if(remHEl){
     remHEl.textContent = (hRemain >= 0 ? '+' : '') + hRemain.toFixed(2);
@@ -1872,7 +1886,7 @@ function renderDiagram(){
     // ── 정보 행 ──
     const infoRow = document.createElement('div');
     infoRow.className = 'sec-info-row';
-    infoRow.style.cssText = `height:${h}px;width:166px;border-bottom:1px solid var(--border);box-sizing:border-box;display:flex;align-items:center;`;
+    infoRow.style.cssText = `height:${h}px;width:166px;border-bottom:1px dashed #6b7280;box-sizing:border-box;display:flex;align-items:center;background:transparent;`;
     infoRow.dataset.fi = fi;
 
     // 층 번호 (36px)
