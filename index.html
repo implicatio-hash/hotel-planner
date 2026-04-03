@@ -1832,16 +1832,19 @@ function renderDiagram(){
     row.style.cssText = `height:${h}px;border-radius:6px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;border:${isSelected?'2.5px solid var(--accent)':'1px solid rgba(80,80,80,0.35)'};`;
     row.dataset.fi = fi;
 
-    // 클릭: 토글 / Shift+클릭: 범위 선택
+    // 클릭: 토글 / Shift+클릭: 범위 선택 (분할된 층은 선택 불가)
     row.addEventListener('click', e=>{
       if(e.target.classList.contains('sec-divider')) return;
+      const isSplit = floor.cells.length > 1;
+      if(isSplit) return; // 분할된 층은 선택 불가
       if(e.shiftKey && S2.lastClickedFi !== null){
         const lo = Math.min(S2.lastClickedFi, fi);
         const hi = Math.max(S2.lastClickedFi, fi);
-        for(let i=lo;i<=hi;i++) S2.selectedFloors.add(i);
+        for(let i=lo;i<=hi;i++){
+          if(S2.floors[i].cells.length === 1) S2.selectedFloors.add(i); // 분할 안된 층만
+        }
         S2.lastClickedFi = fi;
       } else {
-        // 같은 층 재클릭 시 선택 해제, 아니면 토글 추가
         if(S2.selectedFloors.has(fi)){
           S2.selectedFloors.delete(fi);
         } else {
@@ -1923,7 +1926,7 @@ function renderDiagram(){
     const hInput = document.createElement('input');
     hInput.type='number';
     hInput.style.cssText='width:50px;border:1px solid var(--border2);border-radius:3px;background:#fafafa;font-size:10px;text-align:center;color:var(--text);font-family:inherit;outline:none;padding:1px 2px;flex-shrink:0;';
-    hInput.value=floor.floorH; hInput.step=0.1; hInput.min=2.4;
+    hInput.value=parseFloat(floor.floorH).toFixed(2); hInput.step=0.1; hInput.min=2.4;
     hInput.addEventListener('mousedown',e=>e.stopPropagation());
     hInput.addEventListener('change',()=>{
       S2.floors[fi].floorH = parseFloat(hInput.value)||4;
@@ -1934,7 +1937,7 @@ function renderDiagram(){
     const aInput = document.createElement('input');
     aInput.type='number';
     aInput.style.cssText='flex:1;min-width:60px;border:1px solid var(--border2);border-radius:3px;background:#fafafa;font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;padding:1px 4px;margin-left:2px;';
-    aInput.value=floor.area; aInput.step=10;
+    aInput.value=Number.isInteger(floor.area)?floor.area:parseFloat(floor.area).toFixed(2); aInput.step=1;
     aInput.addEventListener('mousedown',e=>e.stopPropagation());
     aInput.addEventListener('change',()=>{
       const maxCov = state.maxCoverage || Infinity;
@@ -2075,11 +2078,20 @@ function openPopup(e, fi, ci){
 // ── 우클릭 용도 지정 메뉴 ──
 function openUseMenu(e, fi){
   closePopup();
-  // 우클릭한 층이 선택 안 됐으면 자동 선택
-  if(!S2.selectedFloors.has(fi)){
+  const floor = S2.floors[fi];
+  const isSplit = floor.cells.length > 1;
+
+  // 분할된 층: 선택 상태에서 제거 (선택 불가)
+  if(isSplit) S2.selectedFloors.delete(fi);
+
+  // 우클릭한 층이 선택 안 됐으면 단일 적용 모드 (분할 안된 경우만)
+  const isSingleMode = !S2.selectedFloors.has(fi) && !isSplit;
+  if(isSingleMode){
     S2.selectedFloors.add(fi);
     S2.lastClickedFi = fi;
   }
+
+  const targetCount = isSplit ? 1 : S2.selectedFloors.size;
 
   const menu = document.createElement('div');
   menu.className = 'sec-popup';
@@ -2093,9 +2105,12 @@ function openUseMenu(e, fi){
   // 헤더
   const hdr = document.createElement('div');
   hdr.style.cssText='font-size:10px;font-weight:700;color:var(--text3);margin-bottom:6px;';
-  hdr.textContent=`용도 지정 (${S2.selectedFloors.size}개 층 선택됨)`;
+  hdr.textContent = isSplit
+    ? `용도 지정 — ${fi+1}F (분할된 층)`
+    : `용도 지정 (${targetCount}개 층)`;
 
-  // 용도 선택 드롭다운
+  // 현재 층의 용도를 드롭다운 기본값으로 설정
+  const currentUseId = floor.cells[0].useId || '';
   const sel = document.createElement('select');
   sel.style.cssText='width:100%;padding:5px 6px;border-radius:5px;border:1px solid var(--border2);font-size:11px;font-family:inherit;margin-bottom:8px;';
   const opts=[
@@ -2103,7 +2118,13 @@ function openUseMenu(e, fi){
     ...[...S2.activeUseIds].map(id=>USE_MAP[id]).filter(Boolean),
     USE_MAP['parking'], USE_MAP['mep'], USE_MAP['common']
   ];
-  opts.forEach(u=>{ const o=document.createElement('option'); o.value=u?.id||''; o.textContent=u?.label||'미지정'; sel.appendChild(o); });
+  opts.forEach(u=>{
+    const o=document.createElement('option');
+    o.value=u?.id||'';
+    o.textContent=u?.label||'미지정';
+    if((u?.id||'') === currentUseId) o.selected=true;
+    sel.appendChild(o);
+  });
   sel.addEventListener('mousedown', ev=>ev.stopPropagation());
 
   // 적용 버튼
@@ -2113,7 +2134,16 @@ function openUseMenu(e, fi){
   applyBtn.addEventListener('mousedown', ev=>ev.stopPropagation());
   applyBtn.onclick = ()=>{
     const useId = sel.value || null;
-    S2.selectedFloors.forEach(i=>{ if(S2.floors[i]) S2.floors[i].cells[0].useId = useId; });
+    if(isSplit){
+      // 분할된 층: 이 층만 첫 번째 셀 적용
+      floor.cells[0].useId = useId;
+    } else {
+      // 선택된 층 전체 적용
+      S2.selectedFloors.forEach(i=>{ if(S2.floors[i]) S2.floors[i].cells[0].useId = useId; });
+    }
+    // 적용 후 전체 선택 해제
+    S2.selectedFloors.clear();
+    S2.lastClickedFi = null;
     renderDiagram();
     closePopup();
   };
