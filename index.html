@@ -449,9 +449,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
   <!-- 좌측: 용도 선택 패널 -->
   <div style="width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
-    <div style="padding:14px 16px 10px;border-bottom:1px solid var(--border);">
-      <div style="font-size:14px;font-weight:700;margin-bottom:4px;">건축법상 용도 선택</div>
-      <div style="font-size:11px;color:var(--text3);">클릭하여 용도를 활성화하세요</div>
+    <div id="panel-header">
+      <h2>건축법상 용도 선택</h2>
     </div>
     <div style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px;" id="use-btn-list">
       <!-- 용도 버튼들은 JS로 생성 -->
@@ -473,11 +472,23 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     </div>
     <!-- 다이어그램 영역 -->
     <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
-      <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-end;">
-        <!-- 단면 블록들 -->
-        <div id="section-blocks" style="display:flex;flex-direction:column-reverse;border:2px solid #1a1d26;position:relative;width:500px;"></div>
-        <!-- 우측 정보 컬럼 -->
-        <div id="section-info-col" style="display:flex;flex-direction:column-reverse;margin-left:0;width:180px;"></div>
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <!-- 헤더 행 -->
+        <div style="display:flex;align-items:center;">
+          <div style="width:500px;height:24px;background:var(--bg2);border:2px solid #1a1d26;border-bottom:none;display:flex;align-items:center;padding:0 8px;box-sizing:border-box;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
+          </div>
+          <div style="width:180px;height:24px;background:var(--bg3);border-bottom:2px solid #1a1d26;display:flex;align-items:center;box-sizing:border-box;" id="section-info-hdr">
+            <span style="width:36px;text-align:center;font-size:10px;font-weight:700;color:var(--text2);">층</span>
+            <span style="width:44px;text-align:center;font-size:10px;font-weight:700;color:var(--text2);">층고(m)</span>
+            <span style="flex:1;text-align:right;padding-right:6px;font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
+          </div>
+        </div>
+        <!-- 다이어그램 + 정보 -->
+        <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
+          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;border:2px solid #1a1d26;border-top:none;position:relative;width:500px;"></div>
+          <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:180px;border-bottom:2px solid #1a1d26;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -767,7 +778,7 @@ function goStep(idx){
   });
   if(idx===0){ if(vMap){ vMap.updateSize(); } else initVMap(); }
   if(idx===1){ syncStep1(); loadSetbackLayer().then(()=>{ drawLotOutline(); setTimeout(testBuildableArea, 800); }); }
-  if(idx===2){ initStep2(); }
+  if(idx===2){ state.maxHeight = parseFloat($('max-height')?.value) || state.maxHeight || 90; initStep2(); }
   if(idx===4){ drawBohChart(); updateBohAreas(); }
   if(idx===5){ initThreeJS(); }
   if(idx===6){ buildFloorTable(); recalcFAR(); }
@@ -1601,6 +1612,7 @@ function testBuildableArea(){
 }
 
 function calcSiteInfo(){
+  state.maxHeight = parseFloat($('max-height')?.value) || 90;
   const sa = state.siteArea || parseFloat($('site-area')?.value) || 0;
   const bcr = n('bcr'), far = n('far');
   state.bcr = bcr; state.far = far;
@@ -1616,7 +1628,6 @@ function calcSiteInfo(){
 // STEP 2 — 단면 조닝 다이어그램
 // ═══════════════════════════════════════════
 
-// 건축법상 용도 (시행령 별표1 기준)
 const USE_TYPES = [
   {id:'hotel',   label:'관광숙박시설',  color:'#2563eb', floorH:3.6},
   {id:'office',  label:'업무시설',      color:'#7c3aed', floorH:4.0},
@@ -1630,26 +1641,22 @@ const USE_TYPES = [
   {id:'nr2',     label:'제2종근린생활', color:'#b45309', floorH:3.5},
   {id:'lodge',   label:'숙박시설',      color:'#1d4ed8', floorH:3.3},
   {id:'indust',  label:'제2종근린공업', color:'#475569', floorH:4.0},
-  // 기본 고정 옵션
   {id:'parking', label:'주차장',        color:'#94a3b8', floorH:3.0, fixed:true},
   {id:'mep',     label:'MEP',           color:'#64748b', floorH:3.0, fixed:true},
   {id:'common',  label:'공용부',        color:'#6b7280', floorH:3.5, fixed:true},
 ];
+const USE_MAP = Object.fromEntries(USE_TYPES.map(u=>[u.id,u]));
 
-const USE_MAP = Object.fromEntries(USE_TYPES.map(u => [u.id, u]));
-
-// 상태
 const S2 = {
-  activeUseIds: new Set(),   // 활성화된 용도 id
-  floors: [],                // [{id, cells:[{useId,ratio}], floorH, area}]
-  selectedCell: null,        // {floorIdx, cellIdx}
-  dragFloor: null,
+  activeUseIds: new Set(),
+  floors: [],
   popupEl: null,
+  dragSrcFi: null,
 };
 
 function initStep2(){
   buildUseBtns();
-  buildFloors();
+  if(S2.floors.length === 0) buildFloors(); // 상태 유지: 이미 층이 있으면 buildFloors 스킵
   renderDiagram();
 }
 
@@ -1657,7 +1664,9 @@ function buildUseBtns(){
   const wrap = $('use-btn-list');
   if(!wrap) return;
   wrap.innerHTML = USE_TYPES.filter(u=>!u.fixed).map(u=>`
-    <button class="use-btn" id="ubtn-${u.id}" onclick="toggleUse('${u.id}')">${u.label}</button>
+    <button class="use-btn" id="ubtn-${u.id}" onclick="toggleUse('${u.id}')"
+      style="${S2.activeUseIds.has(u.id)?'background:'+u.color+';color:#fff;border-color:transparent;':''}"
+    >${u.label}</button>
   `).join('');
 }
 
@@ -1669,22 +1678,22 @@ function toggleUse(id){
   if(btn){
     btn.classList.toggle('active', S2.activeUseIds.has(id));
     btn.style.background = S2.activeUseIds.has(id) ? u.color : '';
+    btn.style.color = S2.activeUseIds.has(id) ? '#fff' : '';
+    btn.style.borderColor = S2.activeUseIds.has(id) ? 'transparent' : '';
   }
 }
 
 function buildFloors(){
-  const gfa = state.maxGFA || (state.siteArea * (state.far||800) / 100) || 8000;
-  const coverage = Math.floor((state.siteArea||2400) * (state.bcr||60) / 100);
+  const maxH   = state.maxHeight || 90;
+  const gfa    = state.maxGFA || 8000;
   const defaultH = 4.0;
-  const maxH = n('max-height') || 90;
-  const floorCount = Math.min(Math.floor(maxH / defaultH), Math.round(gfa / coverage));
-  const areaPerFloor = Math.floor(gfa / floorCount);
+  const floorCount = Math.floor(maxH / defaultH);
+  const areaPerFloor = Math.round(gfa / floorCount);
 
   S2.floors = [];
-  for(let i=0; i<floorCount; i++){
+  for(let i=0;i<floorCount;i++){
     S2.floors.push({
-      id: `f${i}`,
-      cells: [{useId: null, ratio: 1}],
+      cells:[{useId:null,ratio:1}],
       floorH: defaultH,
       area: areaPerFloor,
     });
@@ -1693,212 +1702,207 @@ function buildFloors(){
 }
 
 function updateTotals(){
-  const totalH = S2.floors.reduce((s,f)=>s+f.floorH, 0);
+  const totalH    = S2.floors.reduce((s,f)=>s+f.floorH, 0);
   const totalArea = S2.floors.reduce((s,f)=>s+f.area, 0);
-  const gfa = state.maxGFA || 8000;
-  const remain = gfa - totalArea;
-  if($('total-height-disp')) $('total-height-disp').textContent = totalH.toFixed(1);
+  const maxH      = state.maxHeight || 90;
+  const gfa       = state.maxGFA || 8000;
+  const heightOver = totalH - maxH;
+  const areaOver   = totalArea - gfa;
+
+  if($('total-height-disp')){
+    $('total-height-disp').textContent = totalH.toFixed(1);
+    $('total-height-disp').style.color = heightOver > 0.1 ? 'var(--red)' : 'var(--green)';
+  }
   if($('remain-area-disp')){
-    $('remain-area-disp').textContent = remain.toLocaleString();
+    const remain = -areaOver;
+    $('remain-area-disp').textContent = (remain >= 0 ? '+' : '') + Math.round(remain).toLocaleString();
     $('remain-area-disp').style.color = Math.abs(remain) < 1 ? 'var(--green)' : remain < 0 ? 'var(--red)' : 'var(--accent)';
   }
 }
 
-function getUseColor(useId){
-  if(!useId) return '#e2e4ea';
-  return USE_MAP[useId]?.color || '#e2e4ea';
-}
-function getUseLabel(useId){
-  if(!useId) return '미지정';
-  return USE_MAP[useId]?.label || useId;
-}
+function getUseColor(useId){ return useId ? (USE_MAP[useId]?.color||'#e2e4ea') : '#e2e4ea'; }
+function getUseLabel(useId){ return useId ? (USE_MAP[useId]?.label||useId) : '미지정'; }
 
 function renderDiagram(){
   const blocksEl = $('section-blocks');
-  const infoEl = $('section-info-col');
-  if(!blocksEl || !infoEl) return;
+  const infoEl   = $('section-info-col');
+  if(!blocksEl||!infoEl) return;
 
-  const PX_PER_M = 12; // 1m = 12px
+  const PX_PER_M = 12;
   blocksEl.innerHTML = '';
-  infoEl.innerHTML = '';
+  infoEl.innerHTML   = '';
 
-  // 헤더
-  const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;padding:0 4px;background:var(--bg3);border-bottom:2px solid #1a1d26;font-size:10px;font-weight:700;color:var(--text2);height:24px;width:180px;box-sizing:border-box;';
-  hdr.innerHTML = '<span style="width:30px;text-align:center;">층</span><span style="width:38px;text-align:center;">층고(m)</span><span style="flex:1;text-align:right;">바닥면적(㎡)</span>';
-  infoEl.appendChild(hdr);
-
-  S2.floors.forEach((floor, fi) => {
+  S2.floors.forEach((floor, fi)=>{
     const h = Math.max(floor.floorH * PX_PER_M, 28);
 
     // ── 블록 행 ──
     const row = document.createElement('div');
     row.className = 'sec-block-row';
-    row.style.height = h + 'px';
+    row.style.cssText = `height:${h}px;border-radius:4px;border:1.5px solid rgba(0,0,0,0.25);margin:2px 0;overflow:hidden;box-sizing:border-box;`;
     row.dataset.fi = fi;
 
-    // 드래그 핸들
-    const handle = document.createElement('div');
-    handle.className = 'sec-drag-handle';
-    handle.innerHTML = '<svg width="16" height="4" viewBox="0 0 16 4"><rect x="0" y="0" width="16" height="1.5" fill="rgba(255,255,255,0.7)"/><rect x="0" y="2.5" width="16" height="1.5" fill="rgba(255,255,255,0.7)"/></svg>';
-    handle.addEventListener('mousedown', e => startFloorDrag(e, fi));
-    row.appendChild(handle);
+    // 면 전체 mousedown → 드래그
+    row.addEventListener('mousedown', e=>{
+      if(e.target.classList.contains('sec-divider')) return; // 분할선 드래그는 별도
+      startFloorDrag(e, fi);
+    });
 
     // 셀들
-    floor.cells.forEach((cell, ci) => {
+    floor.cells.forEach((cell, ci)=>{
       const cellEl = document.createElement('div');
       cellEl.className = 'sec-block-cell';
       cellEl.style.cssText = `flex:${cell.ratio};background:${getUseColor(cell.useId)};height:100%;`;
       cellEl.dataset.fi = fi;
       cellEl.dataset.ci = ci;
-
-      // 라벨
-      if(h > 18){
+      if(h > 20){
         const lbl = document.createElement('span');
         lbl.style.cssText = 'pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,0.4);font-size:9px;padding:0 2px;text-align:center;';
         lbl.textContent = getUseLabel(cell.useId);
         cellEl.appendChild(lbl);
       }
-
-      cellEl.addEventListener('click', e => { e.stopPropagation(); openPopup(e, fi, ci); });
+      // 더블클릭으로 팝업
+      cellEl.addEventListener('dblclick', e=>{ e.stopPropagation(); openPopup(e, fi, ci); });
       row.appendChild(cellEl);
 
-      // 분할선 (셀 사이)
-      if(ci < floor.cells.length - 1){
+      // 분할선
+      if(ci < floor.cells.length-1){
         const div = document.createElement('div');
         div.className = 'sec-divider';
-        div.style.left = '0px';
-        div.addEventListener('mousedown', e => startDividerDrag(e, fi, ci));
+        div.addEventListener('mousedown', e=>{ e.stopPropagation(); startDividerDrag(e, fi, ci); });
         row.appendChild(div);
       }
     });
-
-    // 분할선 위치 업데이트
     updateDividers(row, floor);
+
+    // 드래그 중 강조 표시
+    if(S2.dragSrcFi === fi){
+      row.style.outline = '3px solid var(--accent)';
+      row.style.outlineOffset = '2px';
+    }
+
     blocksEl.appendChild(row);
 
     // ── 정보 행 ──
     const infoRow = document.createElement('div');
     infoRow.className = 'sec-info-row';
-    infoRow.style.height = h + 'px';
+    infoRow.style.cssText = `height:${h+4}px;margin:2px 0;box-sizing:border-box;`;
     infoRow.dataset.fi = fi;
 
     const floorLabel = document.createElement('span');
     floorLabel.className = 'sec-floor-label';
-    floorLabel.textContent = (fi+1) + 'F';
+    floorLabel.textContent = (fi+1)+'F';
 
     const hInput = document.createElement('input');
-    hInput.type = 'number';
-    hInput.className = 'sec-h-input';
-    hInput.value = floor.floorH;
-    hInput.step = 0.1;
-    hInput.min = 2.4;
-    hInput.addEventListener('change', () => {
+    hInput.type='number'; hInput.className='sec-h-input';
+    hInput.value=floor.floorH; hInput.step=0.1; hInput.min=2.4;
+    hInput.addEventListener('change',()=>{
       S2.floors[fi].floorH = parseFloat(hInput.value)||4;
-      updateTotals();
-      renderDiagram();
+      updateTotals(); renderDiagram();
     });
 
     const aInput = document.createElement('input');
-    aInput.type = 'number';
-    aInput.className = 'sec-a-input';
-    aInput.value = floor.area;
-    aInput.step = 10;
-    aInput.addEventListener('change', () => {
-      S2.floors[fi].area = parseInt(aInput.value)||0;
-      updateTotals();
-    });
+    aInput.type='number'; aInput.className='sec-a-input';
+    aInput.value=floor.area; aInput.step=10;
+    aInput.style.cssText='flex:1;border:none;background:transparent;font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;cursor:pointer;padding-right:4px;';
+    aInput.addEventListener('change',()=>{ S2.floors[fi].area=parseInt(aInput.value)||0; updateTotals(); });
 
     infoRow.appendChild(floorLabel);
     infoRow.appendChild(hInput);
     infoRow.appendChild(aInput);
     infoEl.appendChild(infoRow);
   });
-
-  // 클릭 시 팝업 닫기
-  document.addEventListener('click', closePopup, {once:true});
 }
 
 function updateDividers(rowEl, floor){
   const dividers = rowEl.querySelectorAll('.sec-divider');
-  let cumRatio = 0;
-  const totalRatio = floor.cells.reduce((s,c)=>s+c.ratio, 0);
-  dividers.forEach((d, i) => {
-    cumRatio += floor.cells[i].ratio;
-    d.style.left = (cumRatio / totalRatio * 100) + '%';
-  });
+  let cum = 0;
+  const total = floor.cells.reduce((s,c)=>s+c.ratio,0);
+  dividers.forEach((d,i)=>{ cum+=floor.cells[i].ratio; d.style.left=(cum/total*100)+'%'; });
 }
 
-// ── 팝업 ──
+// ── 팝업 (더블클릭) ──
 function openPopup(e, fi, ci){
   closePopup();
   const floor = S2.floors[fi];
-  const cell = floor.cells[ci];
+  const cell  = floor.cells[ci];
 
   const popup = document.createElement('div');
   popup.className = 'sec-popup';
-  popup.style.left = (e.clientX + 4) + 'px';
-  popup.style.top = (e.clientY - 10) + 'px';
+  popup.style.left = Math.min(e.clientX+4, window.innerWidth-200)+'px';
+  popup.style.top  = Math.min(e.clientY-10, window.innerHeight-200)+'px';
+
+  // 팝업 내부 클릭은 닫히지 않도록
+  popup.addEventListener('click', e=>e.stopPropagation());
+  popup.addEventListener('mousedown', e=>e.stopPropagation());
+
+  // 선택된 층 외곽선 강조
+  document.querySelectorAll('.sec-block-row').forEach(r=>r.style.outline='');
+  const rowEl = document.querySelector(`.sec-block-row[data-fi="${fi}"]`);
+  if(rowEl) rowEl.style.cssText += ';border:2.5px solid #1a1d26;';
 
   // 용도 드롭다운
   const sel = document.createElement('select');
   const opts = [
-    {id:null, label:'미지정'},
+    {id:'', label:'미지정'},
     ...[...S2.activeUseIds].map(id=>USE_MAP[id]).filter(Boolean),
     USE_MAP['parking'], USE_MAP['mep'], USE_MAP['common']
   ];
-  opts.forEach(u => {
+  opts.forEach(u=>{
     const o = document.createElement('option');
-    o.value = u?.id || '';
-    o.textContent = u?.label || '미지정';
-    if((u?.id||null) === cell.useId) o.selected = true;
+    o.value = u?.id||'';
+    o.textContent = u?.label||'미지정';
+    if((u?.id||'') === (cell.useId||'')) o.selected=true;
     sel.appendChild(o);
   });
-  sel.addEventListener('change', () => {
-    S2.floors[fi].cells[ci].useId = sel.value || null;
+  sel.addEventListener('mousedown', e=>e.stopPropagation());
+  sel.addEventListener('change', ()=>{
+    S2.floors[fi].cells[ci].useId = sel.value||null;
     renderDiagram();
   });
 
-  // 버튼들
+  // 분할/병합 버튼
   const btns = document.createElement('div');
   btns.className = 'sec-popup-btns';
 
   const splitBtn = document.createElement('button');
   splitBtn.textContent = '⊢ 분할';
-  splitBtn.onclick = () => { splitCell(fi, ci); closePopup(); };
+  splitBtn.addEventListener('mousedown', e=>e.stopPropagation());
+  splitBtn.onclick = ()=>{ splitCell(fi,ci); closePopup(); };
 
   const mergeBtn = document.createElement('button');
   mergeBtn.textContent = '⊣ 병합';
-  mergeBtn.disabled = floor.cells.length <= 1;
-  mergeBtn.onclick = () => { mergeCell(fi, ci); closePopup(); };
+  mergeBtn.disabled = floor.cells.length<=1;
+  mergeBtn.addEventListener('mousedown', e=>e.stopPropagation());
+  mergeBtn.onclick = ()=>{ mergeCell(fi,ci); closePopup(); };
 
   btns.appendChild(splitBtn);
   btns.appendChild(mergeBtn);
 
   // 비율 입력 (분할된 경우)
-  if(floor.cells.length > 1){
-    const totalRatio = floor.cells.reduce((s,c)=>s+c.ratio,0);
-    const pct = Math.round(cell.ratio/totalRatio*100);
-    const pctWrap = document.createElement('div');
-    pctWrap.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:6px;font-size:11px;';
-    pctWrap.innerHTML = `<span style="color:var(--text3);">비율</span>`;
-    const pctInput = document.createElement('input');
-    pctInput.type='number'; pctInput.min=5; pctInput.max=95; pctInput.value=pct;
-    pctInput.style.cssText='width:50px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;font-size:11px;font-family:inherit;';
-    pctInput.addEventListener('change', ()=>{
-      const newPct = Math.max(5, Math.min(95, parseInt(pctInput.value)||50));
-      const others = floor.cells.filter((_,i)=>i!==ci);
-      const otherTotal = others.reduce((s,c)=>s+c.ratio,0);
-      if(otherTotal > 0){
-        S2.floors[fi].cells[ci].ratio = newPct;
-        const scale = (100-newPct) / otherTotal;
+  if(floor.cells.length>1){
+    const total = floor.cells.reduce((s,c)=>s+c.ratio,0);
+    const pct   = Math.round(cell.ratio/total*100);
+    const pWrap = document.createElement('div');
+    pWrap.style.cssText='display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;';
+    const pLbl = document.createElement('span');
+    pLbl.style.color='var(--text3)'; pLbl.textContent='비율';
+    const pInput = document.createElement('input');
+    pInput.type='number'; pInput.min=5; pInput.max=95; pInput.value=pct;
+    pInput.style.cssText='width:50px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;font-size:11px;font-family:inherit;';
+    pInput.addEventListener('mousedown', e=>e.stopPropagation());
+    pInput.addEventListener('change',()=>{
+      const newPct=Math.max(5,Math.min(95,parseInt(pInput.value)||50));
+      const others=floor.cells.filter((_,i)=>i!==ci);
+      const otherTotal=others.reduce((s,c)=>s+c.ratio,0);
+      if(otherTotal>0){
+        S2.floors[fi].cells[ci].ratio=newPct;
+        const scale=(100-newPct)/otherTotal;
         others.forEach((c,i)=>{ const idx=i<ci?i:i+1; S2.floors[fi].cells[idx].ratio=Math.max(1,c.ratio*scale); });
       }
       renderDiagram();
     });
-    pctWrap.appendChild(pctInput);
-    pctWrap.appendChild(document.createTextNode('%'));
-    popup.appendChild(pctWrap);
+    pWrap.appendChild(pLbl); pWrap.appendChild(pInput); pWrap.appendChild(document.createTextNode('%'));
+    popup.appendChild(pWrap);
   }
 
   popup.appendChild(sel);
@@ -1906,7 +1910,8 @@ function openPopup(e, fi, ci){
   document.body.appendChild(popup);
   S2.popupEl = popup;
 
-  setTimeout(()=>document.addEventListener('click', closePopup, {once:true}), 50);
+  // 팝업 외부 클릭 시 닫기 (딜레이 적용)
+  setTimeout(()=>document.addEventListener('click', closePopup, {once:true}), 100);
 }
 
 function closePopup(){
@@ -1915,82 +1920,85 @@ function closePopup(){
 
 // ── 분할 / 병합 ──
 function splitCell(fi, ci){
-  const cells = S2.floors[fi].cells;
-  const orig = cells[ci];
-  const half = orig.ratio / 2;
-  cells.splice(ci, 1,
-    {useId: orig.useId, ratio: half},
-    {useId: null, ratio: half}
-  );
+  const cells=S2.floors[fi].cells;
+  const orig=cells[ci];
+  const half=orig.ratio/2;
+  cells.splice(ci,1,{useId:orig.useId,ratio:half},{useId:null,ratio:half});
   renderDiagram();
 }
 
 function mergeCell(fi, ci){
-  const cells = S2.floors[fi].cells;
-  if(cells.length <= 1) return;
-  // 우측 우선, 없으면 좌측
-  const targetIdx = ci < cells.length-1 ? ci+1 : ci-1;
-  cells[targetIdx].ratio += cells[ci].ratio;
-  cells.splice(ci, 1);
+  const cells=S2.floors[fi].cells;
+  if(cells.length<=1) return;
+  const tgt=ci<cells.length-1?ci+1:ci-1;
+  cells[tgt].ratio+=cells[ci].ratio;
+  cells.splice(ci,1);
   renderDiagram();
 }
 
 // ── 분할선 드래그 ──
 function startDividerDrag(e, fi, ci){
-  e.preventDefault(); e.stopPropagation();
-  const rowEl = document.querySelector(`.sec-block-row[data-fi="${fi}"]`);
+  e.preventDefault();
+  const rowEl=document.querySelector(`.sec-block-row[data-fi="${fi}"]`);
   if(!rowEl) return;
-  const startX = e.clientX;
-  const rowW = rowEl.getBoundingClientRect().width;
-  const floor = S2.floors[fi];
-  const totalRatio = floor.cells.reduce((s,c)=>s+c.ratio,0);
-  const startRatioL = floor.cells[ci].ratio;
-  const startRatioR = floor.cells[ci+1].ratio;
-  const startTotalLR = startRatioL + startRatioR;
-
+  const startX=e.clientX;
+  const rowW=rowEl.getBoundingClientRect().width;
+  const floor=S2.floors[fi];
+  const total=floor.cells.reduce((s,c)=>s+c.ratio,0);
+  const sL=floor.cells[ci].ratio;
+  const sR=floor.cells[ci+1].ratio;
+  const sLR=sL+sR;
   function onMove(me){
-    const dx = me.clientX - startX;
-    const dRatio = (dx / rowW) * totalRatio;
-    const newL = Math.max(0.05, startRatioL + dRatio);
-    const newR = Math.max(0.05, startTotalLR - newL);
-    S2.floors[fi].cells[ci].ratio = newL;
-    S2.floors[fi].cells[ci+1].ratio = newR;
-    updateDividers(rowEl, S2.floors[fi]);
-    // 셀 flex 업데이트
-    rowEl.querySelectorAll('.sec-block-cell').forEach((c,i)=>{
-      c.style.flex = S2.floors[fi].cells[i]?.ratio || 1;
-    });
+    const dR=(me.clientX-startX)/rowW*total;
+    const nL=Math.max(0.05,sL+dR);
+    const nR=Math.max(0.05,sLR-nL);
+    S2.floors[fi].cells[ci].ratio=nL;
+    S2.floors[fi].cells[ci+1].ratio=nR;
+    updateDividers(rowEl,S2.floors[fi]);
+    rowEl.querySelectorAll('.sec-block-cell').forEach((c,i)=>{ c.style.flex=S2.floors[fi].cells[i]?.ratio||1; });
   }
-  function onUp(){ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
+  function onUp(){ window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); }
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('mouseup',onUp);
 }
 
-// ── 층 드래그 (수직 이동) ──
+// ── 층 드래그: 면 전체 mousedown, 실시간 swap, 바닥면적만 교환 ──
 function startFloorDrag(e, fi){
-  e.preventDefault(); e.stopPropagation();
+  e.preventDefault();
   closePopup();
-  const startY = e.clientY;
-  const blocksEl = $('section-blocks');
-  const rows = Array.from(blocksEl.querySelectorAll('.sec-block-row'));
-  const rowH = rows[fi]?.getBoundingClientRect().height || 48;
-  let currentFi = fi;
+  const blocksEl=$('section-blocks');
+  const rows=Array.from(blocksEl.querySelectorAll('.sec-block-row'));
+  const rowH = rows.reduce((s,r)=>s+(r.getBoundingClientRect().height+4),0) / rows.length || 52;
+  let curFi=fi;
+  S2.dragSrcFi=fi;
 
   function onMove(me){
-    const dy = me.clientY - startY;
-    const steps = Math.round(-dy / rowH); // 위로 드래그 = 양수
-    const newFi = Math.max(0, Math.min(S2.floors.length-1, fi - steps));
-    if(newFi !== currentFi){
-      // 배열에서 floor 이동
-      const moved = S2.floors.splice(currentFi, 1)[0];
-      S2.floors.splice(newFi, 0, moved);
-      currentFi = newFi;
+    const blocksRect=blocksEl.getBoundingClientRect();
+    // column-reverse이므로 아래에서 위로 인덱스 증가
+    const relY = blocksRect.bottom - me.clientY;
+    const newFi = Math.max(0, Math.min(S2.floors.length-1, Math.floor(relY/rowH)));
+    if(newFi!==curFi){
+      // 바닥면적만 교환 (층번호·층고 유지)
+      const tmp=S2.floors[curFi].area;
+      S2.floors[curFi].area=S2.floors[newFi].area;
+      S2.floors[newFi].area=tmp;
+      // cells(용도)도 함께 이동
+      const tmpCells=S2.floors[curFi].cells;
+      S2.floors[curFi].cells=S2.floors[newFi].cells;
+      S2.floors[newFi].cells=tmpCells;
+      curFi=newFi;
+      S2.dragSrcFi=curFi;
       renderDiagram();
     }
   }
-  function onUp(){ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
+  function onUp(){
+    S2.dragSrcFi=null;
+    window.removeEventListener('mousemove',onMove);
+    window.removeEventListener('mouseup',onUp);
+    renderDiagram();
+  }
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('mouseup',onUp);
 }
 
 // ═══════════════════════════════════════════
