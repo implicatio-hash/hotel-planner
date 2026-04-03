@@ -1949,7 +1949,7 @@ function renderDiagram(){
     const aInput = document.createElement('input');
     aInput.type='number';
     aInput.style.cssText='flex:1;min-width:60px;border:1px solid var(--border2);border-radius:3px;background:#fafafa;font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;padding:1px 4px;margin-left:2px;';
-    aInput.value=Number.isInteger(floor.area)?floor.area:parseFloat(floor.area).toFixed(2); aInput.step=1;
+    aInput.value=parseFloat(floor.area).toFixed(2); aInput.step=1;
     aInput.addEventListener('mousedown',e=>e.stopPropagation());
     aInput.addEventListener('change',()=>{
       const maxCov = state.maxCoverage || Infinity;
@@ -1963,6 +1963,8 @@ function renderDiagram(){
       updateTotals(); renderDiagram();
     });
 
+    infoRow.addEventListener('mousedown', e=>e.stopPropagation());
+    infoRow.addEventListener('click', e=>e.stopPropagation());
     infoRow.appendChild(floorLabel);
     infoRow.appendChild(hInput);
     infoRow.appendChild(aInput);
