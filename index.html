@@ -400,16 +400,16 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <div class="input-row">
         <div class="form-group">
           <label>건폐율 (%)</label>
-          <input type="number" id="bcr" value="60" min="1" max="100">
+          <input type="number" id="bcr" placeholder="예: 60" min="1" max="100">
         </div>
         <div class="form-group">
           <label>용적률 (%)</label>
-          <input type="number" id="far" value="800" min="1">
+          <input type="number" id="far" placeholder="예: 800" min="1">
         </div>
       </div>
       <div class="form-group">
         <label>최대 높이 (m)</label>
-        <input type="number" id="max-height" value="90" min="10" step="1">
+        <input type="number" id="max-height" placeholder="예: 90" min="10" step="1">
       </div>
 
       <button class="btn btn-primary btn-full" onclick="calcSiteInfo()" style="margin-top:8px;">확인 →</button>
@@ -425,7 +425,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <div><span class="ic-val" id="max-gfa">0</span><span class="ic-unit">m²</span></div>
           </div>
         </div>
-        <button class="btn btn-primary btn-full" style="margin-top:10px;" onclick="goStep(2)">다음: 지상 볼륨 산정 →</button>
+        <button class="btn btn-primary btn-full" style="margin-top:10px;" onclick="calcSiteInfo();goStep(2);">다음: 지상 볼륨 산정 →</button>
       </div>
 
     </div>
@@ -742,7 +742,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 // STATE
 // ═══════════════════════════════════════════
 const state = {
-  siteArea: 2400, bcr: 60, far: 800,
+  siteArea: 0, bcr: 0, far: 0,
   maxCoverage: 0, maxGFA: 0,
   aboveFloors: 20, underFloors: 4,
   floorHeight: 3.5, lobbyHeight: 6.0,
@@ -778,7 +778,7 @@ function goStep(idx){
   });
   if(idx===0){ if(vMap){ vMap.updateSize(); } else initVMap(); }
   if(idx===1){ syncStep1(); loadSetbackLayer().then(()=>{ drawLotOutline(); setTimeout(testBuildableArea, 800); }); }
-  if(idx===2){ state.maxHeight = parseFloat($('max-height')?.value) || state.maxHeight || 90; initStep2(); }
+  if(idx===2){ state.maxHeight = parseFloat($('max-height')?.value) || state.maxHeight || 0; initStep2(); }
   if(idx===4){ drawBohChart(); updateBohAreas(); }
   if(idx===5){ initThreeJS(); }
   if(idx===6){ buildFloorTable(); recalcFAR(); }
@@ -1656,7 +1656,17 @@ const S2 = {
 
 function initStep2(){
   buildUseBtns();
-  if(S2.floors.length === 0) buildFloors(); // 상태 유지: 이미 층이 있으면 buildFloors 스킵
+  if(!state.maxGFA || state.maxGFA <= 0){
+    // 2페이지 값 미입력 시 빈 화면
+    const blocksEl = $('section-blocks');
+    const infoEl   = $('section-info-col');
+    if(blocksEl) blocksEl.innerHTML = '<div style="padding:40px;color:var(--text3);font-size:12px;text-align:center;">2페이지에서 규모를 설정한 후<br>"다음: 지상 볼륨 산정" 버튼을 누르세요</div>';
+    if(infoEl)   infoEl.innerHTML   = '';
+    if($('total-height-disp')) $('total-height-disp').textContent = '-';
+    if($('remain-area-disp'))  $('remain-area-disp').textContent  = '-';
+    return;
+  }
+  if(S2.floors.length === 0) buildFloors();
   renderDiagram();
 }
 
