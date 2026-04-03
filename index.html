@@ -521,46 +521,71 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>지하 볼륨 산정</h2>
-      <p>주차대수 입력으로 지하층수를 자동 산정합니다</p>
+      <p>필지선 이격거리를 입력해 지하층 설계 가능 면적을 산정합니다</p>
     </div>
     <div id="panel-body">
-      <div class="form-group">
-        <label>필요 주차대수</label>
-        <input type="number" id="parking-req" value="200" min="10">
-      </div>
-      <div class="input-row">
-        <div class="form-group">
-          <label>지하 층고 (m)</label>
-          <input type="number" id="under-fh" value="3.0" step="0.1" min="2.7">
-        </div>
-        <div class="form-group">
-          <label>기계실 층수</label>
-          <input type="number" id="mech-floors" value="1" min="1" max="3">
-        </div>
-      </div>
-      <div class="form-group">
-        <label>주차 효율 (%)</label>
-        <input type="number" id="parking-eff" value="65" min="40" max="80">
-      </div>
-      <button class="btn btn-primary btn-full" onclick="calcUnderground()">지하 볼륨 산정</button>
-      <div id="under-result" style="display:none;margin-top:8px;">
-        <div class="info-grid">
-          <div class="info-card">
-            <div class="ic-label">지하 층수</div>
-            <div><span class="ic-val" id="under-floors">0</span><span class="ic-unit">층</span></div>
-          </div>
-          <div class="info-card">
-            <div class="ic-label">지하 면적</div>
-            <div><span class="ic-val" id="under-area">0</span><span class="ic-unit">m²</span></div>
+
+      <!-- 이격거리 입력 -->
+      <div class="sec-label" style="margin-bottom:8px;">필지선으로부터 이격거리</div>
+      <div style="display:flex;gap:6px;align-items:flex-end;">
+        <div class="form-group" style="flex:1;">
+          <label>이격거리 (m)</label>
+          <div class="input-unit">
+            <input type="number" id="under-setback" value="0.00"
+              min="0" max="3" step="0.01"
+              oninput="clampUnderSetback(this)"
+              placeholder="0.00">
+            <span>m</span>
           </div>
         </div>
-        <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="goStep(4)">다음: BOH 배치 →</button>
+        <button class="btn btn-primary" style="flex-shrink:0;padding:7px 14px;"
+          onclick="applyUnderSetback()">적용</button>
       </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px;">0 ~ 3m · 소수점 2자리</div>
+
+      <!-- 구분선 -->
+      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+      <!-- 지하층 설계 가능 면적 -->
+      <div class="sec-label" style="margin-bottom:8px;">지하층 설계 가능 면적</div>
+      <div id="under-area-box" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px 14px;text-align:center;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">이격거리 적용 후 면적</div>
+        <div id="under-design-area" style="font-size:22px;font-weight:800;color:var(--accent);">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">m²</div>
+      </div>
+      <div id="under-area-detail" style="display:none;margin-top:6px;">
+        <div class="info-box">
+          <div class="stat-row">
+            <span class="stat-label">원래 필지 면적</span>
+            <span class="stat-val" id="under-lot-area">—</span>
+          </div>
+          <div class="stat-row" style="margin-top:4px;">
+            <span class="stat-label">이격 후 면적</span>
+            <span class="stat-val accent" id="under-offset-area">—</span>
+          </div>
+          <div class="stat-row" style="margin-top:4px;">
+            <span class="stat-label">적용 이격거리</span>
+            <span class="stat-val" id="under-setback-disp">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="goStep(4)">다음: BOH 배치 →</button>
     </div>
   </div>
-  <div style="flex:1;padding:24px;display:flex;align-items:center;justify-content:center;">
-    <canvas id="under-diagram" width="500" height="380"
-      style="border-radius:8px;box-shadow:var(--shadow);background:#fff;"></canvas>
+
+  <!-- 우측: 지도 -->
+  <div style="flex:1;position:relative;">
+    <div id="step3-map" style="width:100%;height:100%;"></div>
+    <!-- 범례 -->
+    <div style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
+      background:rgba(255,255,255,.9);padding:4px 10px;border-radius:5px;border:1px solid var(--border);
+      z-index:100;pointer-events:none;">
+      <span style="display:inline-block;width:16px;height:2px;background:#e74c3c;vertical-align:middle;margin-right:4px;"></span>대지경계선
+      &nbsp;&nbsp;
+      <span style="display:inline-block;width:16px;height:0;border-top:2px dashed #e67e22;vertical-align:middle;margin-right:4px;"></span>이격거리선
+    </div>
   </div>
 </div>
 
@@ -801,6 +826,7 @@ function goStep(idx){
   if(idx===0){ if(vMap){ vMap.updateSize(); } else initVMap(); }
   if(idx===1){ syncStep1(); loadSetbackLayer().then(()=>{ drawLotOutline(); setTimeout(testBuildableArea, 800); }); }
   if(idx===2){ state.maxHeight = parseFloat($('max-height')?.value) || state.maxHeight || 0; initStep2(); }
+  if(idx===3){ initStep3(); }
   if(idx===4){ drawBohChart(); updateBohAreas(); }
   if(idx===5){ initThreeJS(); }
   if(idx===6){ buildFloorTable(); recalcFAR(); }
@@ -2361,52 +2387,204 @@ function selectAlt(i){
 }
 
 // ═══════════════════════════════════════════
-// STEP 3 — UNDERGROUND
+// STEP 3 — 지하 볼륨 (지도 + 이격거리)
 // ═══════════════════════════════════════════
-function calcUnderground(){
-  const pReq=ni('parking-req');
-  const eff=n('parking-eff')/100;
-  const sa=state.siteArea||2400;
-  const mf=ni('mech-floors')||1;
 
-  // 층당 주차 대수 = 바닥면적 × 효율 / 1대당 약 30m²
-  const perFloor=Math.floor(sa*eff/30);
-  const parkFloors=Math.ceil(pReq/perFloor);
-  const totalUnder=parkFloors+mf;
-  const underArea=sa*(totalUnder+1);
-
-  state.underFloors=totalUnder; state.underArea=underArea;
-  $('under-floors').textContent=totalUnder;
-  $('under-area').textContent=underArea.toLocaleString();
-  $('under-result').style.display='block';
-  drawUnderDiagram(parkFloors,mf,sa);
+// 이격거리 입력값 0~3m 범위 클램프
+function clampUnderSetback(el){
+  let v = parseFloat(el.value);
+  if(isNaN(v)) return;
+  if(v < 0)  v = 0;
+  if(v > 3)  v = 3;
+  // 소수점 2자리로 포맷
+  el.value = v.toFixed(2);
 }
 
-function drawUnderDiagram(parkF,mechF,sa){
-  const c=$('under-diagram'); if(!c) return;
-  const ctx=c.getContext('2d');
-  ctx.clearRect(0,0,500,380);
-  const floors=parkF+mechF;
-  const bx=120,by=20,bw=260,fh=Math.min(60,300/floors);
-  const total=floors*fh;
+// step3 진입 시 초기화
+function initStep3(){
+  // 지도 첫 생성
+  if(!window._step3Map){
+    const s3OutlineSource = new ol.source.Vector();
+    window._step3OutlineSource = s3OutlineSource;
 
-  ctx.fillStyle='#f4f5f7'; ctx.fillRect(0,0,500,380);
-  ctx.fillStyle='#e2e4ea'; ctx.fillRect(bx-10,by,bw+20,total+20);
+    const s3CadSource = new ol.source.Vector();
+    window._step3CadSource = s3CadSource;
 
-  for(let i=0;i<floors;i++){
-    const fy=by+i*fh;
-    const isM=i>=parkF;
-    ctx.fillStyle=isM?'#fde8d8':'#dbeafe';
-    ctx.strokeStyle=isM?'#ea580c':'#2563eb';
-    ctx.lineWidth=1;
-    ctx.fillRect(bx,fy,bw,fh-2);
-    ctx.strokeRect(bx,fy,bw,fh-2);
-    ctx.fillStyle=isM?'#9a3412':'#1e40af';
-    ctx.font='bold 11px Pretendard,sans-serif';
-    ctx.textAlign='center';
-    ctx.fillText(isM?`B${floors-i}F 기계실`:`B${floors-i}F 주차 (${Math.floor(sa*0.65/30)}대)`,bx+bw/2,fy+fh/2+4);
+    const s3CadLayer = new ol.layer.Vector({
+      source: s3CadSource,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: '#9ca3af', width: 0.8 })
+      })
+    });
+
+    window._step3Map = new ol.Map({
+      target: 'step3-map',
+      layers: [
+        s3CadLayer,
+        new ol.layer.Vector({
+          source: s3OutlineSource,
+          style: function(feature){
+            const t = feature.get('type');
+            if(t === 'boundary') return new ol.style.Style({
+              stroke: new ol.style.Stroke({ color: '#e74c3c', width: 2.5 })
+            });
+            if(t === 'offset') return new ol.style.Style({
+              fill: new ol.style.Fill({ color: 'rgba(234,88,12,0.15)' }),
+              stroke: new ol.style.Stroke({ color: '#e67e22', width: 1.5, lineDash: [8,5] })
+            });
+          }
+        })
+      ],
+      view: new ol.View({ center: ol.proj.fromLonLat([126.978, 37.566]), zoom: 17 }),
+      controls: []
+    });
   }
-  ctx.textAlign='left';
+
+  window._step3Map.updateSize();
+  drawStep3Lots();
+}
+
+// 선택 필지 merge → 경계선 + 초기 이격 0m offset 표시
+function drawStep3Lots(){
+  const features = window._lotSource ? window._lotSource.getFeatures() : [];
+  if(!features.length){ showToast('1페이지에서 필지를 선택해 주세요'); return; }
+
+  const fmt = new ol.format.GeoJSON();
+  let merged = null;
+  try {
+    function snapCoords(geom, precision){
+      const p = Math.pow(10, precision);
+      function snapRing(ring){ return ring.map(pt => [Math.round(pt[0]*p)/p, Math.round(pt[1]*p)/p]); }
+      if(geom.type==='Polygon') return {...geom, coordinates: geom.coordinates.map(snapRing)};
+      if(geom.type==='MultiPolygon') return {...geom, coordinates: geom.coordinates.map(poly=>poly.map(snapRing))};
+      return geom;
+    }
+    const geojsons = features.map(f => {
+      const clone = f.getGeometry().clone();
+      clone.transform('EPSG:3857','EPSG:4326');
+      const geom = snapCoords(JSON.parse(fmt.writeGeometry(clone)), 6);
+      return { type:'Feature', geometry: geom };
+    });
+    merged = geojsons.reduce((acc, cur) => turf.union(acc, cur));
+  } catch(e){ console.warn('step3 union:', e); }
+
+  if(!merged) return;
+  window._step3MergedPoly = merged;
+
+  const outlineSource = window._step3OutlineSource;
+  outlineSource.clear();
+
+  // 대지경계선 (빨간 실선)
+  const boundaryGeom = fmt.readGeometry(merged.geometry);
+  boundaryGeom.transform('EPSG:4326','EPSG:3857');
+  const bf = new ol.Feature({ geometry: boundaryGeom });
+  bf.set('type','boundary');
+  outlineSource.addFeature(bf);
+
+  // 원래 필지 면적 표시
+  const lotArea = turf.area(merged);
+  window._step3LotArea = lotArea;
+  $('under-lot-area').textContent = lotArea.toFixed(2) + ' m²';
+
+  // 뷰 맞춤 + 지적도 WFS 로드
+  const ext = outlineSource.getExtent();
+  if(ext && ext[0] !== Infinity){
+    window._step3Map.getView().fit(ext, { padding:[60,60,60,60], maxZoom:19, duration:300 });
+    setTimeout(loadStep3CadWFS, 400);
+  }
+
+  // 이격 0으로 초기 면적 세팅
+  updateUnderAreaDisplay(lotArea, 0);
+}
+
+// [적용] 버튼 클릭 — offset 폴리곤 그리기
+function applyUnderSetback(){
+  const merged = window._step3MergedPoly;
+  if(!merged){ showToast('필지 데이터가 없습니다. 다시 진입해 주세요'); return; }
+
+  const distEl = $('under-setback');
+  let dist = parseFloat(distEl.value);
+  if(isNaN(dist) || dist < 0) dist = 0;
+  if(dist > 3) dist = 3;
+  distEl.value = dist.toFixed(2);
+
+  const outlineSource = window._step3OutlineSource;
+  // 기존 offset 피처 제거
+  outlineSource.getFeatures().filter(f=>f.get('type')==='offset').forEach(f=>outlineSource.removeFeature(f));
+
+  let offsetArea;
+
+  if(dist === 0){
+    // 이격 0 → offset 선 없음, 면적 = 원래 필지 면적
+    offsetArea = window._step3LotArea || turf.area(merged);
+    updateUnderAreaDisplay(offsetArea, dist);
+    return;
+  }
+
+  // sharpInsetPolygon 재활용
+  const inset = sharpInsetPolygon(merged, dist);
+  if(!inset){ showToast('offset 계산 실패'); return; }
+
+  offsetArea = turf.area(inset);
+
+  const fmt = new ol.format.GeoJSON();
+  const olGeom = fmt.readGeometry(inset.geometry, { dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
+  const of_ = new ol.Feature({ geometry: olGeom });
+  of_.set('type','offset');
+  outlineSource.addFeature(of_);
+
+  updateUnderAreaDisplay(offsetArea, dist);
+}
+
+// 패널 면적 수치 갱신
+function updateUnderAreaDisplay(area, dist){
+  const areaStr = area.toFixed(2);
+  $('under-design-area').textContent = parseFloat(areaStr).toLocaleString('ko-KR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  $('under-offset-area').textContent  = areaStr + ' m²';
+  $('under-setback-disp').textContent = dist.toFixed(2) + ' m';
+  $('under-area-detail').style.display = 'block';
+  // state에 저장
+  state.underDesignArea = area;
+}
+
+// 3페이지 지적도 WFS 로드
+let _s3CadLoading = false;
+function loadStep3CadWFS(){
+  if(!window._step3Map || _s3CadLoading) return;
+  _s3CadLoading = true;
+  const view = window._step3Map.getView();
+  const size = window._step3Map.getSize();
+  if(!size){ _s3CadLoading=false; return; }
+  const ext = view.calculateExtent(size);
+  const [minLng,minLat,maxLng,maxLat] = ol.proj.transformExtent(ext,'EPSG:3857','EPSG:4326');
+  const cbName = 's3cad_' + Date.now();
+  const script = document.createElement('script');
+  const timer = setTimeout(()=>{ _s3CadLoading=false; cleanup(); }, 10000);
+  function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+  window[cbName] = function(data){
+    _s3CadLoading=false; cleanup();
+    const feats = data && data.features || [];
+    if(!feats.length) return;
+    const fmt2 = new ol.format.GeoJSON();
+    const src = window._step3CadSource;
+    if(!src) return;
+    const existing = new Set(src.getFeatures().map(f=>f.get('pnu')));
+    feats.forEach(f=>{
+      const pnu = f.properties?.pnu;
+      if(pnu && existing.has(pnu)) return;
+      try {
+        const olF = fmt2.readFeature(f,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});
+        olF.set('pnu', pnu);
+        src.addFeature(olF);
+      }catch(e){}
+    });
+  };
+  script.onerror = ()=>{ _s3CadLoading=false; cleanup(); };
+  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
+    +`&typename=lp_pa_cbnd_bubun&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
+    +`&srsname=EPSG:4326&maxfeatures=300`
+    +`&output=text/javascript&format_options=callback:${cbName}&key=${VWORLD_KEY}`;
+  document.body.appendChild(script);
 }
 
 // ═══════════════════════════════════════════
