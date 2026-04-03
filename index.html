@@ -100,6 +100,9 @@ input[type=text], input[type=number], select, textarea {
   border-radius: 6px; font-size: 12px; font-family: inherit; color: var(--text);
   background: var(--bg2); outline: none; transition: border-color .15s;
 }
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
 .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .input-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -253,7 +256,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 .use-btn{padding:7px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid var(--border2);background:var(--bg3);color:var(--text2);text-align:left;transition:all .15s;}
 .use-btn.active{color:#fff;border-color:transparent;}
 .sec-block-row{display:flex;width:100%;border-bottom:1px solid rgba(0,0,0,0.15);position:relative;box-sizing:border-box;}
-.sec-block-cell{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;position:relative;overflow:hidden;cursor:pointer;transition:filter .15s;min-width:20px;user-select:none;}
+.sec-block-cell{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;position:relative;overflow:hidden;cursor:pointer;transition:filter .15s;min-width:20px;user-select:none;border:1px solid rgba(80,80,80,0.3);box-sizing:border-box;}
 .sec-block-cell:hover{filter:brightness(1.12);}
 .sec-block-cell.selected{outline:3px solid #fff;outline-offset:-3px;z-index:2;}
 .sec-divider{position:absolute;top:0;bottom:0;width:6px;background:rgba(255,255,255,0.5);cursor:col-resize;z-index:10;transform:translateX(-50%);}
@@ -468,7 +471,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">총 높이</div>
           <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-height-disp">-</div>
-          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-height-disp">-</span>m</div>
+          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-height-disp">-</span>m / 잔여 <b id="remain-height-disp" style="color:var(--accent);">-</b>m</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">지상층 연면적</div>
@@ -478,7 +481,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">건축면적</div>
           <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-coverage-disp">-</div>
-          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-coverage-disp">-</span>㎡</div>
+          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-coverage-disp">-</span>㎡ / 잔여 <b id="remain-coverage-disp" style="color:var(--accent);">-</b>㎡</div>
         </div>
       </div>
     </div>
@@ -500,7 +503,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         </div>
         <!-- 다이어그램 + 정보 -->
         <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
-          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;flex:1;min-width:200px;"></div>
+          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;width:500px;flex-shrink:0;"></div>
           <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:166px;flex-shrink:0;"></div>
         </div>
         <!-- 지면 표시 -->
@@ -1756,8 +1759,29 @@ function updateTotals(){
 
   // 건축면적 (현재 층의 최대 바닥면적)
   const maxFloorArea = S2.floors.length > 0 ? Math.max(...S2.floors.map(f=>f.area)) : 0;
-  if($('total-coverage-disp')) $('total-coverage-disp').textContent = Math.round(maxFloorArea).toLocaleString() + '㎡';
-  if($('max-coverage-disp')) $('max-coverage-disp').textContent = Math.round(maxCov).toLocaleString();
+  const covRemain = maxCov - maxFloorArea;
+  if($('total-coverage-disp')) $('total-coverage-disp').textContent = maxFloorArea.toLocaleString() + '㎡';
+  if($('max-coverage-disp')) $('max-coverage-disp').textContent = maxCov.toLocaleString();
+
+  // 높이 잔여
+  const hRemain = (maxH - totalH);
+  if($('total-height-disp')){
+    $('total-height-disp').textContent = totalH.toFixed(2) + 'm';
+    $('total-height-disp').style.color = hRemain < -0.01 ? 'var(--red)' : 'var(--text)';
+  }
+  if($('max-height-disp')) $('max-height-disp').textContent = maxH.toFixed(2);
+  const remHEl = $('remain-height-disp');
+  if(remHEl){
+    remHEl.textContent = (hRemain >= 0 ? '+' : '') + hRemain.toFixed(2);
+    remHEl.style.color = Math.abs(hRemain) < 0.01 ? 'var(--green)' : hRemain < 0 ? 'var(--red)' : 'var(--accent)';
+  }
+
+  // 잔여 건축면적도 표시
+  const covRemainEl = $('remain-coverage-disp');
+  if(covRemainEl){
+    covRemainEl.textContent = (covRemain >= 0 ? '+' : '') + covRemain.toFixed(2);
+    covRemainEl.style.color = Math.abs(covRemain) < 0.01 ? 'var(--green)' : covRemain < 0 ? 'var(--red)' : 'var(--accent)';
+  }
 }
 
 function getUseColor(useId){ return useId ? (USE_MAP[useId]?.color||'#e2e4ea') : '#e2e4ea'; }
@@ -1780,12 +1804,13 @@ function renderDiagram(){
 
     // ── 블록 행 (wrapper: 전체 너비, 실제 블록: widthPct%) ──
     const rowWrap = document.createElement('div');
-    rowWrap.style.cssText = `height:${h}px;display:flex;align-items:stretch;`;
+    rowWrap.style.cssText = `height:${h}px;display:flex;align-items:stretch;justify-content:center;`;
     rowWrap.dataset.fi = fi;
 
     const row = document.createElement('div');
     row.className = 'sec-block-row';
-    row.style.cssText = `height:${h}px;border-bottom:1px solid rgba(0,0,0,0.15);border-radius:4px;overflow:hidden;box-sizing:border-box;width:${widthPct}%;`;
+    const blockW = Math.max(60, Math.round(widthPct / 100 * 500));
+    row.style.cssText = `height:${h}px;border-bottom:1px solid rgba(0,0,0,0.15);border-radius:4px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;`;
     row.dataset.fi = fi;
 
     // 면 전체 mousedown → 실제 이동 시에만 드래그 (더블클릭과 구분)
@@ -1808,12 +1833,14 @@ function renderDiagram(){
     floor.cells.forEach((cell, ci)=>{
       const cellEl = document.createElement('div');
       cellEl.className = 'sec-block-cell';
-      cellEl.style.cssText = `flex:${cell.ratio};background:${getUseColor(cell.useId)};height:100%;`;
+      const cellColor = getUseColor(cell.useId);
+      const cellTextColor = cell.useId ? '#fff' : 'var(--text2)';
+      cellEl.style.cssText = `flex:${cell.ratio};background:${cellColor};height:100%;color:${cellTextColor};`;
       cellEl.dataset.fi = fi;
       cellEl.dataset.ci = ci;
       if(h > 20){
         const lbl = document.createElement('span');
-        lbl.style.cssText = 'pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,0.4);font-size:9px;padding:0 2px;text-align:center;';
+        lbl.style.cssText = 'pointer-events:none;font-size:11px;font-weight:600;padding:0 4px;text-align:center;' + (cell.useId ? 'text-shadow:0 1px 2px rgba(0,0,0,0.3);' : '');
         lbl.textContent = getUseLabel(cell.useId);
         cellEl.appendChild(lbl);
       }
@@ -1854,7 +1881,7 @@ function renderDiagram(){
     // 층고 입력 (50px, 작게)
     const hInput = document.createElement('input');
     hInput.type='number';
-    hInput.style.cssText='width:50px;border:1px solid var(--border2);border-radius:3px;background:var(--bg3);font-size:10px;text-align:center;color:var(--text);font-family:inherit;outline:none;padding:1px 2px;flex-shrink:0;';
+    hInput.style.cssText='width:50px;border:1px solid var(--border2);border-radius:3px;background:#fafafa;font-size:10px;text-align:center;color:var(--text);font-family:inherit;outline:none;padding:1px 2px;flex-shrink:0;';
     hInput.value=floor.floorH; hInput.step=0.1; hInput.min=2.4;
     hInput.addEventListener('mousedown',e=>e.stopPropagation());
     hInput.addEventListener('change',()=>{
@@ -1865,10 +1892,20 @@ function renderDiagram(){
     // 바닥면적 입력 (나머지, 크게)
     const aInput = document.createElement('input');
     aInput.type='number';
-    aInput.style.cssText='flex:1;min-width:60px;border:1px solid var(--border2);border-radius:3px;background:var(--bg3);font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;padding:1px 4px;margin-left:2px;';
+    aInput.style.cssText='flex:1;min-width:60px;border:1px solid var(--border2);border-radius:3px;background:#fafafa;font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;padding:1px 4px;margin-left:2px;';
     aInput.value=floor.area; aInput.step=10;
     aInput.addEventListener('mousedown',e=>e.stopPropagation());
-    aInput.addEventListener('change',()=>{ S2.floors[fi].area=parseInt(aInput.value)||0; updateTotals(); renderDiagram(); });
+    aInput.addEventListener('change',()=>{
+      const maxCov = state.maxCoverage || Infinity;
+      let val = parseInt(aInput.value)||0;
+      if(val > maxCov){
+        showToast(`⚠️ 최대 건축면적 ${Math.round(maxCov).toLocaleString()}㎡를 초과할 수 없습니다`);
+        val = Math.round(maxCov);
+        aInput.value = val;
+      }
+      S2.floors[fi].area = val;
+      updateTotals(); renderDiagram();
+    });
 
     infoRow.appendChild(floorLabel);
     infoRow.appendChild(hInput);
@@ -2076,16 +2113,24 @@ function startFloorDrag(e, fi){
   e.preventDefault();
   closePopup();
   const blocksEl=$('section-blocks');
-  const rows=Array.from(blocksEl.querySelectorAll('.sec-block-row'));
-  const rowH = rows.reduce((s,r)=>s+(r.getBoundingClientRect().height+4),0) / rows.length || 52;
+  // 각 rowWrap의 실제 누적 bottom 위치 계산 (column-reverse: index 0 = 하단)
+  const rowWraps = Array.from(blocksEl.children);
+  // column-reverse이므로 rowWraps[0]이 1층(최하단)
+  // 각 wrap의 top 위치 수집
+  const wrapRects = rowWraps.map(w => w.getBoundingClientRect());
   let curFi=fi;
   S2.dragSrcFi=fi;
 
   function onMove(me){
-    const blocksRect=blocksEl.getBoundingClientRect();
-    // column-reverse이므로 아래에서 위로 인덱스 증가
-    const relY = blocksRect.bottom - me.clientY;
-    const newFi = Math.max(0, Math.min(S2.floors.length-1, Math.floor(relY/rowH)));
+    // 마우스 Y에 가장 가까운 wrap 찾기
+    let newFi = curFi;
+    let minDist = Infinity;
+    wrapRects.forEach((r, i) => {
+      const centerY = (r.top + r.bottom) / 2;
+      const dist = Math.abs(me.clientY - centerY);
+      if(dist < minDist){ minDist = dist; newFi = i; }
+    });
+    newFi = Math.max(0, Math.min(S2.floors.length-1, newFi));
     if(newFi!==curFi){
       // 바닥면적만 교환 (층번호·층고 유지)
       const tmp=S2.floors[curFi].area;
