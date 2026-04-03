@@ -1741,10 +1741,20 @@ function renderDiagram(){
     row.style.cssText = `height:${h}px;border-radius:4px;border:1.5px solid rgba(0,0,0,0.25);margin:2px 0;overflow:hidden;box-sizing:border-box;`;
     row.dataset.fi = fi;
 
-    // 면 전체 mousedown → 드래그
+    // 면 전체 mousedown → 실제 이동 시에만 드래그 (더블클릭과 구분)
     row.addEventListener('mousedown', e=>{
-      if(e.target.classList.contains('sec-divider')) return; // 분할선 드래그는 별도
-      startFloorDrag(e, fi);
+      if(e.target.classList.contains('sec-divider')) return;
+      const startX = e.clientX, startY = e.clientY;
+      let dragging = false;
+      function onMove(me){
+        if(!dragging && (Math.abs(me.clientX-startX)>4 || Math.abs(me.clientY-startY)>4)){
+          dragging = true;
+          startFloorDrag(e, fi);
+        }
+      }
+      function onUp(){ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
     });
 
     // 셀들
