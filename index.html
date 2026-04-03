@@ -475,7 +475,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <div style="display:flex;flex-direction:column;gap:0;">
         <!-- 헤더 행 -->
         <div style="display:flex;align-items:center;">
-          <div style="width:500px;height:24px;background:var(--bg2);border:2px solid #1a1d26;border-bottom:none;display:flex;align-items:center;padding:0 8px;box-sizing:border-box;">
+          <div style="width:500px;height:24px;background:var(--bg2);border-bottom:2px solid #1a1d26;display:flex;align-items:center;padding:0 8px;box-sizing:border-box;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
           </div>
           <div style="width:180px;height:24px;background:var(--bg3);border-bottom:2px solid #1a1d26;display:flex;align-items:center;box-sizing:border-box;" id="section-info-hdr">
@@ -486,8 +486,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         </div>
         <!-- 다이어그램 + 정보 -->
         <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
-          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;border:2px solid #1a1d26;border-top:none;position:relative;width:500px;"></div>
-          <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:180px;border-bottom:2px solid #1a1d26;"></div>
+          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;width:500px;border-top:1px solid #1a1d26;"></div>
+          <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:180px;"></div>
         </div>
       </div>
     </div>
@@ -1748,7 +1748,7 @@ function renderDiagram(){
     // ── 블록 행 ──
     const row = document.createElement('div');
     row.className = 'sec-block-row';
-    row.style.cssText = `height:${h}px;border-radius:4px;border:1.5px solid rgba(0,0,0,0.25);margin:2px 0;overflow:hidden;box-sizing:border-box;`;
+    row.style.cssText = `height:${h}px;border-bottom:1px solid rgba(0,0,0,0.15);overflow:hidden;box-sizing:border-box;`;
     row.dataset.fi = fi;
 
     // 면 전체 mousedown → 실제 이동 시에만 드래그 (더블클릭과 구분)
@@ -1805,7 +1805,7 @@ function renderDiagram(){
     // ── 정보 행 ──
     const infoRow = document.createElement('div');
     infoRow.className = 'sec-info-row';
-    infoRow.style.cssText = `height:${h+4}px;margin:2px 0;box-sizing:border-box;`;
+    infoRow.style.cssText = `height:${h}px;border-bottom:1px solid var(--border);box-sizing:border-box;`;
     infoRow.dataset.fi = fi;
 
     const floorLabel = document.createElement('span');
@@ -1823,7 +1823,7 @@ function renderDiagram(){
     const aInput = document.createElement('input');
     aInput.type='number'; aInput.className='sec-a-input';
     aInput.value=floor.area; aInput.step=10;
-    aInput.style.cssText='flex:1;border:none;background:transparent;font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;cursor:pointer;padding-right:4px;';
+    aInput.style.cssText='flex:1;min-width:50px;border:none;background:transparent;font-size:10px;text-align:right;color:var(--text);font-family:inherit;outline:none;cursor:pointer;padding-right:6px;';
     aInput.addEventListener('change',()=>{ S2.floors[fi].area=parseInt(aInput.value)||0; updateTotals(); });
 
     infoRow.appendChild(floorLabel);
