@@ -1898,6 +1898,27 @@ function openPopup(e, fi, ci){
   btns.appendChild(splitBtn);
   btns.appendChild(mergeBtn);
 
+  // 층 추가 / 삭제 버튼 (두 번째 줄)
+  const btns2 = document.createElement('div');
+  btns2.className = 'sec-popup-btns';
+  btns2.style.marginTop = '4px';
+
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ 층 추가';
+  addBtn.style.cssText = 'flex:1;padding:4px 2px;font-size:10px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--text2);font-family:inherit;';
+  addBtn.addEventListener('mousedown', e=>e.stopPropagation());
+  addBtn.onclick = ()=>{ addFloor(fi); closePopup(); };
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '− 층 삭제';
+  delBtn.disabled = S2.floors.length <= 1;
+  delBtn.style.cssText = 'flex:1;padding:4px 2px;font-size:10px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:var(--bg3);color:var(--red);font-family:inherit;';
+  delBtn.addEventListener('mousedown', e=>e.stopPropagation());
+  delBtn.onclick = ()=>{ deleteFloor(fi); closePopup(); };
+
+  btns2.appendChild(addBtn);
+  btns2.appendChild(delBtn);
+
   // 비율 입력 (분할된 경우)
   if(floor.cells.length>1){
     const total = floor.cells.reduce((s,c)=>s+c.ratio,0);
@@ -1927,6 +1948,7 @@ function openPopup(e, fi, ci){
 
   popup.appendChild(sel);
   popup.appendChild(btns);
+  popup.appendChild(btns2);
   document.body.appendChild(popup);
   S2.popupEl = popup;
 
@@ -1956,7 +1978,30 @@ function mergeCell(fi, ci){
   renderDiagram();
 }
 
-// ── 분할선 드래그 ──
+// ── 층 추가 / 삭제 ──
+function addFloor(fi){
+  // fi 층 바로 위에 새 층 삽입
+  const defaultH = 4.0;
+  const areaPerFloor = S2.floors.length > 0
+    ? Math.round(S2.floors.reduce((s,f)=>s+f.area,0) / S2.floors.length)
+    : Math.round((state.maxGFA||8000) / 20);
+  S2.floors.splice(fi+1, 0, {
+    cells: [{useId:null, ratio:1}],
+    floorH: defaultH,
+    area: areaPerFloor,
+  });
+  updateTotals();
+  renderDiagram();
+}
+
+function deleteFloor(fi){
+  if(S2.floors.length <= 1) return;
+  S2.floors.splice(fi, 1);
+  updateTotals();
+  renderDiagram();
+}
+
+
 function startDividerDrag(e, fi, ci){
   e.preventDefault();
   const rowEl=document.querySelector(`.sec-block-row[data-fi="${fi}"]`);
