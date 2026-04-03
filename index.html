@@ -1953,6 +1953,30 @@ function renderDiagram(){
     infoRow.appendChild(aInput);
     infoEl.appendChild(infoRow);
   });
+
+  // 빈 곳 클릭 시 전체 선택 해제
+  const wrap = $('section-diagram-wrap');
+  if(wrap){
+    wrap.onclick = ev=>{
+      if(!ev.target.closest('.sec-block-row')){
+        S2.selectedFloors.clear();
+        S2.lastClickedFi = null;
+        renderDiagram();
+      }
+    };
+  }
+
+  // ESC 키 전체 선택 해제 (중복 등록 방지)
+  if(!window._s2EscRegistered){
+    window._s2EscRegistered = true;
+    document.addEventListener('keydown', ev=>{
+      if(ev.key==='Escape' && S2.selectedFloors.size > 0){
+        S2.selectedFloors.clear();
+        S2.lastClickedFi = null;
+        renderDiagram();
+      }
+    });
+  }
 }
 
 function updateDividers(rowEl, floor){
