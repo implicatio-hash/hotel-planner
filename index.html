@@ -1674,8 +1674,9 @@ const S2 = {
   floors: [],
   popupEl: null,
   dragSrcFi: null,
-  selectedFloors: new Set(),  // 선택된 층 인덱스
-  lastClickedFi: null,        // Shift+클릭 기준점
+  selectedFloors: new Set(),  // 선택된 층 인덱스 (분할 없는 층)
+  selectedCells: new Set(),   // 선택된 셀 키 "fi:ci" (분할된 층의 셀)
+  lastClickedFi: null,
 };
 
 function initStep2(){
@@ -1832,63 +1833,74 @@ function renderDiagram(){
     row.style.cssText = `height:${h}px;border-radius:6px;overflow:hidden;box-sizing:border-box;width:${blockW}px;min-width:60px;max-width:500px;border:${isSelected?'2.5px solid var(--accent)':'1px solid rgba(80,80,80,0.35)'};`;
     row.dataset.fi = fi;
 
-    // 클릭: 토글 / Shift+클릭: 범위 선택 (분할된 층은 선택 불가)
-    row.addEventListener('click', e=>{
-      if(e.target.classList.contains('sec-divider')) return;
-      const isSplit = floor.cells.length > 1;
-      if(isSplit) return; // 분할된 층은 선택 불가
-      if(e.shiftKey && S2.lastClickedFi !== null){
-        const lo = Math.min(S2.lastClickedFi, fi);
-        const hi = Math.max(S2.lastClickedFi, fi);
-        for(let i=lo;i<=hi;i++){
-          if(S2.floors[i].cells.length === 1) S2.selectedFloors.add(i); // 분할 안된 층만
-        }
-        S2.lastClickedFi = fi;
-      } else {
-        if(S2.selectedFloors.has(fi)){
-          S2.selectedFloors.delete(fi);
+    const isSplit = floor.cells.length > 1;
+    const isFloorSelected = S2.selectedFloors.has(fi);
+
+    // 분할 없는 층: row 클릭으로 층 선택/해제
+    if(!isSplit){
+      row.addEventListener('click', e=>{
+        if(e.target.classList.contains('sec-divider')) return;
+        if(e.shiftKey && S2.lastClickedFi !== null){
+          const lo=Math.min(S2.lastClickedFi,fi), hi=Math.max(S2.lastClickedFi,fi);
+          for(let i=lo;i<=hi;i++){ if(S2.floors[i].cells.length===1) S2.selectedFloors.add(i); }
+          S2.lastClickedFi=fi;
         } else {
-          S2.selectedFloors.add(fi);
-          S2.lastClickedFi = fi;
+          if(S2.selectedFloors.has(fi)) S2.selectedFloors.delete(fi);
+          else { S2.selectedFloors.add(fi); S2.lastClickedFi=fi; }
         }
-      }
-      renderDiagram();
-    });
-    // 우클릭: 용도 지정 컨텍스트 메뉴
-    row.addEventListener('contextmenu', e=>{ e.preventDefault(); openUseMenu(e, fi); });
-    // mousedown: 드래그 (실제 이동 시에만)
+        renderDiagram();
+      });
+    }
+
+    // 우클릭: 용도 지정 (분할 여부 무관)
+    row.addEventListener('contextmenu', e=>{ e.preventDefault(); openUseMenu(e, fi, null); });
+
+    // mousedown: 드래그
     row.addEventListener('mousedown', e=>{
-      if(e.button !== 0) return;
+      if(e.button!==0) return;
       if(e.target.classList.contains('sec-divider')) return;
-      const startX = e.clientX, startY = e.clientY;
-      let dragging = false;
+      const startX=e.clientX, startY=e.clientY; let dragging=false;
       function onMove(me){
-        if(!dragging && (Math.abs(me.clientX-startX)>4 || Math.abs(me.clientY-startY)>4)){
-          dragging = true;
-          startFloorDrag(e, fi);
-        }
+        if(!dragging&&(Math.abs(me.clientX-startX)>4||Math.abs(me.clientY-startY)>4)){ dragging=true; startFloorDrag(e,fi); }
       }
-      function onUp(){ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
+      function onUp(){ window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); }
+      window.addEventListener('mousemove',onMove);
+      window.addEventListener('mouseup',onUp);
     });
 
     // 셀들
     floor.cells.forEach((cell, ci)=>{
+      const cellKey = `${fi}:${ci}`;
+      const isCellSelected = S2.selectedCells.has(cellKey);
       const cellEl = document.createElement('div');
       cellEl.className = 'sec-block-cell';
       const cellColor = getUseColor(cell.useId);
       const cellTextColor = cell.useId ? '#fff' : 'var(--text2)';
-      cellEl.style.cssText = `flex:${cell.ratio};background:${cellColor};height:100%;color:${cellTextColor};`;
+      // 선택 강조: 셀 선택이면 흰색 inset 테두리
+      const cellBorder = isCellSelected ? 'box-shadow:inset 0 0 0 2.5px #fff,inset 0 0 0 4px var(--accent);' : '';
+      cellEl.style.cssText = `flex:${cell.ratio};background:${cellColor};height:100%;color:${cellTextColor};${cellBorder}`;
       cellEl.dataset.fi = fi;
       cellEl.dataset.ci = ci;
       if(h > 20){
         const lbl = document.createElement('span');
-        lbl.style.cssText = 'pointer-events:none;font-size:11px;font-weight:600;padding:0 4px;text-align:center;' + (cell.useId ? 'text-shadow:0 1px 2px rgba(0,0,0,0.3);' : '');
+        lbl.style.cssText = 'pointer-events:none;font-size:11px;font-weight:600;padding:0 4px;text-align:center;' + (cell.useId?'text-shadow:0 1px 2px rgba(0,0,0,0.3);':'');
         lbl.textContent = getUseLabel(cell.useId);
         cellEl.appendChild(lbl);
       }
-      // 더블클릭: 분할/병합/층 추가·삭제 팝업
+
+      // 분할된 층 셀: 클릭으로 셀 선택/해제
+      if(isSplit){
+        cellEl.addEventListener('click', e=>{
+          e.stopPropagation();
+          if(S2.selectedCells.has(cellKey)) S2.selectedCells.delete(cellKey);
+          else S2.selectedCells.add(cellKey);
+          renderDiagram();
+        });
+        // 우클릭: 이 셀에 대한 용도 메뉴
+        cellEl.addEventListener('contextmenu', e=>{ e.preventDefault(); e.stopPropagation(); openUseMenu(e, fi, ci); });
+      }
+
+      // 더블클릭: 분할/병합/층 추가·삭제
       cellEl.addEventListener('dblclick', e=>{ e.stopPropagation(); openPopup(e, fi, ci); });
       row.appendChild(cellEl);
 
@@ -1973,8 +1985,9 @@ function renderDiagram(){
   if(!window._s2EscRegistered){
     window._s2EscRegistered = true;
     document.addEventListener('keydown', ev=>{
-      if(ev.key==='Escape' && S2.selectedFloors.size > 0){
+      if(ev.key==='Escape' && (S2.selectedFloors.size > 0 || S2.selectedCells.size > 0)){
         S2.selectedFloors.clear();
+        S2.selectedCells.clear();
         S2.lastClickedFi = null;
         renderDiagram();
       }
@@ -2076,22 +2089,41 @@ function openPopup(e, fi, ci){
 }
 
 // ── 우클릭 용도 지정 메뉴 ──
-function openUseMenu(e, fi){
+function openUseMenu(e, fi, ci){
+  // ci: null이면 층 단위, 숫자면 특정 셀
   closePopup();
   const floor = S2.floors[fi];
   const isSplit = floor.cells.length > 1;
+  const isCellMode = ci !== null && ci !== undefined; // 셀 단위 모드
 
-  // 분할된 층: 선택 상태에서 제거 (선택 불가)
-  if(isSplit) S2.selectedFloors.delete(fi);
+  // 셀 모드: 우클릭한 셀이 선택 안 됐으면 자동 선택
+  const cellKey = `${fi}:${ci}`;
+  if(isCellMode && !S2.selectedCells.has(cellKey)){
+    S2.selectedCells.add(cellKey);
+  }
 
-  // 우클릭한 층이 선택 안 됐으면 단일 적용 모드 (분할 안된 경우만)
-  const isSingleMode = !S2.selectedFloors.has(fi) && !isSplit;
-  if(isSingleMode){
+  // 층 모드(분할 없는 층): 우클릭한 층이 선택 안 됐으면 자동 선택
+  if(!isCellMode && !isSplit && !S2.selectedFloors.has(fi)){
     S2.selectedFloors.add(fi);
     S2.lastClickedFi = fi;
   }
 
-  const targetCount = isSplit ? 1 : S2.selectedFloors.size;
+  // 적용 대상 계산
+  const floorTargets = [...S2.selectedFloors];
+  const cellTargets = [...S2.selectedCells]; // ["fi:ci", ...]
+
+  // 헤더 텍스트
+  let hdrText = '';
+  if(isCellMode){
+    hdrText = `용도 지정 — ${fi+1}F 셀${ci+1} (${cellTargets.length}개 셀 선택)`;
+  } else {
+    hdrText = `용도 지정 (${floorTargets.length}개 층 선택)`;
+  }
+
+  // 현재 용도를 드롭다운 기본값으로
+  const currentUseId = isCellMode
+    ? (floor.cells[ci]?.useId || '')
+    : (floor.cells[0]?.useId || '');
 
   const menu = document.createElement('div');
   menu.className = 'sec-popup';
@@ -2102,15 +2134,10 @@ function openUseMenu(e, fi){
   menu.addEventListener('mousedown', ev=>ev.stopPropagation());
   menu.addEventListener('contextmenu', ev=>ev.preventDefault());
 
-  // 헤더
   const hdr = document.createElement('div');
   hdr.style.cssText='font-size:10px;font-weight:700;color:var(--text3);margin-bottom:6px;';
-  hdr.textContent = isSplit
-    ? `용도 지정 — ${fi+1}F (분할된 층)`
-    : `용도 지정 (${targetCount}개 층)`;
+  hdr.textContent = hdrText;
 
-  // 현재 층의 용도를 드롭다운 기본값으로 설정
-  const currentUseId = floor.cells[0].useId || '';
   const sel = document.createElement('select');
   sel.style.cssText='width:100%;padding:5px 6px;border-radius:5px;border:1px solid var(--border2);font-size:11px;font-family:inherit;margin-bottom:8px;';
   const opts=[
@@ -2122,28 +2149,32 @@ function openUseMenu(e, fi){
     const o=document.createElement('option');
     o.value=u?.id||'';
     o.textContent=u?.label||'미지정';
-    if((u?.id||'') === currentUseId) o.selected=true;
+    if((u?.id||'')===currentUseId) o.selected=true;
     sel.appendChild(o);
   });
   sel.addEventListener('mousedown', ev=>ev.stopPropagation());
 
-  // 적용 버튼
   const applyBtn = document.createElement('button');
-  applyBtn.textContent = '적용';
+  applyBtn.textContent='적용';
   applyBtn.style.cssText='width:100%;padding:6px;font-size:11px;font-weight:600;border-radius:4px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-family:inherit;';
   applyBtn.addEventListener('mousedown', ev=>ev.stopPropagation());
   applyBtn.onclick = ()=>{
     const useId = sel.value || null;
-    if(isSplit){
-      // 분할된 층: 이 층만 첫 번째 셀 적용
-      floor.cells[0].useId = useId;
+    if(isCellMode){
+      // 선택된 셀들에 적용
+      S2.selectedCells.forEach(key=>{
+        const [f,c]=key.split(':').map(Number);
+        if(S2.floors[f]?.cells[c]) S2.floors[f].cells[c].useId=useId;
+      });
+      S2.selectedCells.clear();
     } else {
-      // 선택된 층 전체 적용
-      S2.selectedFloors.forEach(i=>{ if(S2.floors[i]) S2.floors[i].cells[0].useId = useId; });
+      // 선택된 층들에 적용
+      S2.selectedFloors.forEach(i=>{
+        if(S2.floors[i]) S2.floors[i].cells[0].useId=useId;
+      });
+      S2.selectedFloors.clear();
+      S2.lastClickedFi=null;
     }
-    // 적용 후 전체 선택 해제
-    S2.selectedFloors.clear();
-    S2.lastClickedFi = null;
     renderDiagram();
     closePopup();
   };
@@ -2152,7 +2183,7 @@ function openUseMenu(e, fi){
   menu.appendChild(sel);
   menu.appendChild(applyBtn);
   document.body.appendChild(menu);
-  S2.popupEl = menu;
+  S2.popupEl=menu;
   setTimeout(()=>document.addEventListener('click', closePopup, {once:true}), 100);
 }
 
