@@ -390,6 +390,10 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
+      <!-- 건축한계선 확인 버튼 -->
+      <button id="btn-show-setback" class="btn btn-secondary btn-full"
+        onclick="toggleSetbackView()">건축한계선 확인</button>
+
       <!-- 지상 건축가능 면적 -->
       <div class="form-group" id="buildable-area-group">
         <label>지상 건축가능 면적 (㎡)</label>
@@ -397,21 +401,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
-      <!-- 지하 건축가능 면적 -->
-      <div class="form-group" id="under-area-group">
-        <label>지하 건축가능 면적 (㎡)</label>
-        <input type="text" id="under-design-area-disp" readonly
-          style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
-      </div>
-
-      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-
-      <!-- 건축한계선 확인 버튼 -->
-      <button id="btn-show-setback" class="btn btn-secondary btn-full"
-        onclick="toggleSetbackView()">건축한계선 확인</button>
-
       <!-- 이격거리 입력 -->
-      <div class="form-group" style="margin-top:8px;">
+      <div class="form-group">
         <label>필지선 이격거리 (m)</label>
         <div class="input-unit">
           <input type="number" id="under-setback" value="0.00"
@@ -426,6 +417,13 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <!-- 지하층 범위 확인 버튼 -->
       <button id="btn-show-under" class="btn btn-secondary btn-full"
         onclick="toggleUnderView()">지하층 범위 확인</button>
+
+      <!-- 지하 건축가능 면적 -->
+      <div class="form-group" id="under-area-group">
+        <label>지하 건축가능 면적 (㎡)</label>
+        <input type="text" id="under-design-area-disp" readonly
+          style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
+      </div>
 
       <div style="flex:1;"></div>
       <div style="padding-top:12px;">
