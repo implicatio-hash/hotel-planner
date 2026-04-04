@@ -507,8 +507,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <!-- 우측: 단면 다이어그램 -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
     <!-- 상단 규모 요약 -->
-    <div style="background:transparent;border-bottom:1px solid var(--border);padding:10px 24px;flex-shrink:0;text-align:center;">
-      <div style="display:flex;justify-content:center;gap:48px;">
+    <div style="background:transparent;border-bottom:1px solid var(--border);padding:10px 24px;flex-shrink:0;text-align:center;min-height:64px;display:flex;align-items:center;justify-content:center;">
+      <div style="display:flex;justify-content:center;gap:48px;width:100%;">
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">건축면적</div>
           <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-coverage-disp">-</div>
@@ -530,7 +530,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
       <div style="display:flex;flex-direction:column;gap:0;">
         <!-- 헤더 행 -->
-        <div style="display:flex;align-items:stretch;">
+        <div style="display:flex;align-items:stretch;width:666px;">
           <div id="section-blocks-hdr" style="flex:1;height:24px;background:transparent;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;"><span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span></div>
           <div style="width:36px;height:24px;background:transparent;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
@@ -543,15 +543,14 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           </div>
         </div>
         <!-- 다이어그램 + 정보 -->
-        <div style="height:18px;"></div>
         <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
           <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;width:500px;flex-shrink:0;"></div>
           <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:166px;flex-shrink:0;"></div>
         </div>
-        <!-- 지면 표시 -->
-        <div style="display:flex;align-items:center;border-top:2px solid #1a1d26;">
-          <div style="flex:1;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
-          <div style="width:166px;"></div>
+        <!-- 지면 표시: 전체 너비(500+166px)에 걸쳐 굵은 선, 왼쪽에 "지면" 텍스트 -->
+        <div style="display:flex;align-items:center;width:666px;border-top:2px solid #1a1d26;">
+          <div style="padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">지면</div>
+          <div style="flex:1;"></div>
         </div>
       </div>
     </div>
@@ -564,7 +563,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <!-- 좌측 패널 -->
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
-      <h2>지하층 규모 설정</h2>
+      <h2>지하 볼륨</h2>
     </div>
 
     <!-- 층수 입력 -->
@@ -590,8 +589,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <!-- 우측: 단면 다이어그램 -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
     <!-- 상단 요약 -->
-    <div style="background:transparent;border-bottom:1px solid var(--border);padding:10px 24px;flex-shrink:0;text-align:center;">
-      <div style="display:flex;justify-content:center;gap:48px;">
+    <div style="background:transparent;border-bottom:1px solid var(--border);padding:10px 24px;flex-shrink:0;text-align:center;min-height:64px;display:flex;align-items:center;justify-content:center;">
+      <div style="display:flex;justify-content:center;gap:48px;width:100%;">
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">지하층 연면적</div>
           <div style="font-size:16px;font-weight:700;color:var(--text);" id="u-total-area-disp">-</div>
@@ -611,7 +610,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <!-- 실제 다이어그램 (적용 후 표시) -->
       <div id="u-diagram-content" style="display:none;flex-direction:column;gap:0;">
         <!-- 헤더 행 -->
-        <div style="display:flex;align-items:stretch;">
+        <div style="display:flex;align-items:stretch;width:666px;">
           <div style="flex:1;height:24px;background:transparent;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
           </div>
@@ -625,9 +624,10 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
           </div>
         </div>
-        <!-- 헤더 아래 이격 + 지면 텍스트 -->
-        <div style="height:18px;display:flex;align-items:center;padding:0 8px;">
-          <span style="font-size:10px;font-weight:700;color:var(--text2);">지면 (GL±0)</span>
+        <!-- 지면선: 전체 너비(500+166px), 왼쪽 여분에 "지면" 텍스트 -->
+        <div style="display:flex;align-items:center;width:666px;border-top:2px solid #1a1d26;">
+          <div style="padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">지면</div>
+          <div style="flex:1;"></div>
         </div>
         <!-- 다이어그램 + 정보 -->
         <div id="u-section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
