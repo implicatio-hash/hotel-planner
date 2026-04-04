@@ -529,12 +529,12 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     <!-- 다이어그램 영역 -->
     <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
       <div style="display:flex;flex-direction:column;gap:0;">
-        <!-- 헤더 행: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
-        <div style="display:flex;align-items:stretch;">
-          <div style="width:60px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
-            <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
+        <!-- 헤더 행 -->
+        <div style="display:flex;align-items:stretch;white-space:nowrap;">
+          <div style="width:120px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">단면 다이어그램</span>
           </div>
-          <div style="width:500px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;flex-shrink:0;"></div>
+          <div style="width:380px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;flex-shrink:0;"></div>
           <div style="width:36px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
           </div>
@@ -545,17 +545,16 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
           </div>
         </div>
-        <!-- 다이어그램 + 정보: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
+        <!-- 다이어그램 + 정보: 왼쪽 여백(120px) + 블록(500px) + 정보컬럼(166px) -->
         <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
-          <div style="width:60px;flex-shrink:0;"></div>
+          <div style="width:120px;flex-shrink:0;"></div>
           <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;width:500px;flex-shrink:0;"></div>
           <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:166px;flex-shrink:0;"></div>
         </div>
-        <!-- 지면: 왼쪽 60px에 텍스트 + 500px에 굵은 선 -->
+        <!-- 지면: 120px에 텍스트 + 나머지(500+166=666px)에 굵은 선, 이격 없음 -->
         <div style="display:flex;align-items:center;">
-          <div style="width:60px;flex-shrink:0;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
-          <div style="width:500px;flex-shrink:0;border-top:2px solid #1a1d26;"></div>
-          <div style="width:166px;flex-shrink:0;"></div>
+          <div style="width:120px;flex-shrink:0;padding:2px 8px 0;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
+          <div style="width:666px;flex-shrink:0;border-top:2px solid #1a1d26;"></div>
         </div>
       </div>
     </div>
@@ -616,12 +615,12 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       </div>
       <!-- 실제 다이어그램 (적용 후 표시) -->
       <div id="u-diagram-content" style="display:none;flex-direction:column;gap:0;">
-        <!-- 헤더 행: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
-        <div style="display:flex;align-items:stretch;">
-          <div style="width:60px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
-            <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
+        <!-- 헤더 행 -->
+        <div style="display:flex;align-items:stretch;white-space:nowrap;">
+          <div style="width:120px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">단면 다이어그램</span>
           </div>
-          <div style="width:500px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;flex-shrink:0;"></div>
+          <div style="width:380px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;flex-shrink:0;"></div>
           <div style="width:36px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
           </div>
@@ -632,15 +631,14 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
           </div>
         </div>
-        <!-- 지면선: 60px에 "지면" 텍스트 + 500px 굵은 선 -->
+        <!-- 지면: 120px에 텍스트 + 666px 굵은 선, 이격 없음 -->
         <div style="display:flex;align-items:center;">
-          <div style="width:60px;flex-shrink:0;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
-          <div style="width:500px;flex-shrink:0;border-top:2px solid #1a1d26;"></div>
-          <div style="width:166px;flex-shrink:0;"></div>
+          <div style="width:120px;flex-shrink:0;padding:2px 8px 0;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
+          <div style="width:666px;flex-shrink:0;border-top:2px solid #1a1d26;"></div>
         </div>
-        <!-- 다이어그램 + 정보: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
+        <!-- 다이어그램 + 정보: 왼쪽 여백(120px) + 블록(500px) + 정보컬럼(166px) -->
         <div id="u-section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
-          <div style="width:60px;flex-shrink:0;"></div>
+          <div style="width:120px;flex-shrink:0;"></div>
           <div id="u-section-blocks" style="display:flex;flex-direction:column;position:relative;width:500px;flex-shrink:0;"></div>
           <div id="u-section-info-col" style="display:flex;flex-direction:column;width:166px;flex-shrink:0;"></div>
         </div>
