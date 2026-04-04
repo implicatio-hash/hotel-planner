@@ -645,38 +645,44 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 4: BOH 배치 ═══ -->
+<!-- ═══ STEP 4: 바운더리 설정 ═══ -->
 <div id="step-4" class="step-panel" style="flex-direction:row;">
+
+  <!-- 좌측 패널 -->
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
-      <h2>BOH 배치</h2>
-      <p>지상·지하 BOH 비율을 설정하세요</p>
+      <h2>바운더리 설정</h2>
     </div>
-    <div id="panel-body">
-      <div class="form-group">
-        <label>총 BOH 비율 (%)</label>
-        <input type="number" id="boh-total" value="20" min="10" max="35" oninput="updateBohChart()">
-      </div>
-      <div class="form-group">
-        <label>지하 BOH 비율 (%)</label>
-        <input type="number" id="boh-under" value="62" min="0" max="100" oninput="updateBohChart()">
-      </div>
-      <div class="info-box" style="margin-top:4px;">
-        <div class="stat-row">
-          <span class="stat-label">지상 BOH 면적</span>
-          <span class="stat-val" id="boh-above-area">0 m²</span>
-        </div>
-        <div class="stat-row" style="margin-top:4px;">
-          <span class="stat-label">지하 BOH 면적</span>
-          <span class="stat-val" id="boh-under-area">0 m²</span>
-        </div>
-      </div>
-      <button class="btn btn-primary btn-full" onclick="goStep(5)">다음: 3D 모델링 →</button>
+
+    <!-- 지상 타입 -->
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">지상 타입</div>
+      <div id="above-type-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <button class="btn btn-secondary btn-full" onclick="addAboveType()" style="margin-top:8px;font-size:11px;">+ 타입 추가</button>
+    </div>
+
+    <!-- 지하 타입 -->
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">지하 타입</div>
+      <div id="under-type-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <button class="btn btn-secondary btn-full" onclick="addUnderType()" style="margin-top:8px;font-size:11px;">+ 타입 추가</button>
+    </div>
+
+    <div style="flex:1;"></div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="goStep(5)"
+        style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 3D 모델링 →</button>
     </div>
   </div>
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;">
-    <canvas id="boh-chart" width="400" height="300"
-      style="border-radius:8px;box-shadow:var(--shadow);background:#fff;"></canvas>
+
+  <!-- 우측: 지도 -->
+  <div style="flex:1;position:relative;">
+    <div id="step4-map" style="width:100%;height:100%;"></div>
+    <!-- 범례 -->
+    <div id="step4-legend" style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
+      background:rgba(255,255,255,.9);padding:6px 12px;border-radius:5px;border:1px solid var(--border);
+      z-index:100;pointer-events:none;display:none;">
+    </div>
   </div>
 </div>
 
@@ -883,7 +889,7 @@ function goStep(idx){
   if(idx===1){ syncStep1(); drawLotOutline(); }
   if(idx===2){ initStep2(); }
   if(idx===3){ initUnderDiagram(); }
-  if(idx===4){ drawBohChart(); updateBohAreas(); }
+  if(idx===4){ initBoundaryStep(); }
   if(idx===5){ initThreeJS(); }
   if(idx===6){ buildFloorTable(); recalcFAR(); }
   if(idx===7){ calcElevTraffic(); updateElevCards(); }
@@ -2935,51 +2941,386 @@ function startUnderFloorDrag(e, fi){
 }
 
 // ═══════════════════════════════════════════
-// STEP 4 — BOH
+// STEP 4 — 바운더리 설정
 // ═══════════════════════════════════════════
-function updateBohAreas(){
-  const gfa=state.maxGFA||(state.siteArea*8)||19200;
-  const totalBoh=Math.floor(gfa*n('boh-total')/100);
-  const underPct=n('boh-under')/100;
-  $('boh-under-area').textContent=Math.floor(totalBoh*underPct).toLocaleString()+' m²';
-  $('boh-above-area').textContent=Math.floor(totalBoh*(1-underPct)).toLocaleString()+' m²';
+
+// 알파벳 라벨 생성 (0→A, 1→B, ...)
+function typeLabel(i){ return String.fromCharCode(65 + i); }
+
+// 색상 팔레트
+const TYPE_COLORS = [
+  '#2563eb','#ea580c','#16a34a','#9333ea','#0891b2',
+  '#dc2626','#ca8a04','#065f46','#7c3aed','#b45309'
+];
+
+// 바운더리 state
+const SB = {
+  aboveTypes: [],  // [{label, area, color, poly, selected}]
+  underTypes: [],  // [{label, area, color, poly, selected}]
+  selectedKey: null, // 'above-0', 'under-1' 등
+};
+
+function initBoundaryStep(){
+  // 지상 타입 추출 (S2.floors에서 unique area)
+  extractAboveTypes();
+  // 지하 타입 추출 (SU.floors에서 unique area)
+  extractUnderTypes();
+  // 지도 초기화
+  initStep4Map();
+  renderTypeList();
 }
 
-function updateBohChart(){ updateBohAreas(); drawBohChart(); }
-
-function drawBohChart(){
-  const c=$('boh-chart'); if(!c) return;
-  const ctx=c.getContext('2d');
-  const cx=200,cy=150,r=100,ir=55;
-  ctx.clearRect(0,0,400,300);
-  ctx.fillStyle='#fff'; ctx.fillRect(0,0,400,300);
-  const pct=Math.max(0,Math.min(100,n('boh-under')))/100;
-  const segs=[{label:'지하 BOH',pct,color:'#2563eb'},{label:'지상 BOH',pct:1-pct,color:'#f97316'}];
-  let s=-Math.PI/2;
-  segs.forEach(sg=>{
-    const e=s+sg.pct*Math.PI*2;
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,s,e); ctx.closePath();
-    ctx.fillStyle=sg.color; ctx.globalAlpha=.88; ctx.fill();
-    const m=(s+e)/2;
-    if(sg.pct>.05){
-      ctx.globalAlpha=1; ctx.fillStyle='#fff';
-      ctx.font='bold 13px Pretendard,sans-serif'; ctx.textAlign='center';
-      ctx.fillText(Math.round(sg.pct*100)+'%',cx+Math.cos(m)*r*.65,cy+Math.sin(m)*r*.65+4);
+function extractAboveTypes(){
+  const floors = S2.floors || [];
+  if(!floors.length) return;
+  // unique area 추출 (기존 타입 유지)
+  const existingAreas = new Set(SB.aboveTypes.map(t=>t.area));
+  const areas = [...new Set(floors.map(f=>f.area))].sort((a,b)=>b-a);
+  areas.forEach(area=>{
+    if(!existingAreas.has(area)){
+      const i = SB.aboveTypes.length;
+      SB.aboveTypes.push({
+        label: typeLabel(i),
+        area,
+        color: TYPE_COLORS[i % TYPE_COLORS.length],
+        poly: null,
+        selected: false,
+      });
     }
-    s=e;
   });
-  ctx.globalAlpha=1;
-  ctx.beginPath(); ctx.arc(cx,cy,ir,0,Math.PI*2);
-  ctx.fillStyle='#fff'; ctx.fill();
-  ctx.fillStyle='#8b90a0'; ctx.font='11px Pretendard,sans-serif'; ctx.textAlign='center';
-  ctx.fillText('BOH 배분',cx,cy-3); ctx.fillText(n('boh-total')+'%',cx,cy+12);
-  segs.forEach((sg,i)=>{
-    const ly=240+i*22;
-    ctx.fillStyle=sg.color; ctx.fillRect(80,ly,14,14);
-    ctx.fillStyle='#4b5068'; ctx.textAlign='left';
-    ctx.fillText(sg.label+' '+Math.round(sg.pct*100)+'%',100,ly+11);
+}
+
+function extractUnderTypes(){
+  const floors = SU.floors || [];
+  if(!floors.length) return;
+  const existingAreas = new Set(SB.underTypes.map(t=>t.area));
+  const areas = [...new Set(floors.map(f=>f.area))].sort((a,b)=>b-a);
+  areas.forEach(area=>{
+    if(!existingAreas.has(area)){
+      const i = SB.underTypes.length;
+      SB.underTypes.push({
+        label: 'G' + typeLabel(i),
+        area,
+        color: TYPE_COLORS[(i+5) % TYPE_COLORS.length],
+        poly: null,
+        selected: false,
+      });
+    }
   });
-  ctx.textAlign='left';
+}
+
+function addAboveType(){
+  const i = SB.aboveTypes.length;
+  SB.aboveTypes.push({
+    label: typeLabel(i),
+    area: 0,
+    color: TYPE_COLORS[i % TYPE_COLORS.length],
+    poly: null,
+    selected: false,
+  });
+  renderTypeList();
+}
+
+function addUnderType(){
+  const i = SB.underTypes.length;
+  SB.underTypes.push({
+    label: 'G' + typeLabel(i),
+    area: 0,
+    color: TYPE_COLORS[(i+5) % TYPE_COLORS.length],
+    poly: null,
+    selected: false,
+  });
+  renderTypeList();
+}
+
+function renderTypeList(){
+  renderOneTypeList('above-type-list', SB.aboveTypes, 'above');
+  renderOneTypeList('under-type-list', SB.underTypes, 'under');
+  updateStep4Legend();
+}
+
+function renderOneTypeList(containerId, types, kind){
+  const wrap = $(containerId);
+  if(!wrap) return;
+  if(!types.length){
+    wrap.innerHTML = '<div style="font-size:11px;color:var(--text3);text-align:center;padding:4px 0;">3·4페이지에서 면적을 입력해 주세요</div>';
+    return;
+  }
+  wrap.innerHTML = types.map((t, i) => `
+    <div class="boundary-type-item" id="btype-${kind}-${i}"
+      style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;
+        border:2px solid ${SB.selectedKey===kind+'-'+i ? t.color : 'var(--border)'};
+        background:${SB.selectedKey===kind+'-'+i ? t.color+'18' : 'var(--bg3)'};"
+      onclick="selectType('${kind}',${i})">
+      <div style="width:12px;height:12px;border-radius:3px;background:${t.color};flex-shrink:0;"></div>
+      <div style="font-size:12px;font-weight:700;color:var(--text);flex-shrink:0;min-width:24px;">${t.label}</div>
+      <div style="flex:1;font-size:11px;color:var(--text2);">${t.area ? t.area.toLocaleString()+'㎡' : '—'}</div>
+      <button onclick="event.stopPropagation();applyTypeOffset('${kind}',${i})"
+        style="font-size:10px;padding:3px 7px;border-radius:4px;border:1px solid var(--border2);
+          background:var(--bg2);color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap;">적용</button>
+      <button onclick="event.stopPropagation();removeType('${kind}',${i})"
+        style="font-size:11px;padding:2px 6px;border-radius:4px;border:none;background:none;color:var(--text3);cursor:pointer;">✕</button>
+    </div>
+  `).join('');
+}
+
+function selectType(kind, i){
+  const key = kind+'-'+i;
+  SB.selectedKey = SB.selectedKey === key ? null : key;
+  renderTypeList();
+  showTypeOnMap(kind, i);
+}
+
+function removeType(kind, i){
+  if(kind==='above') SB.aboveTypes.splice(i,1);
+  else SB.underTypes.splice(i,1);
+  // 라벨 재정렬
+  SB.aboveTypes.forEach((t,idx)=>{ t.label = typeLabel(idx); t.color = TYPE_COLORS[idx%TYPE_COLORS.length]; });
+  SB.underTypes.forEach((t,idx)=>{ t.label = 'G'+typeLabel(idx); t.color = TYPE_COLORS[(idx+5)%TYPE_COLORS.length]; });
+  if(SB.selectedKey === kind+'-'+i) SB.selectedKey = null;
+  renderTypeList();
+  refreshStep4Map();
+}
+
+// ── 오프셋으로 boundary 폴리곤 생성 ──
+function applyTypeOffset(kind, i){
+  const types = kind==='above' ? SB.aboveTypes : SB.underTypes;
+  const t = types[i];
+  if(!t) return;
+
+  // 기준 폴리곤 선택: 지상→건축한계선(buildable), 지하→merged+setback
+  let basePoly = null;
+  if(kind==='above'){
+    // 건축한계선 buildable 피처
+    const src = window._step1OutlineSource;
+    if(src){
+      const bf = src.getFeatures().find(f=>f.get('type')==='buildable');
+      if(bf){
+        const fmt = new ol.format.GeoJSON();
+        const clone = bf.getGeometry().clone();
+        clone.transform('EPSG:3857','EPSG:4326');
+        basePoly = {type:'Feature', geometry: JSON.parse(fmt.writeGeometry(clone))};
+      }
+    }
+    // buildable 없으면 merged 사용
+    if(!basePoly) basePoly = window._step1MergedPoly;
+  } else {
+    // 지하: merged에서 under-setback offset 적용된 폴리곤
+    const merged = window._step1MergedPoly;
+    if(!merged){ showToast('2페이지에서 필지를 먼저 선택해 주세요'); return; }
+    const dist = parseFloat($('under-setback')?.value) || 0;
+    basePoly = dist > 0 ? sharpInsetPolygon(merged, dist) : merged;
+  }
+
+  if(!basePoly){ showToast('기준 폴리곤이 없습니다. 2페이지를 먼저 완료해 주세요'); return; }
+
+  // 목표 면적에 맞게 이진탐색으로 offset 거리 찾기
+  const targetArea = t.area;
+  const baseArea = turf.area(basePoly);
+  if(targetArea >= baseArea){
+    t.poly = basePoly;
+  } else {
+    // 이진탐색: offset 거리를 늘려가며 면적 수렴
+    let lo=0, hi=50, poly=basePoly;
+    for(let iter=0; iter<20; iter++){
+      const mid=(lo+hi)/2;
+      const inset = sharpInsetPolygon(basePoly, mid);
+      if(!inset){ hi=mid; continue; }
+      const a = turf.area(inset);
+      if(Math.abs(a-targetArea) < 1){ poly=inset; break; }
+      if(a > targetArea) lo=mid;
+      else hi=mid;
+      poly=inset;
+    }
+    t.poly = poly;
+  }
+
+  SB.selectedKey = kind+'-'+i;
+  renderTypeList();
+  showTypeOnMap(kind, i);
+  showToast(`✅ ${t.label} 타입 바운더리 생성 완료`);
+}
+
+// ── 지도에 선택된 타입 boundary 표시 ──
+function showTypeOnMap(kind, i){
+  const src = window._step4BoundarySource;
+  if(!src) return;
+  src.clear();
+
+  const types = kind==='above' ? SB.aboveTypes : SB.underTypes;
+  const t = types[i];
+  if(!t || !t.poly) return;
+
+  const fmt = new ol.format.GeoJSON();
+  const olGeom = fmt.readGeometry(t.poly.geometry, {dataProjection:'EPSG:4326', featureProjection:'EPSG:3857'});
+  const feat = new ol.Feature({geometry: olGeom});
+  feat.set('color', t.color);
+  src.addFeature(feat);
+
+  // 뷰 맞춤
+  window._step4Map?.getView().fit(src.getExtent(), {padding:[40,40,40,40], maxZoom:19, duration:300});
+}
+
+function refreshStep4Map(){
+  const src = window._step4BoundarySource;
+  if(src) src.clear();
+}
+
+// ── 지도 초기화 ──
+function initStep4Map(){
+  if(!window._step4Map){
+    // 지적도 레이어
+    const cadSource = new ol.source.Vector();
+    window._step4CadSource = cadSource;
+    const cadLayer = new ol.layer.Vector({
+      source: cadSource,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({color:'#9ca3af', width:0.8})
+      })
+    });
+
+    // 필지 경계 + 건축한계선 레이어 (2페이지 데이터 재사용)
+    const baseOutlineSource = new ol.source.Vector();
+    window._step4BaseSource = baseOutlineSource;
+    const baseLayer = new ol.layer.Vector({
+      source: baseOutlineSource,
+      style: function(f){
+        const t = f.get('type');
+        if(t==='boundary') return new ol.style.Style({
+          stroke: new ol.style.Stroke({color:'#e74c3c', width:2.5})
+        });
+        if(t==='buildable') return new ol.style.Style({
+          fill: new ol.style.Fill({color:'rgba(234,88,12,0.08)'}),
+          stroke: new ol.style.Stroke({color:'#e67e22', width:1.5, lineDash:[8,5]})
+        });
+        if(t==='under-offset') return new ol.style.Style({
+          fill: new ol.style.Fill({color:'rgba(37,99,235,0.08)'}),
+          stroke: new ol.style.Stroke({color:'#2563eb', width:1.5, lineDash:[8,5]})
+        });
+      }
+    });
+
+    // 바운더리 타입 레이어
+    const boundarySource = new ol.source.Vector();
+    window._step4BoundarySource = boundarySource;
+    const boundaryLayer = new ol.layer.Vector({
+      source: boundarySource,
+      style: function(f){
+        const color = f.get('color') || '#2563eb';
+        return new ol.style.Style({
+          fill: new ol.style.Fill({color: color+'33'}),
+          stroke: new ol.style.Stroke({color, width:2.5})
+        });
+      }
+    });
+
+    window._step4Map = new ol.Map({
+      target: 'step4-map',
+      layers: [cadLayer, baseLayer, boundaryLayer],
+      view: new ol.View({center: ol.proj.fromLonLat([126.978,37.566]), zoom:17}),
+      controls: []
+    });
+  }
+
+  window._step4Map.updateSize();
+
+  // 2페이지 데이터 복사
+  const baseSource = window._step4BaseSource;
+  baseSource.clear();
+  const fmt = new ol.format.GeoJSON();
+
+  // 필지 경계
+  const merged = window._step1MergedPoly;
+  if(merged){
+    const geom = fmt.readGeometry(merged.geometry);
+    geom.transform('EPSG:4326','EPSG:3857');
+    const f = new ol.Feature({geometry:geom});
+    f.set('type','boundary');
+    baseSource.addFeature(f);
+  }
+
+  // 건축한계선 buildable
+  const s1src = window._step1OutlineSource;
+  if(s1src){
+    s1src.getFeatures().filter(f=>f.get('type')==='buildable').forEach(f=>{
+      const clone = f.clone();
+      clone.set('type','buildable');
+      baseSource.addFeature(clone);
+    });
+    s1src.getFeatures().filter(f=>f.get('type')==='under-offset').forEach(f=>{
+      const clone = f.clone();
+      clone.set('type','under-offset');
+      baseSource.addFeature(clone);
+    });
+  }
+
+  // 뷰 맞춤
+  if(merged){
+    const ext = baseSource.getExtent();
+    if(ext && ext[0] !== Infinity){
+      window._step4Map.getView().fit(ext, {padding:[60,60,60,60], maxZoom:19, duration:300});
+    }
+  }
+
+  // 지적도 WFS 로드
+  setTimeout(loadStep4CadWFS, 400);
+}
+
+function updateStep4Legend(){
+  const legend = $('step4-legend');
+  if(!legend) return;
+  const allTypes = [
+    ...SB.aboveTypes.map(t=>({...t, kind:'above'})),
+    ...SB.underTypes.map(t=>({...t, kind:'under'}))
+  ].filter(t=>t.poly);
+  if(!allTypes.length){ legend.style.display='none'; return; }
+  legend.style.display='block';
+  legend.innerHTML = allTypes.map(t=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+      <div style="width:10px;height:10px;border-radius:2px;background:${t.color};flex-shrink:0;"></div>
+      <span style="font-size:10px;">${t.label} — ${t.area.toLocaleString()}㎡</span>
+    </div>
+  `).join('');
+}
+
+// 지적도 WFS 로드 (step4)
+let _s4CadLoading = false;
+function loadStep4CadWFS(){
+  if(!window._step4Map || _s4CadLoading) return;
+  _s4CadLoading = true;
+  const view = window._step4Map.getView();
+  const size = window._step4Map.getSize();
+  if(!size){ _s4CadLoading=false; return; }
+  const ext = view.calculateExtent(size);
+  const [minLng,minLat,maxLng,maxLat] = ol.proj.transformExtent(ext,'EPSG:3857','EPSG:4326');
+  const cbName = 's4cad_'+Date.now();
+  const script = document.createElement('script');
+  const timer = setTimeout(()=>{ _s4CadLoading=false; cleanup(); }, 10000);
+  function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+  window[cbName] = function(data){
+    _s4CadLoading=false; cleanup();
+    const feats = data?.features || [];
+    if(!feats.length) return;
+    const fmt2 = new ol.format.GeoJSON();
+    const src = window._step4CadSource;
+    if(!src) return;
+    const existing = new Set(src.getFeatures().map(f=>f.get('pnu')));
+    feats.forEach(f=>{
+      const pnu = f.properties?.pnu;
+      if(pnu && existing.has(pnu)) return;
+      try {
+        const olF = fmt2.readFeature(f,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});
+        olF.set('pnu',pnu);
+        src.addFeature(olF);
+      }catch(e){}
+    });
+  };
+  script.onerror = ()=>{ _s4CadLoading=false; cleanup(); };
+  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
+    +`&typename=lp_pa_cbnd_bubun&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
+    +`&srsname=EPSG:4326&maxfeatures=300`
+    +`&output=text/javascript&format_options=callback:${cbName}&key=${VWORLD_KEY}`;
+  document.body.appendChild(script);
 }
 
 // ═══════════════════════════════════════════
