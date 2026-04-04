@@ -380,7 +380,6 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <div id="panel" style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>대지 정보</h2>
-      <p>건축한계선 및 지하층 설계 가능 영역을 확인합니다</p>
     </div>
     <div id="panel-body">
 
@@ -391,50 +390,27 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
-      <div style="height:1px;background:var(--border);margin:2px 0;"></div>
-
-      <!-- ── 지상: 건축한계선 섹션 ── -->
-      <div class="sec-label" style="margin-bottom:8px;">지상층 건축 가능 영역</div>
-
-      <button id="btn-show-setback" class="btn btn-secondary btn-full"
-        onclick="toggleSetbackView()">건축한계선 확인</button>
-
-      <div id="buildable-area-group" style="display:none;margin-top:8px;">
-        <div class="info-box orange">
-          <div style="font-size:10px;font-weight:700;color:#9a3412;margin-bottom:4px;">건축 가능 대지면적</div>
-          <div style="font-size:20px;font-weight:800;color:#ea580c;" id="buildable-area-disp">—</div>
-          <div style="font-size:10px;color:#9a3412;margin-top:1px;">m²</div>
-        </div>
-      </div>
-
-      <div style="height:1px;background:var(--border);margin:8px 0;"></div>
-
-      <!-- ── 지하: 이격거리 섹션 ── -->
-      <div class="sec-label" style="margin-bottom:8px;">지하층 설계 가능 영역</div>
-
-      <div style="display:flex;gap:6px;align-items:flex-end;">
-        <div class="form-group" style="flex:1;">
-          <label>필지선 이격거리 (m)</label>
-          <div class="input-unit">
-            <input type="number" id="under-setback" value="0.00"
-              min="0" max="3" step="0.01"
-              oninput="clampUnderSetback(this)"
-              placeholder="0.00">
-            <span>m</span>
+      <!-- 면적 결과: 지상 + 지하 나란히 -->
+      <div class="input-row">
+        <div id="buildable-area-group" style="display:none;">
+          <div class="info-box orange" style="padding:8px 10px;">
+            <div style="font-size:10px;font-weight:700;color:#9a3412;margin-bottom:3px;">지상 건축가능 면적</div>
+            <div style="font-size:16px;font-weight:800;color:#ea580c;" id="buildable-area-disp">—</div>
+            <div style="font-size:10px;color:#9a3412;">m²</div>
           </div>
         </div>
-        <button class="btn btn-primary" style="flex-shrink:0;padding:7px 14px;"
-          onclick="toggleUnderView()">지하층<br>범위 확인</button>
-      </div>
-      <div style="font-size:10px;color:var(--text3);margin-top:2px;">0 ~ 3m · 소수점 2자리</div>
-
-      <div id="under-area-group" style="display:none;margin-top:8px;">
-        <div class="info-box blue">
-          <div style="font-size:10px;font-weight:700;color:#1e40af;margin-bottom:4px;">지하층 설계 가능 면적</div>
-          <div style="font-size:20px;font-weight:800;color:#2563eb;" id="under-design-area-disp">—</div>
-          <div style="font-size:10px;color:#1e40af;margin-top:1px;">m²</div>
+        <div id="under-area-group" style="display:none;">
+          <div class="info-box blue" style="padding:8px 10px;">
+            <div style="font-size:10px;font-weight:700;color:#1e40af;margin-bottom:3px;">지하 설계가능 면적</div>
+            <div style="font-size:16px;font-weight:800;color:#2563eb;" id="under-design-area-disp">—</div>
+            <div style="font-size:10px;color:#1e40af;">m²</div>
+          </div>
         </div>
-        <div class="info-box" style="margin-top:6px;">
+      </div>
+
+      <!-- 지하 상세 (이격 후) -->
+      <div id="under-detail-group" style="display:none;">
+        <div class="info-box" style="margin-top:0;">
           <div class="stat-row">
             <span class="stat-label">원래 필지 면적</span>
             <span class="stat-val" id="s1-lot-area-disp">—</span>
@@ -449,6 +425,29 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           </div>
         </div>
       </div>
+
+      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+      <!-- 건축한계선 확인 버튼 -->
+      <button id="btn-show-setback" class="btn btn-secondary btn-full"
+        onclick="toggleSetbackView()">건축한계선 확인</button>
+
+      <!-- 이격거리 입력 -->
+      <div class="form-group" style="margin-top:8px;">
+        <label>필지선 이격거리 (m)</label>
+        <div class="input-unit">
+          <input type="number" id="under-setback" value="0.00"
+            min="0" max="3" step="0.01"
+            oninput="clampUnderSetback(this)"
+            placeholder="0.00">
+          <span>m</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">0 ~ 3m · 소수점 2자리</div>
+      </div>
+
+      <!-- 지하층 범위 확인 버튼 (건축한계선 버튼과 동일 스타일) -->
+      <button id="btn-show-under" class="btn btn-secondary btn-full"
+        onclick="toggleUnderView()">지하층 범위 확인</button>
 
       <div style="flex:1;"></div>
       <div style="padding-top:12px;">
@@ -1688,18 +1687,12 @@ function toggleSetbackView(){
     const src = window._step1OutlineSource;
     if(src) src.getFeatures().filter(f=>f.get('type')==='buildable'||f.get('type')==='setback').forEach(f=>src.removeFeature(f));
     $('buildable-area-group').style.display = 'none';
-    $('btn-show-setback').textContent = '건축한계선 확인';
-    $('btn-show-setback').classList.remove('btn-primary');
-    $('btn-show-setback').classList.add('btn-secondary');
     $('legend-setback').style.display = 'none';
     return;
   }
   // 지하층 뷰 먼저 초기화
   clearUnderView();
   _step1ViewMode = 'setback';
-  $('btn-show-setback').textContent = '건축한계선 숨기기';
-  $('btn-show-setback').classList.remove('btn-secondary');
-  $('btn-show-setback').classList.add('btn-primary');
   $('legend-setback').style.display = 'inline';
   loadSetbackLayer().then(()=>{ setTimeout(testBuildableArea, 400); });
 }
@@ -1713,9 +1706,6 @@ function toggleUnderView(){
   const src = window._step1OutlineSource;
   if(src) src.getFeatures().filter(f=>f.get('type')==='buildable'||f.get('type')==='setback').forEach(f=>src.removeFeature(f));
   $('buildable-area-group').style.display = 'none';
-  $('btn-show-setback').textContent = '건축한계선 확인';
-  $('btn-show-setback').classList.remove('btn-primary');
-  $('btn-show-setback').classList.add('btn-secondary');
   $('legend-setback').style.display = 'none';
 
   _step1ViewMode = 'under';
@@ -1728,6 +1718,7 @@ function clearUnderView(){
   const src = window._step1OutlineSource;
   if(src) src.getFeatures().filter(f=>f.get('type')==='under-offset').forEach(f=>src.removeFeature(f));
   $('under-area-group').style.display = 'none';
+  $('under-detail-group').style.display = 'none';
   $('legend-under').style.display = 'none';
 }
 
@@ -1778,6 +1769,7 @@ function applyUnderSetback(){
   $('s1-offset-area-disp').textContent = fmt2(offsetArea) + ' m²';
   $('s1-setback-disp').textContent   = dist.toFixed(2) + ' m';
   $('under-area-group').style.display = 'block';
+  $('under-detail-group').style.display = 'block';
   state.underDesignArea = offsetArea;
 }
 
