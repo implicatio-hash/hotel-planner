@@ -390,40 +390,18 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
-      <!-- 면적 결과: 지상 + 지하 나란히 -->
-      <div class="input-row">
-        <div id="buildable-area-group" style="display:none;">
-          <div class="info-box orange" style="padding:8px 10px;">
-            <div style="font-size:10px;font-weight:700;color:#9a3412;margin-bottom:3px;">지상 건축가능 면적</div>
-            <div style="font-size:16px;font-weight:800;color:#ea580c;" id="buildable-area-disp">—</div>
-            <div style="font-size:10px;color:#9a3412;">m²</div>
-          </div>
-        </div>
-        <div id="under-area-group" style="display:none;">
-          <div class="info-box blue" style="padding:8px 10px;">
-            <div style="font-size:10px;font-weight:700;color:#1e40af;margin-bottom:3px;">지하 설계가능 면적</div>
-            <div style="font-size:16px;font-weight:800;color:#2563eb;" id="under-design-area-disp">—</div>
-            <div style="font-size:10px;color:#1e40af;">m²</div>
-          </div>
-        </div>
+      <!-- 지상 건축가능 면적 -->
+      <div class="form-group" id="buildable-area-group" style="display:none;">
+        <label>지상 건축가능 면적 (㎡)</label>
+        <input type="text" id="buildable-area-disp" readonly
+          style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
-      <!-- 지하 상세 (이격 후) -->
-      <div id="under-detail-group" style="display:none;">
-        <div class="info-box" style="margin-top:0;">
-          <div class="stat-row">
-            <span class="stat-label">원래 필지 면적</span>
-            <span class="stat-val" id="s1-lot-area-disp">—</span>
-          </div>
-          <div class="stat-row" style="margin-top:4px;">
-            <span class="stat-label">이격 후 면적</span>
-            <span class="stat-val accent" id="s1-offset-area-disp">—</span>
-          </div>
-          <div class="stat-row" style="margin-top:4px;">
-            <span class="stat-label">적용 이격거리</span>
-            <span class="stat-val" id="s1-setback-disp">—</span>
-          </div>
-        </div>
+      <!-- 지하 건축가능 면적 -->
+      <div class="form-group" id="under-area-group" style="display:none;">
+        <label>지하 건축가능 면적 (㎡)</label>
+        <input type="text" id="under-design-area-disp" readonly
+          style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
       <div style="height:1px;background:var(--border);margin:4px 0;"></div>
@@ -445,7 +423,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         <div style="font-size:10px;color:var(--text3);margin-top:2px;">0 ~ 3m · 소수점 2자리</div>
       </div>
 
-      <!-- 지하층 범위 확인 버튼 (건축한계선 버튼과 동일 스타일) -->
+      <!-- 지하층 범위 확인 버튼 -->
       <button id="btn-show-under" class="btn btn-secondary btn-full"
         onclick="toggleUnderView()">지하층 범위 확인</button>
 
@@ -1668,7 +1646,7 @@ function testBuildableArea(){
     // 좌측 패널 건축가능 대지면적 표시
     const baDisp = $('buildable-area-disp');
     const baGroup = $('buildable-area-group');
-    if(baDisp){ baDisp.textContent = area.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    if(baDisp){ baDisp.value = area.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
     if(baGroup){ baGroup.style.display = 'block'; }
     state.buildableArea = area;
     showToast(`✅ 건축가능영역 ${area.toFixed(1)}m²`);
@@ -1718,7 +1696,6 @@ function clearUnderView(){
   const src = window._step1OutlineSource;
   if(src) src.getFeatures().filter(f=>f.get('type')==='under-offset').forEach(f=>src.removeFeature(f));
   $('under-area-group').style.display = 'none';
-  $('under-detail-group').style.display = 'none';
   $('legend-under').style.display = 'none';
 }
 
@@ -1762,14 +1739,9 @@ function applyUnderSetback(){
     }
   }
 
-  // 패널 수치 갱신
   const fmt2 = (v,d=2) => v.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d});
-  $('under-design-area-disp').textContent = fmt2(offsetArea);
-  $('s1-lot-area-disp').textContent  = fmt2(lotArea) + ' m²';
-  $('s1-offset-area-disp').textContent = fmt2(offsetArea) + ' m²';
-  $('s1-setback-disp').textContent   = dist.toFixed(2) + ' m';
+  $('under-design-area-disp').value = fmt2(offsetArea);
   $('under-area-group').style.display = 'block';
-  $('under-detail-group').style.display = 'block';
   state.underDesignArea = offsetArea;
 }
 
