@@ -507,50 +507,55 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <!-- 우측: 단면 다이어그램 -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
     <!-- 상단 규모 요약 -->
-    <div style="background:transparent;border-bottom:1px solid var(--border);padding:10px 24px;flex-shrink:0;text-align:center;min-height:64px;display:flex;align-items:center;justify-content:center;">
+    <div style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0 24px;">
       <div style="display:flex;justify-content:center;gap:48px;width:100%;">
-        <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">건축면적</div>
-          <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-coverage-disp">-</div>
-          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-coverage-disp">-</span>㎡ / 건폐율 <b id="bcr-disp">-</b> / 잔여 <b id="remain-coverage-disp" style="color:var(--accent);">-</b>㎡</div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">건축면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="total-coverage-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">최대 <span id="max-coverage-disp">-</span>㎡ / 건폐율 <b id="bcr-disp">-</b> / 잔여 <b id="remain-coverage-disp" style="color:var(--accent);">-</b>㎡</div>
         </div>
-        <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">지상층 연면적</div>
-          <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-area-disp">-</div>
-          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-gfa-disp">-</span>㎡ / 용적률 <b id="far-disp">-</b> / 잔여 <b id="remain-area-disp" style="color:var(--accent);">-</b>㎡</div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">지상층 연면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="total-area-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">최대 <span id="max-gfa-disp">-</span>㎡ / 용적률 <b id="far-disp">-</b> / 잔여 <b id="remain-area-disp" style="color:var(--accent);">-</b>㎡</div>
         </div>
-        <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">총 높이</div>
-          <div style="font-size:16px;font-weight:700;color:var(--text);" id="total-height-disp">-</div>
-          <div style="font-size:10px;color:var(--text3);">최대 <span id="max-height-disp">-</span>m / 잔여 <b id="remain-height-disp" style="color:var(--accent);">-</b>m</div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">총 높이</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="total-height-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">최대 <span id="max-height-disp">-</span>m / 잔여 <b id="remain-height-disp" style="color:var(--accent);">-</b>m</div>
         </div>
       </div>
     </div>
     <!-- 다이어그램 영역 -->
     <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
       <div style="display:flex;flex-direction:column;gap:0;">
-        <!-- 헤더 행 -->
-        <div style="display:flex;align-items:stretch;width:666px;">
-          <div id="section-blocks-hdr" style="flex:1;height:24px;background:transparent;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;"><span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span></div>
-          <div style="width:36px;height:24px;background:transparent;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+        <!-- 헤더 행: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
+        <div style="display:flex;align-items:stretch;">
+          <div style="width:60px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
+          </div>
+          <div style="width:500px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;flex-shrink:0;"></div>
+          <div style="width:36px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
           </div>
-          <div style="width:50px;height:24px;background:transparent;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+          <div style="width:50px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">층고(m)</span>
           </div>
-          <div style="width:80px;height:24px;background:transparent;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+          <div style="width:80px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
           </div>
         </div>
-        <!-- 다이어그램 + 정보 -->
+        <!-- 다이어그램 + 정보: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
         <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
+          <div style="width:60px;flex-shrink:0;"></div>
           <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;width:500px;flex-shrink:0;"></div>
           <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:166px;flex-shrink:0;"></div>
         </div>
-        <!-- 지면 표시: 전체 너비(500+166px)에 걸쳐 굵은 선, 왼쪽에 "지면" 텍스트 -->
-        <div style="display:flex;align-items:center;width:666px;border-top:2px solid #1a1d26;">
-          <div style="padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">지면</div>
-          <div style="flex:1;"></div>
+        <!-- 지면: 왼쪽 60px에 텍스트 + 500px에 굵은 선 -->
+        <div style="display:flex;align-items:center;">
+          <div style="width:60px;flex-shrink:0;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
+          <div style="width:500px;flex-shrink:0;border-top:2px solid #1a1d26;"></div>
+          <div style="width:166px;flex-shrink:0;"></div>
         </div>
       </div>
     </div>
@@ -588,16 +593,18 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
   <!-- 우측: 단면 다이어그램 -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
-    <!-- 상단 요약 -->
-    <div style="background:transparent;border-bottom:1px solid var(--border);padding:10px 24px;flex-shrink:0;text-align:center;min-height:64px;display:flex;align-items:center;justify-content:center;">
+    <!-- 상단 요약: 3페이지와 동일한 height:58px -->
+    <div style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0 24px;">
       <div style="display:flex;justify-content:center;gap:48px;width:100%;">
-        <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">지하층 연면적</div>
-          <div style="font-size:16px;font-weight:700;color:var(--text);" id="u-total-area-disp">-</div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">지하층 연면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="u-total-area-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
         </div>
-        <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">총 깊이</div>
-          <div style="font-size:16px;font-weight:700;color:var(--text);" id="u-total-depth-disp">-</div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">총 깊이</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="u-total-depth-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
         </div>
       </div>
     </div>
@@ -609,28 +616,31 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       </div>
       <!-- 실제 다이어그램 (적용 후 표시) -->
       <div id="u-diagram-content" style="display:none;flex-direction:column;gap:0;">
-        <!-- 헤더 행 -->
-        <div style="display:flex;align-items:stretch;width:666px;">
-          <div style="flex:1;height:24px;background:transparent;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;">
+        <!-- 헤더 행: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
+        <div style="display:flex;align-items:stretch;">
+          <div style="width:60px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">단면 다이어그램</span>
           </div>
-          <div style="width:36px;height:24px;background:transparent;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+          <div style="width:500px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;flex-shrink:0;"></div>
+          <div style="width:36px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
           </div>
-          <div style="width:50px;height:24px;background:transparent;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+          <div style="width:50px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">층고(m)</span>
           </div>
-          <div style="width:80px;height:24px;background:transparent;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+          <div style="width:80px;height:24px;border-bottom:2px solid #1a1d26;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
             <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
           </div>
         </div>
-        <!-- 지면선: 전체 너비(500+166px), 왼쪽 여분에 "지면" 텍스트 -->
-        <div style="display:flex;align-items:center;width:666px;border-top:2px solid #1a1d26;">
-          <div style="padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">지면</div>
-          <div style="flex:1;"></div>
+        <!-- 지면선: 60px에 "지면" 텍스트 + 500px 굵은 선 -->
+        <div style="display:flex;align-items:center;">
+          <div style="width:60px;flex-shrink:0;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text2);">지면</div>
+          <div style="width:500px;flex-shrink:0;border-top:2px solid #1a1d26;"></div>
+          <div style="width:166px;flex-shrink:0;"></div>
         </div>
-        <!-- 다이어그램 + 정보 -->
+        <!-- 다이어그램 + 정보: 왼쪽 여백(60px) + 블록(500px) + 정보컬럼(166px) -->
         <div id="u-section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
+          <div style="width:60px;flex-shrink:0;"></div>
           <div id="u-section-blocks" style="display:flex;flex-direction:column;position:relative;width:500px;flex-shrink:0;"></div>
           <div id="u-section-info-col" style="display:flex;flex-direction:column;width:166px;flex-shrink:0;"></div>
         </div>
