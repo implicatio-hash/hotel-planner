@@ -391,14 +391,14 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       </div>
 
       <!-- 지상 건축가능 면적 -->
-      <div class="form-group" id="buildable-area-group" style="display:none;">
+      <div class="form-group" id="buildable-area-group">
         <label>지상 건축가능 면적 (㎡)</label>
         <input type="text" id="buildable-area-disp" readonly
           style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
       </div>
 
       <!-- 지하 건축가능 면적 -->
-      <div class="form-group" id="under-area-group" style="display:none;">
+      <div class="form-group" id="under-area-group">
         <label>지하 건축가능 면적 (㎡)</label>
         <input type="text" id="under-design-area-disp" readonly
           style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
@@ -1664,7 +1664,6 @@ function toggleSetbackView(){
     _step1ViewMode = null;
     const src = window._step1OutlineSource;
     if(src) src.getFeatures().filter(f=>f.get('type')==='buildable'||f.get('type')==='setback').forEach(f=>src.removeFeature(f));
-    $('buildable-area-group').style.display = 'none';
     $('legend-setback').style.display = 'none';
     return;
   }
@@ -1683,7 +1682,6 @@ function toggleUnderView(){
   // 건축한계선 뷰 먼저 초기화
   const src = window._step1OutlineSource;
   if(src) src.getFeatures().filter(f=>f.get('type')==='buildable'||f.get('type')==='setback').forEach(f=>src.removeFeature(f));
-  $('buildable-area-group').style.display = 'none';
   $('legend-setback').style.display = 'none';
 
   _step1ViewMode = 'under';
@@ -1695,7 +1693,6 @@ function clearUnderView(){
   _step1ViewMode = null;
   const src = window._step1OutlineSource;
   if(src) src.getFeatures().filter(f=>f.get('type')==='under-offset').forEach(f=>src.removeFeature(f));
-  $('under-area-group').style.display = 'none';
   $('legend-under').style.display = 'none';
 }
 
