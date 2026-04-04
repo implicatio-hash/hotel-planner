@@ -392,13 +392,13 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
       <!-- 건축한계선 확인 버튼 -->
       <button id="btn-show-setback" class="btn btn-secondary btn-full"
-        onclick="toggleSetbackView()">건축한계선 확인</button>
+        onclick="toggleSetbackView()" style="font-size:13px;padding:11px;letter-spacing:.01em;">건축한계선 확인</button>
 
       <!-- 지상 건축가능 면적 -->
       <div class="form-group" id="buildable-area-group">
         <label>지상 건축가능 면적 (㎡)</label>
         <input type="text" id="buildable-area-disp" readonly
-          style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
+          style="background:#fff7ed;color:#ea580c;font-weight:700;font-size:14px;cursor:default;border-color:#fed7aa;">
       </div>
 
       <!-- 이격거리 입력 -->
@@ -416,18 +416,19 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
       <!-- 지하층 범위 확인 버튼 -->
       <button id="btn-show-under" class="btn btn-secondary btn-full"
-        onclick="toggleUnderView()">지하층 범위 확인</button>
+        onclick="toggleUnderView()" style="font-size:13px;padding:11px;letter-spacing:.01em;">지하층 범위 확인</button>
 
       <!-- 지하 건축가능 면적 -->
       <div class="form-group" id="under-area-group">
         <label>지하 건축가능 면적 (㎡)</label>
         <input type="text" id="under-design-area-disp" readonly
-          style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
+          style="background:#eff6ff;color:#2563eb;font-weight:700;font-size:14px;cursor:default;border-color:#bfdbfe;">
       </div>
 
       <div style="flex:1;"></div>
-      <div style="padding-top:12px;">
-        <button class="btn btn-primary btn-full" onclick="goStep(2)">다음: 지상 볼륨 →</button>
+      <div style="padding:10px 0 0;">
+        <button class="btn btn-primary btn-full" onclick="goStep(2)"
+          style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 지상 볼륨 →</button>
       </div>
 
     </div>
