@@ -1643,15 +1643,21 @@ function sharpInsetPolygon(poly, distM){
     const toMeter = proj4('EPSG:4326', 'EPSG:3857');
     const toLonLat = proj4('EPSG:3857', 'EPSG:4326');
 
-    // 링 방향을 항상 CCW(반시계)로 강제 정규화
-    const rewound = turf.rewind(poly, {reverse: false, mutate: false});
-    const ring = rewound.geometry.coordinates[0];
+    // WGS84 → EPSG:3857 변환
+    const ring = poly.geometry.coordinates[0];
     const ring3857 = ring.map(pt => toMeter.forward(pt));
-
     const n = ring3857.length - 1;
 
-    // CCW 정규화 후 sign은 항상 -1 (내측 방향 고정)
-    const sign = -1;
+    // shoelace 공식으로 면적 부호 계산 → CCW면 양수
+    let area2 = 0;
+    for(let i=0;i<n;i++){
+      const j=(i+1)%n;
+      area2 += ring3857[i][0]*ring3857[j][1] - ring3857[j][0]*ring3857[i][1];
+    }
+    // CCW(area2>0)이면 내측은 우측 법선(-dy, dx) 방향
+    // CW(area2<0)이면 내측은 좌측 법선(dy, -dx) 방향
+    // 부호를 통일: CCW 기준 내측 sign = -1, CW 기준 내측 sign = +1
+    const sign = area2 > 0 ? -1 : 1;
 
     // 각 변을 distM만큼 내측 평행이동
     function offsetEdge(p1, p2){
