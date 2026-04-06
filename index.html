@@ -713,43 +713,42 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 4: 바운더리 설정 ═══ -->
+<!-- ═══ STEP 4: 코어 디자인 ═══ -->
 <div id="step-4" class="step-panel" style="flex-direction:row;">
 
   <!-- 좌측 패널 -->
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
-      <h2>바운더리 설정</h2>
+      <h2>코어 디자인</h2>
+      <p>필요 요소를 모두 배치하면 다음 단계로 이동합니다</p>
     </div>
 
-    <!-- 지상 타입 -->
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">지상 타입</div>
-      <div id="above-type-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-      <button class="btn btn-secondary btn-full" onclick="addAboveType()" style="margin-top:8px;font-size:11px;">+ 타입 추가</button>
+    <!-- 요소 리스트 -->
+    <div style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:4px;" id="core-element-list">
+      <!-- JS로 생성 -->
     </div>
 
-    <!-- 지하 타입 -->
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">지하 타입</div>
-      <div id="under-type-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-      <button class="btn btn-secondary btn-full" onclick="addUnderType()" style="margin-top:8px;font-size:11px;">+ 타입 추가</button>
-    </div>
-
-    <div style="flex:1;"></div>
+    <!-- 하단 버튼 -->
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
-      <button class="btn btn-primary btn-full" onclick="goStep(5)"
-        style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 3D 모델링 →</button>
+      <button id="core-next-btn" class="btn btn-full"
+        style="font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;"
+        disabled onclick="goStep(5)">다음: 3D 모델링 →</button>
     </div>
   </div>
 
-  <!-- 우측: 지도 -->
-  <div style="flex:1;position:relative;">
-    <div id="step4-map" style="width:100%;height:100%;"></div>
-    <!-- 범례 -->
-    <div id="step4-legend" style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
-      background:rgba(255,255,255,.9);padding:6px 12px;border-radius:5px;border:1px solid var(--border);
-      z-index:100;pointer-events:none;display:none;">
+  <!-- 우측: 코어 캔버스 -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);position:relative;">
+    <!-- 상단 툴바 -->
+    <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
+      <span style="font-size:11px;font-weight:600;color:var(--text2);">코어 편집</span>
+      <span style="font-size:10px;color:var(--text3);">드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
+      <div style="flex:1;"></div>
+      <span style="font-size:10px;color:var(--text3);">1칸 = 2.9m</span>
+      <button class="btn btn-secondary btn-sm" onclick="resetCoreCanvas()" style="font-size:10px;padding:3px 8px;">초기화</button>
+    </div>
+    <!-- 캔버스 영역 -->
+    <div id="core-canvas-wrap" style="flex:1;overflow:auto;position:relative;">
+      <canvas id="core-canvas"></canvas>
     </div>
   </div>
 </div>
@@ -3037,13 +3036,546 @@ const SB = {
 };
 
 function initBoundaryStep(){
-  // 지상 타입 추출 (S2.floors에서 unique area)
-  extractAboveTypes();
-  // 지하 타입 추출 (SU.floors에서 unique area)
-  extractUnderTypes();
-  // 지도 초기화
-  initStep4Map();
-  renderTypeList();
+  initCoreDesign();
+}
+
+// ═══════════════════════════════════════════
+// STEP 4 — 코어 디자인
+// ═══════════════════════════════════════════
+
+const GRID = 58;   // px per 2.9m cell
+const CELL = 2.9;  // meters
+
+// 코어 요소 정의
+// type: 'single'(1칸), 'double-h'(가로2칸), 'pair-h'(나란히 2칸 한 모듈)
+const CORE_DEF = [
+  { id:'ev',       label:'승용 EV',          cols:1, rows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af' },
+  { id:'ev-emg',   label:'비상 EV',           cols:1, rows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', hasFoyer:true },
+  { id:'ev-evac',  label:'피난 EV',           cols:1, rows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', hasFoyer:true },
+  { id:'stair-s',  label:'피난계단',          cols:2, rows:1, color:'#dcfce7', border:'#22c55e', textColor:'#14532d' },
+  { id:'stair-sp', label:'특별피난계단',      cols:2, rows:1, color:'#d1fae5', border:'#10b981', textColor:'#064e3b', hasFoyer:true },
+  { id:'av',       label:'AV실',              cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
+  { id:'eps',      label:'EPS',               cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
+  { id:'tps',      label:'TPS',               cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
+  { id:'ad',       label:'AD',                cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
+  { id:'ps',       label:'PS',                cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
+];
+
+// 코어 전실 정의 (EV/계단 전실)
+const FOYER_DEF = { label:'전실', cols:1, rows:1, color:'#eff6ff', border:'#93c5fd', textColor:'#1e40af' };
+
+// 코어 상태
+let CD = {
+  elements: [],      // { id(unique), defId, label, col, row, cols, rows, color, border, textColor }
+  required: {},      // { defId: count }
+  placed:   {},      // { defId: count }
+  nextId: 1,
+};
+
+// ── 필요 수량 산출 ──
+function calcCoreRequirements(){
+  const req = {};
+
+  const floors   = S2.floors?.length ? S2.floors : [];
+  const aboveF   = state.aboveFloors || (floors.length > 0 ? floors.length : 20);
+  const fh       = state.floorHeight  || 3.5;
+  const lh       = state.lobbyHeight  || 6.0;
+  const totalH   = lh + (aboveF - 1) * fh;
+  const underF   = SU.floors?.length || state.underFloors || 4;
+  const maxFloorArea = floors.length > 0
+    ? Math.max(...floors.map(f => f.area), 1)
+    : (state.maxCoverage || 1500);
+  const gfa6plus = floors.filter((_,i) => i >= 5)
+    .reduce((s, f) => s + f.area, 0);
+
+  // 1. 직통계단 (숙박시설 3층↑ 거실 200㎡↑ → 2개소)
+  // 피난계단 vs 특별피난계단
+  if(aboveF >= 11 || underF >= 3){
+    req['stair-sp'] = 2;
+    req['stair-s']  = 0;
+  } else if(aboveF >= 5 || underF >= 2){
+    req['stair-s']  = 2;
+    req['stair-sp'] = 0;
+  } else {
+    req['stair-s']  = 2;
+    req['stair-sp'] = 0;
+  }
+
+  // 2. 승용 EV (6층 이상 연면적 2000㎡↑, 숙박 2호그룹)
+  // 별표1의2 2호: 3000㎡이하→1대, 초과→1+(초과/2000) 올림
+  let evCount = 0;
+  if(aboveF >= 6 && gfa6plus > 0){
+    if(gfa6plus <= 3000) evCount = 1;
+    else evCount = 1 + Math.ceil((gfa6plus - 3000) / 2000);
+  }
+  req['ev'] = Math.max(evCount, aboveF >= 6 ? 1 : 0);
+
+  // 3. 비상용 EV (높이 31m 초과)
+  if(totalH > 31){
+    const base = maxFloorArea <= 1500 ? 1
+      : 1 + Math.ceil((maxFloorArea - 1500) / 3000);
+    req['ev-emg'] = base;
+  } else {
+    req['ev-emg'] = 0;
+  }
+
+  // 4. 피난용 EV (30층↑ 또는 120m↑)
+  req['ev-evac'] = (aboveF >= 30 || totalH >= 120) ? 1 : 0;
+
+  // 5. 부속 설비 (각 1개 고정)
+  req['av']  = 1;
+  req['eps'] = 1;
+  req['tps'] = 1;
+  req['ad']  = 1;
+  req['ps']  = 1;
+
+  return req;
+}
+
+// ── 좌측 패널 렌더링 ──
+function renderCoreList(){
+  const list = $('core-element-list');
+  if(!list) return;
+
+  list.innerHTML = '';
+
+  // 섹션: 계단
+  const stairSection = document.createElement('div');
+  stairSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:6px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">계단</div>`;
+  list.appendChild(stairSection);
+
+  const stairIds = ['stair-sp','stair-s'];
+  stairIds.forEach(defId => renderCoreRow(list, defId));
+
+  // 섹션: 승강기
+  const evSection = document.createElement('div');
+  evSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">승강기</div>`;
+  list.appendChild(evSection);
+
+  const evIds = ['ev','ev-emg','ev-evac'];
+  evIds.forEach(defId => renderCoreRow(list, defId));
+
+  // 섹션: 설비
+  const mechSection = document.createElement('div');
+  mechSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">설비</div>`;
+  list.appendChild(mechSection);
+
+  const mechIds = ['av','eps','tps','ad','ps'];
+  mechIds.forEach(defId => renderCoreRow(list, defId));
+
+  updateCoreNextBtn();
+}
+
+function renderCoreRow(container, defId){
+  const def = CORE_DEF.find(d => d.id === defId);
+  if(!def) return;
+
+  const req = CD.required[defId] || 0;
+  const placed = CD.placed[defId] || 0;
+  const remain = Math.max(0, req - placed);
+  const canAdd = remain > 0;
+
+  const row = document.createElement('div');
+  row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:5px;background:${canAdd ? 'var(--bg2)' : 'var(--bg3)'};border:1px solid ${canAdd ? 'var(--border2)' : 'var(--border)'};margin-bottom:2px;`;
+
+  // 색상 도트
+  const dot = document.createElement('div');
+  dot.style.cssText = `width:10px;height:10px;border-radius:2px;background:${def.color};border:1.5px solid ${def.border};flex-shrink:0;`;
+
+  // 라벨
+  const lbl = document.createElement('div');
+  lbl.style.cssText = `flex:1;font-size:11px;font-weight:600;color:${canAdd ? 'var(--text)' : 'var(--text3)'};`;
+
+  // 모듈 크기 표시
+  const totalCols = def.cols + (def.hasFoyer ? 1 : 0);
+  const sizeStr = `${totalCols * CELL}×${def.rows * CELL}m`;
+  lbl.innerHTML = `${def.label}<br><span style="font-size:9px;font-weight:400;color:var(--text3);">${sizeStr}</span>`;
+
+  // 필요/여분
+  const cnt = document.createElement('div');
+  cnt.style.cssText = `font-size:10px;color:var(--text3);text-align:right;flex-shrink:0;`;
+  cnt.innerHTML = `필요 ${req}<br><span style="color:${remain===0?'var(--green)':'var(--accent)'};font-weight:700;">여분 ${remain}</span>`;
+
+  // 추가 버튼
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm';
+  btn.textContent = '추가';
+  btn.style.cssText = `font-size:10px;padding:3px 8px;flex-shrink:0;${canAdd ? 'background:var(--accent);color:#fff;border:none;' : 'background:var(--bg3);color:var(--text3);border:1px solid var(--border);cursor:not-allowed;'}`;
+  btn.disabled = !canAdd;
+  if(canAdd) btn.onclick = () => addCoreElement(defId);
+
+  row.appendChild(dot);
+  row.appendChild(lbl);
+  row.appendChild(cnt);
+  row.appendChild(btn);
+  container.appendChild(row);
+}
+
+// ── 요소 추가 ──
+function addCoreElement(defId){
+  const def = CORE_DEF.find(d => d.id === defId);
+  if(!def) return;
+
+  // 빈 위치 찾기 (좌상단부터)
+  const totalCols = def.cols + (def.hasFoyer ? 1 : 0);
+  const pos = findFreePos(totalCols, def.rows);
+
+  if(def.hasFoyer){
+    // 메인 칸
+    CD.elements.push({
+      uid: CD.nextId++,
+      defId,
+      label: def.label,
+      col: pos.col,
+      row: pos.row,
+      cols: def.cols,
+      rows: def.rows,
+      color: def.color,
+      border: def.border,
+      textColor: def.textColor,
+      groupId: CD.nextId,
+    });
+    // 전실 칸 (오른쪽에 붙음)
+    CD.elements.push({
+      uid: CD.nextId++,
+      defId: defId + '-foyer',
+      label: '전실',
+      col: pos.col + def.cols,
+      row: pos.row,
+      cols: 1,
+      rows: def.rows,
+      color: FOYER_DEF.color,
+      border: FOYER_DEF.border,
+      textColor: FOYER_DEF.textColor,
+      groupId: CD.nextId - 1,
+      isFoyer: true,
+    });
+  } else {
+    CD.elements.push({
+      uid: CD.nextId++,
+      defId,
+      label: def.label,
+      col: pos.col,
+      row: pos.row,
+      cols: def.cols,
+      rows: def.rows,
+      color: def.color,
+      border: def.border,
+      textColor: def.textColor,
+    });
+  }
+
+  CD.placed[defId] = (CD.placed[defId] || 0) + 1;
+  drawCoreCanvas();
+  renderCoreList();
+}
+
+// ── 빈 위치 탐색 ──
+function findFreePos(cols, rows){
+  const occupied = new Set();
+  CD.elements.forEach(el => {
+    for(let c = el.col; c < el.col + el.cols; c++)
+      for(let r = el.row; r < el.row + el.rows; r++)
+        occupied.add(`${c},${r}`);
+  });
+
+  // 16×16 범위 내에서 탐색
+  for(let r = 0; r < 16; r++){
+    for(let c = 0; c < 16; c++){
+      let free = true;
+      for(let dc = 0; dc < cols && free; dc++)
+        for(let dr = 0; dr < rows && free; dr++)
+          if(occupied.has(`${c+dc},${r+dr}`)) free = false;
+      if(free) return {col:c, row:r};
+    }
+  }
+  return {col:0, row: Math.max(...CD.elements.map(e=>e.row+e.rows), 0)};
+}
+
+// ── 요소 삭제 ──
+function removeCoreElement(uid){
+  const el = CD.elements.find(e => e.uid === uid);
+  if(!el) return;
+
+  // 그룹 (전실 포함) 삭제
+  if(el.groupId || el.isFoyer){
+    const gid = el.groupId || (CD.elements.find(e2 => e2.groupId === el.groupId && e2.isFoyer !== true)?.groupId);
+    const mainEl = el.isFoyer ? CD.elements.find(e2 => e2.groupId === el.uid) : el;
+    const realDefId = el.isFoyer ? (CD.elements.find(e2 => e2.uid === el.groupId)?.defId) : el.defId;
+
+    // 같은 groupId 가진 것들 모두 제거
+    const removeUids = CD.elements
+      .filter(e => e.uid === uid || e.groupId === uid || (el.isFoyer && e.uid === el.groupId))
+      .map(e => e.uid);
+    CD.elements = CD.elements.filter(e => !removeUids.includes(e.uid));
+
+    const actualDefId = realDefId || el.defId;
+    if(!el.isFoyer && CD.placed[actualDefId] > 0){
+      CD.placed[actualDefId]--;
+    }
+  } else {
+    CD.elements = CD.elements.filter(e => e.uid !== uid);
+    if(!el.isFoyer && CD.placed[el.defId] > 0){
+      CD.placed[el.defId]--;
+    }
+  }
+
+  drawCoreCanvas();
+  renderCoreList();
+}
+
+// ── 캔버스 그리기 ──
+let _cDrag = null; // 드래그 상태
+
+function drawCoreCanvas(){
+  const wrap = $('core-canvas-wrap');
+  const canvas = $('core-canvas');
+  if(!wrap || !canvas) return;
+
+  // 필요한 그리드 크기 계산 (최소 16×12)
+  let maxC = 15, maxR = 11;
+  CD.elements.forEach(el => {
+    maxC = Math.max(maxC, el.col + el.cols);
+    maxR = Math.max(maxR, el.row + el.rows);
+  });
+  maxC = Math.max(maxC + 2, 16);
+  maxR = Math.max(maxR + 2, 12);
+
+  const W = maxC * GRID;
+  const H = maxR * GRID;
+  canvas.width  = W;
+  canvas.height = H;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+
+  // 배경
+  ctx.fillStyle = '#f8f9fb';
+  ctx.fillRect(0,0,W,H);
+
+  // 그리드
+  ctx.strokeStyle = '#e2e4ea';
+  ctx.lineWidth = 0.5;
+  for(let c=0; c<=maxC; c++){
+    ctx.beginPath(); ctx.moveTo(c*GRID,0); ctx.lineTo(c*GRID,H); ctx.stroke();
+  }
+  for(let r=0; r<=maxR; r++){
+    ctx.beginPath(); ctx.moveTo(0,r*GRID); ctx.lineTo(W,r*GRID); ctx.stroke();
+  }
+
+  // 치수 라벨 (상단, 좌측)
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '9px Pretendard,sans-serif';
+  ctx.textAlign = 'center';
+  for(let c=0; c<maxC; c++){
+    ctx.fillText((c*CELL).toFixed(1)+'m', c*GRID + GRID/2, 10);
+  }
+  ctx.textAlign = 'right';
+  for(let r=0; r<maxR; r++){
+    ctx.fillText((r*CELL).toFixed(1)+'m', GRID-4, r*GRID + GRID/2 + 3);
+  }
+
+  // 요소 그리기
+  CD.elements.forEach(el => {
+    const x = el.col * GRID;
+    const y = el.row * GRID;
+    const w = el.cols * GRID;
+    const h = el.rows * GRID;
+
+    // 채우기
+    ctx.fillStyle = el.color;
+    ctx.fillRect(x+1, y+1, w-2, h-2);
+
+    // 테두리
+    ctx.strokeStyle = el.border;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x+1, y+1, w-2, h-2);
+
+    // 라벨
+    ctx.fillStyle = el.textColor;
+    ctx.font = `bold ${el.cols > 1 ? 11 : 10}px Pretendard,sans-serif`;
+    ctx.textAlign = 'center';
+
+    const lines = el.label.split(' ');
+    const lineH = 13;
+    const totalTH = lines.length * lineH;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x + w/2, y + h/2 - totalTH/2 + i*lineH + lineH*0.7, w-6);
+    });
+
+    // 치수 (가로)
+    const dimStr = `${(el.cols*CELL).toFixed(1)}m`;
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '8px Pretendard,sans-serif';
+    ctx.fillText(dimStr, x + w/2, y + h - 4);
+  });
+}
+
+// ── 드래그 ──
+function initCoreDragEvents(){
+  const canvas = $('core-canvas');
+  if(!canvas) return;
+
+  canvas.addEventListener('mousedown', e => {
+    if(e.button !== 0) return;
+    const {col, row} = canvasPosToCR(canvas, e);
+    const el = CD.elements.find(el =>
+      col >= el.col && col < el.col + el.cols &&
+      row >= el.row && row < el.row + el.rows
+    );
+    if(!el) return;
+
+    // 그룹 전체를 드래그 (전실 포함)
+    const groupEls = el.groupId
+      ? CD.elements.filter(e2 => e2.uid === el.groupId || e2.groupId === el.uid || e2.uid === el.uid || e2.groupId === el.groupId)
+      : el.isFoyer
+        ? CD.elements.filter(e2 => e2.uid === el.groupId || e2.groupId === el.groupId || e2.uid === el.uid)
+        : [el];
+
+    const uniqueGroup = [...new Map(groupEls.map(e=>[e.uid,e])).values()];
+
+    _cDrag = {
+      els: uniqueGroup,
+      startCol: col,
+      startRow: row,
+      origPositions: uniqueGroup.map(e => ({uid: e.uid, col: e.col, row: e.row})),
+    };
+    canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if(!_cDrag) return;
+    const {col, row} = canvasPosToCR(canvas, e);
+    const dc = col - _cDrag.startCol;
+    const dr = row - _cDrag.startRow;
+
+    _cDrag.els.forEach((el, i) => {
+      const orig = _cDrag.origPositions[i];
+      el.col = Math.max(0, orig.col + dc);
+      el.row = Math.max(0, orig.row + dr);
+    });
+    drawCoreCanvas();
+  });
+
+  const endDrag = () => {
+    if(!_cDrag) return;
+    _cDrag = null;
+    $('core-canvas').style.cursor = 'default';
+    resolveCollisions();
+    drawCoreCanvas();
+  };
+  canvas.addEventListener('mouseup', endDrag);
+  canvas.addEventListener('mouseleave', endDrag);
+
+  // 우클릭 삭제
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const {col, row} = canvasPosToCR(canvas, e);
+    const el = CD.elements.find(el =>
+      col >= el.col && col < el.col + el.cols &&
+      row >= el.row && row < el.row + el.rows
+    );
+    if(el) removeCoreElement(el.uid);
+  });
+
+  // 호버 커서
+  canvas.addEventListener('mousemove', e => {
+    if(_cDrag) return;
+    const {col, row} = canvasPosToCR(canvas, e);
+    const over = CD.elements.some(el =>
+      col >= el.col && col < el.col + el.cols &&
+      row >= el.row && row < el.row + el.rows
+    );
+    canvas.style.cursor = over ? 'grab' : 'default';
+  });
+}
+
+function canvasPosToCR(canvas, e){
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  return { col: Math.floor(x / GRID), row: Math.floor(y / GRID) };
+}
+
+// ── 충돌 해소 (겹치면 우측으로 밀기) ──
+function resolveCollisions(){
+  // 드래그된 요소들을 제외한 나머지와 충돌 시 밀기
+  // 간단 구현: 충돌하는 요소를 우측으로 한 칸씩 이동
+  const MAX_ITER = 50;
+  for(let iter=0; iter<MAX_ITER; iter++){
+    let moved = false;
+    for(let i=0; i<CD.elements.length; i++){
+      for(let j=i+1; j<CD.elements.length; j++){
+        const a = CD.elements[i], b = CD.elements[j];
+        if(overlaps(a,b)){
+          // b를 a 오른쪽으로 밀기
+          b.col = a.col + a.cols;
+          moved = true;
+        }
+      }
+    }
+    if(!moved) break;
+  }
+}
+
+function overlaps(a, b){
+  return a.col < b.col+b.cols && a.col+a.cols > b.col &&
+         a.row < b.row+b.rows && a.row+a.rows > b.row;
+}
+
+// ── 다음 버튼 활성화 체크 ──
+function updateCoreNextBtn(){
+  const btn = $('core-next-btn');
+  if(!btn) return;
+  const allDone = CORE_DEF.every(def => {
+    const req = CD.required[def.id] || 0;
+    const placed = CD.placed[def.id] || 0;
+    return placed >= req;
+  });
+  if(allDone){
+    btn.disabled = false;
+    btn.style.cssText = 'font-size:13px;padding:11px;letter-spacing:.01em;background:var(--accent);color:#fff;border:none;cursor:pointer;width:100%;border-radius:6px;font-weight:600;';
+  } else {
+    btn.disabled = true;
+    btn.style.cssText = 'font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;width:100%;border-radius:6px;font-weight:600;';
+  }
+}
+
+// ── 초기화 ──
+function resetCoreCanvas(){
+  CD.elements = [];
+  CD.placed   = {};
+  CD.nextId   = 1;
+  drawCoreCanvas();
+  renderCoreList();
+}
+
+function initCoreDesign(){
+  // 수량 산출
+  CD.required = calcCoreRequirements();
+  CD.placed   = {};
+  CD.elements = [];
+  CD.nextId   = 1;
+
+  // 캔버스 초기화
+  drawCoreCanvas();
+  renderCoreList();
+
+  // 드래그 이벤트 (한 번만 등록)
+  const canvas = $('core-canvas');
+  if(canvas && !canvas._coreEventsInit){
+    canvas._coreEventsInit = true;
+    initCoreDragEvents();
+  }
+
+  // 캔버스 크기 맞추기
+  setTimeout(() => {
+    const map = $('core-canvas-wrap');
+    if(map) { drawCoreCanvas(); }
+  }, 100);
 }
 
 function extractAboveTypes(){
