@@ -299,15 +299,17 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <span class="step-sep">›</span>
   <button class="step-btn" data-step="3" onclick="goStep(3)"><span class="snum">4</span>지하 볼륨</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="snum">5</span>배치 계획</button>
+  <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="snum">5</span>코어 계획</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="snum">6</span>3D 모델링</button>
+  <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="snum">6</span>기준층 계획</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="snum">7</span>층별 개요</button>
+  <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="snum">7</span>3D 모델링</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="7" onclick="goStep(7)"><span class="snum">8</span>승강기 계획</button>
+  <button class="step-btn" data-step="7" onclick="goStep(7)"><span class="snum">8</span>층별 개요</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="8" onclick="goStep(8)"><span class="snum">9</span>평면 다이어그램</button>
+  <button class="step-btn" data-step="8" onclick="goStep(8)"><span class="snum">9</span>승강기 계획</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="9" onclick="goStep(9)"><span class="snum">10</span>평면 다이어그램</button>
 </div>
 
 <!-- MAIN -->
@@ -627,7 +629,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     <div style="flex:1;"></div>
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
       <button class="btn btn-primary btn-full" onclick="goStep(4)"
-        style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 배치 계획 →</button>
+        style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 코어 계획 →</button>
     </div>
   </div>
 
@@ -713,20 +715,19 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 4: 코어 디자인 ═══ -->
+<!-- ═══ STEP 4: 코어 계획 ═══ -->
 <div id="step-4" class="step-panel" style="flex-direction:row;">
 
   <!-- 좌측 패널 -->
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
-      <h2>코어 디자인</h2>
-      <p>필요 요소를 모두 배치하면 다음 단계로 이동합니다</p>
+      <h2>코어 계획</h2>
     </div>
     <div style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:4px;" id="core-element-list"></div>
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
       <button id="core-next-btn" class="btn btn-full"
         style="font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;"
-        disabled onclick="goStep(5)">다음: 3D 모델링 →</button>
+        disabled onclick="goStep(5)">다음: 기준층 계획 →</button>
     </div>
   </div>
 
@@ -737,7 +738,6 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <span style="font-size:11px;font-weight:600;color:var(--text2);">코어 편집</span>
       <span style="font-size:10px;color:var(--text3);">선택 후 &nbsp; R키/↻: 회전 &nbsp;|&nbsp; F키/↔: 좌우반전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
       <div style="flex:1;"></div>
-      <span style="font-size:10px;color:var(--text3);">1칸 = 2.9m</span>
       <button class="btn btn-secondary btn-sm" onclick="resetCoreCanvas()" style="font-size:10px;padding:3px 8px;">초기화</button>
     </div>
     <!-- SVG 캔버스 -->
@@ -747,8 +747,44 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 5: 3D ═══ -->
+
+<!-- ═══ STEP 5: 기준층 계획 ═══ -->
 <div id="step-5" class="step-panel" style="flex-direction:row;">
+
+  <!-- 좌측 패널 -->
+  <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>기준층 계획</h2>
+    </div>
+
+    <!-- 코어 블록 목록 -->
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">코어 블록</div>
+      <div id="fl-core-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <div style="flex:1;"></div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="goStep(6)" style="font-size:13px;padding:11px;">다음: 3D 모델링 →</button>
+    </div>
+  </div>
+
+  <!-- 우측: 기준층 SVG 캔버스 -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
+    <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
+      <span style="font-size:11px;font-weight:600;color:var(--text2);">기준층 편집</span>
+      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; R키/↻: 회전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
+      <div style="flex:1;"></div>
+      <button class="btn btn-secondary btn-sm" onclick="resetFloorPlan()" style="font-size:10px;padding:3px 8px;">초기화</button>
+    </div>
+    <div id="fl-canvas-wrap" style="flex:1;overflow:auto;position:relative;cursor:default;">
+      <svg id="fl-svg" xmlns="http://www.w3.org/2000/svg" style="display:block;"></svg>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 5: 3D ═══ -->
+<div id="step-6" class="step-panel" style="flex-direction:row;">
   <div style="width:240px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>3D 매스 모델링</h2>
@@ -764,7 +800,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         <div class="stat-row" style="margin-top:4px;"><span class="stat-label">지하 층수</span><span class="stat-val" id="3d-below">-</span></div>
         <div class="stat-row" style="margin-top:4px;"><span class="stat-label">총 높이</span><span class="stat-val" id="3d-height">-</span></div>
       </div>
-      <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(6)">다음: 층별 개요 →</button>
+      <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(7)">다음: 층별 개요 →</button>
     </div>
   </div>
   <div id="view3d-container" style="flex:1;position:relative;">
@@ -779,7 +815,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 </div>
 
 <!-- ═══ STEP 6: 층별 개요 ═══ -->
-<div id="step-6" class="step-panel" style="flex-direction:column;">
+<div id="step-7" class="step-panel" style="flex-direction:column;">
   <div style="display:flex;flex:1;overflow:hidden;">
     <!-- left -->
     <div style="width:240px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
@@ -811,7 +847,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           <div class="sec-label" style="margin-bottom:5px;">변경 이력</div>
           <div id="change-log"><div style="font-size:10px;color:var(--text3);">변경 없음</div></div>
         </div>
-        <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(7)">다음: 승강기 계획 →</button>
+        <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(8)">다음: 승강기 계획 →</button>
       </div>
     </div>
     <!-- table -->
@@ -828,7 +864,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 </div>
 
 <!-- ═══ STEP 7: 승강기 ═══ -->
-<div id="step-7" class="step-panel" style="flex-direction:row;">
+<div id="step-8" class="step-panel" style="flex-direction:row;">
   <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>승강기 계획</h2>
@@ -854,7 +890,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           <div class="form-group"><label>대수</label><input type="number" id="elev-vip-n" value="1" min="1" max="4" oninput="calcElevTraffic()" disabled></div>
         </div>
       </div>
-      <button class="btn btn-primary btn-full" onclick="goStep(8)">다음: 평면 다이어그램 →</button>
+      <button class="btn btn-primary btn-full" onclick="goStep(9)">다음: 평면 다이어그램 →</button>
     </div>
   </div>
   <!-- 교통량 분석 -->
@@ -865,7 +901,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 </div>
 
 <!-- ═══ STEP 8: 평면 다이어그램 ═══ -->
-<div id="step-8" class="step-panel" style="flex-direction:row;">
+<div id="step-9" class="step-panel" style="flex-direction:row;">
   <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>평면 다이어그램</h2>
@@ -951,8 +987,9 @@ function goStep(idx){
   if(idx===2){ initStep2(); }
   if(idx===3){ initUnderDiagram(); }
   if(idx===4){ initBoundaryStep(); }
-  if(idx===5){ initThreeJS(); }
-  if(idx===6){ buildFloorTable(); recalcFAR(); }
+  if(idx===5){ initFloorPlanStep(); }
+  if(idx===6){ initThreeJS(); }
+  if(idx===7){ buildFloorTable(); recalcFAR(); }
   if(idx===7){ calcElevTraffic(); updateElevCards(); }
   if(idx===8){ drawDiagram(); }
 }
@@ -3035,21 +3072,23 @@ const CELL = 2.9; // meters
 
 // SVG 심볼 (인라인, 정확한 비율 viewBox)
 const CORE_SVGS = {
-  elevator: `<svg preserveAspectRatio="none" viewBox="149 8 727 726" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="148.975,733.58 875.025,733.58 875.025,7.52941 148.975,7.52941 148.975,733.58 " /> <polyline points="646.454,182.588 646.454,228.303 " /> <polyline points="377.546,182.588 377.546,228.303 " /> <polyline points="646.454,182.588 377.546,182.588 " /> <polyline points="646.454,228.303 377.546,228.303 " /> <polyline points="353.345,680.067 353.345,689.479 670.655,689.479 670.655,680.067 353.345,680.067 " /> <polyline points="670.655,677.378 662.588,677.378 662.588,663.933 780.908,663.933 780.908,260.571 243.092,260.571 243.092,663.933 361.412,663.933 361.412,677.378 353.345,677.378 " /> <polyline points="216.202,698.084 807.798,698.084 807.798,673.882 794.353,673.882 794.353,247.126 229.647,247.126 229.647,673.882 216.202,673.882 216.202,698.084 " /> <polyline points="353.345,711.529 670.655,711.529 670.655,720.941 353.345,720.941 353.345,711.529 " /> <polyline points="512,680.067 512,689.479 " /> <polyline points="512,711.529 512,720.941 " /> <polyline points="780.908,260.571 243.092,663.933 " /> <polyline points="780.908,663.933 243.092,260.571 " /> <polyline points="346.622,724.168 346.622,728.236 345.277,728.236 345.277,722.824 364.101,722.824 353.345,760.471 345.277,760.471 345.277,755.092 346.622,755.092 346.622,759.126 352.184,759.126 362.543,724.168 346.622,724.168 " /> <polyline points="678.723,722.824 807.798,722.824 807.798,706.151 216.202,706.151 216.202,722.824 345.277,722.824 " /> <polyline points="677.378,724.168 677.378,728.236 678.723,728.236 678.723,722.824 659.899,722.824 670.655,760.471 678.723,760.471 678.723,755.092 677.378,755.092 677.378,759.126 671.816,759.126 661.457,724.168 677.378,724.168 " /> <polyline points="377.546,182.588 377.546,228.303 " /> </g> </svg>`,
-  foyer:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <path d="M679.32,425.83 A334.641,334.641 0 0,0 344.68,760.471 " /> <polyline points="679.32,760.471 679.32,425.83 " /> </g> </svg>`,
-  shaft:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <polyline points="888.471,7.52941 135.529,760.471 " /> <polyline points="135.529,7.52941 888.471,760.471 " /> </g> </svg>`,
-  stair:    `<svg preserveAspectRatio="none" viewBox="10 142 1004 484" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="1013.96,141.983 1013.96,626.017 10.0392,626.017 10.0392,141.983 1013.96,141.983 " /> <polyline points="512,626.017 512,141.983 " /> <polyline points="780.908,626.017 780.908,141.983 " /> <polyline points="727.126,626.017 727.126,141.983 " /> <polyline points="673.345,626.017 673.345,141.983 " /> <polyline points="619.563,626.017 619.563,141.983 " /> <polyline points="565.782,626.017 565.782,141.983 " /> <polyline points="243.092,626.017 243.092,141.983 " /> <polyline points="296.874,626.017 296.874,141.983 " /> <polyline points="350.655,626.017 350.655,141.983 " /> <polyline points="404.437,626.017 404.437,141.983 " /> <polyline points="458.218,626.017 458.218,141.983 " /> <polyline points="243.092,384 780.908,384 " /> </g> </svg>`,
+  elevator: `<svg preserveAspectRatio="none" viewBox="149 8 727 726" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="8px" /> <g fill="none" stroke="#1a1d26" stroke-width="8px" > <polyline points="148.975,733.58 875.025,733.58 875.025,7.52941 148.975,7.52941 148.975,733.58 " /> <polyline points="646.454,182.588 646.454,228.303 " /> <polyline points="377.546,182.588 377.546,228.303 " /> <polyline points="646.454,182.588 377.546,182.588 " /> <polyline points="646.454,228.303 377.546,228.303 " /> <polyline points="353.345,680.067 353.345,689.479 670.655,689.479 670.655,680.067 353.345,680.067 " /> <polyline points="670.655,677.378 662.588,677.378 662.588,663.933 780.908,663.933 780.908,260.571 243.092,260.571 243.092,663.933 361.412,663.933 361.412,677.378 353.345,677.378 " /> <polyline points="216.202,698.084 807.798,698.084 807.798,673.882 794.353,673.882 794.353,247.126 229.647,247.126 229.647,673.882 216.202,673.882 216.202,698.084 " /> <polyline points="353.345,711.529 670.655,711.529 670.655,720.941 353.345,720.941 353.345,711.529 " /> <polyline points="512,680.067 512,689.479 " /> <polyline points="512,711.529 512,720.941 " /> <polyline points="780.908,260.571 243.092,663.933 " /> <polyline points="780.908,663.933 243.092,260.571 " /> <polyline points="346.622,724.168 346.622,728.236 345.277,728.236 345.277,722.824 364.101,722.824 353.345,760.471 345.277,760.471 345.277,755.092 346.622,755.092 346.622,759.126 352.184,759.126 362.543,724.168 346.622,724.168 " /> <polyline points="678.723,722.824 807.798,722.824 807.798,706.151 216.202,706.151 216.202,722.824 345.277,722.824 " /> <polyline points="677.378,724.168 677.378,728.236 678.723,728.236 678.723,722.824 659.899,722.824 670.655,760.471 678.723,760.471 678.723,755.092 677.378,755.092 677.378,759.126 671.816,759.126 661.457,724.168 677.378,724.168 " /> <polyline points="377.546,182.588 377.546,228.303 " /> </g> </svg>`,
+  foyer:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="8px" /> <g fill="none" stroke="#1a1d26" stroke-width="8px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <path d="M679.32,425.83 A334.641,334.641 0 0,0 344.68,760.471 " /> <polyline points="679.32,760.471 679.32,425.83 " /> </g> </svg>`,
+  shaft:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="8px" /> <g fill="none" stroke="#1a1d26" stroke-width="8px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <polyline points="888.471,7.52941 135.529,760.471 " /> <polyline points="135.529,7.52941 888.471,760.471 " /> </g> </svg>`,
+  stair:    `<svg preserveAspectRatio="none" viewBox="10 142 1004 484" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="8px" /> <g fill="none" stroke="#1a1d26" stroke-width="8px" > <polyline points="1013.96,141.983 1013.96,626.017 10.0392,626.017 10.0392,141.983 1013.96,141.983 " /> <polyline points="512,626.017 512,141.983 " /> <polyline points="780.908,626.017 780.908,141.983 " /> <polyline points="727.126,626.017 727.126,141.983 " /> <polyline points="673.345,626.017 673.345,141.983 " /> <polyline points="619.563,626.017 619.563,141.983 " /> <polyline points="565.782,626.017 565.782,141.983 " /> <polyline points="243.092,626.017 243.092,141.983 " /> <polyline points="296.874,626.017 296.874,141.983 " /> <polyline points="350.655,626.017 350.655,141.983 " /> <polyline points="404.437,626.017 404.437,141.983 " /> <polyline points="458.218,626.017 458.218,141.983 " /> <polyline points="243.092,384 780.908,384 " /> </g> </svg>`,
 };
 
 // 요소 정의
 const CORE_DEF = [
   { id:'stair-s',  label:'피난계단',     baseCols:2, baseRows:1, color:'#dcfce7', border:'#22c55e', textColor:'#14532d', svgKey:'stair' },
   { id:'stair-sp', label:'특별피난계단', baseCols:2, baseRows:1, color:'#d1fae5', border:'#10b981', textColor:'#064e3b', svgKey:'stair' },
-  { id:'ev',       label:'승용 EV',      baseCols:1, baseRows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af', svgKey:'elevator' },
-  { id:'ev-emg',   label:'비상 EV',      baseCols:1, baseRows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', svgKey:'elevator' },
-  { id:'ev-evac',  label:'피난 EV',      baseCols:1, baseRows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', svgKey:'elevator' },
-  { id:'foyer-ev', label:'EV 전실',      baseCols:1, baseRows:1, color:'#eff6ff', border:'#93c5fd', textColor:'#1e40af', svgKey:'foyer' },
-  { id:'foyer-st', label:'계단 전실',    baseCols:1, baseRows:1, color:'#f0fdf4', border:'#86efac', textColor:'#14532d', svgKey:'foyer' },
+  { id:'ev',         label:'승용 EV',        baseCols:1, baseRows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af', svgKey:'elevator' },
+  { id:'ev-emg',     label:'비상 EV',        baseCols:1, baseRows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', svgKey:'elevator' },
+  { id:'ev-evac',    label:'피난 EV',        baseCols:1, baseRows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', svgKey:'elevator' },
+  { id:'foyer-emg',  label:'비상EV 전실',    baseCols:1, baseRows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', svgKey:'foyer' },
+  { id:'foyer-evac', label:'피난EV 전실',    baseCols:1, baseRows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', svgKey:'foyer' },
+  { id:'foyer-ev',   label:'승용EV 전실',    baseCols:1, baseRows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af', svgKey:'foyer' },
+  { id:'foyer-st',   label:'계단 전실',      baseCols:1, baseRows:1, color:'#d1fae5', border:'#10b981', textColor:'#064e3b', svgKey:'foyer' },
   { id:'av',  label:'AV',  baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
   { id:'eps', label:'EPS', baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
   { id:'tps', label:'TPS', baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
@@ -3061,6 +3100,7 @@ let CD = {
   elements: [],
   required: {},
   placed:   {},
+  extra:    {}, // 요소별 여유분 (사용자 입력)
   selected: null,
   nextId: 1,
   drag: null,
@@ -3080,16 +3120,32 @@ function calcCoreRequirements(){
   if(aboveF >= 11 || underF >= 3){ req['stair-sp']=2; req['stair-s']=0; }
   else { req['stair-s']=2; req['stair-sp']=0; }
 
+  // 비상EV 먼저 산정
+  const emgCount  = totalH > 31 ? (maxFloorArea<=1500 ? 1 : 1+Math.ceil((maxFloorArea-1500)/3000)) : 0;
+  req['ev-emg']  = emgCount;
+  req['ev-evac'] = (aboveF>=30 || totalH>=120) ? 1 : 0;
+
+  // 승용EV 법정 산출
   let evCount = 0;
   if(aboveF >= 6 && gfa6plus > 0){
     evCount = gfa6plus <= 3000 ? 1 : 1 + Math.ceil((gfa6plus-3000)/2000);
   }
-  req['ev']      = Math.max(evCount, aboveF>=6 ? 1 : 0);
-  req['ev-emg']  = totalH > 31 ? (maxFloorArea<=1500 ? 1 : 1+Math.ceil((maxFloorArea-1500)/3000)) : 0;
-  req['ev-evac'] = (aboveF>=30 || totalH>=120) ? 1 : 0;
+  const evRaw = aboveF >= 6 ? Math.max(evCount, 1) : evCount;
+
+  // 비상EV 겸용 차감: 비상EV 1대 = 16인승 기준 2대에 해당
+  const emgDeduct = emgCount * 2;
+  const evAfterDeduct = Math.max(0, evRaw - emgDeduct);
+  // 남은 수량 16인승 기준 ceil(/2), 최소 0 (초기값은 1로 extra에서 관리)
+  req['ev'] = Math.ceil(evAfterDeduct / 2);
+
+  // 단서 조항 노트
+  req['_evNote'] = `법정 ${evRaw}대 - 비상EV겸용 ${emgDeduct}대 → 16인승 기준 ${req['ev']}대`;
+
   req['av']=req['eps']=req['tps']=req['ad']=req['ps']=1;
-  req['foyer-ev'] = (req['ev-emg']||0) + (req['ev-evac']||0);
-  req['foyer-st'] = req['stair-sp']||0;
+  req['foyer-emg']  = req['ev-emg']  || 0;
+  req['foyer-evac'] = req['ev-evac'] || 0;
+  req['foyer-st']   = req['stair-sp'] || 0;
+  req['foyer-ev']   = 0; // 승용EV 전실: 필요값 0, 여유분으로만 추가
   return req;
 }
 
@@ -3100,7 +3156,7 @@ function renderCoreList(){
   const sections = [
     { title:'계단', ids:['stair-sp','stair-s'] },
     { title:'승강기', ids:['ev','ev-emg','ev-evac'] },
-    { title:'전실', ids:['foyer-ev','foyer-st'] },
+    { title:'전실', ids:['foyer-emg','foyer-evac','foyer-ev','foyer-st'] },
     { title:'설비', ids:['av','eps','tps','ad','ps'] },
   ];
   sections.forEach(sec => {
@@ -3108,6 +3164,13 @@ function renderCoreList(){
     hd.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:6px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;';
     hd.textContent = sec.title;
     list.appendChild(hd);
+    // 승용 EV 단서 조항 표기
+    if(sec.title==='승강기' && CD.required['_evNote']){
+      const note = document.createElement('div');
+      note.style.cssText = 'font-size:9px;color:var(--text3);padding:2px 4px 4px;line-height:1.4;';
+      note.textContent = `※ ${CD.required['_evNote']} (16인승 이상=2대 산정)`;
+      list.appendChild(note);
+    }
     sec.ids.forEach(id => renderCoreRow(list, id));
   });
   updateCoreNextBtn();
@@ -3116,32 +3179,74 @@ function renderCoreList(){
 function renderCoreRow(container, defId){
   const def = CORE_DEF.find(d=>d.id===defId);
   if(!def) return;
-  const req    = CD.required[defId]||0;
-  const placed = CD.placed[defId]||0;
-  const remain = Math.max(0, req-placed);
+  const req    = CD.required[defId] || 0;
+  const placed = CD.placed[defId]   || 0;
+  const extra  = CD.extra[defId]    || 0;
+  // 승용EV: 초기 여유분 req가 0이면 extra 기본 1
+  const effectiveExtra = (defId==='ev' && req===0 && extra===0) ? 1 : extra;
+  if(defId==='ev' && req===0 && CD.extra[defId]===undefined) CD.extra[defId]=1;
+  const total  = req + effectiveExtra; // 필요 + 여유분
+  const remain = Math.max(0, total - placed);
   const canAdd = remain > 0;
 
   const row = document.createElement('div');
-  row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:5px;background:${canAdd?'var(--bg2)':'var(--bg3)'};border:1px solid ${canAdd?'var(--border2)':'var(--border)'};margin-bottom:2px;`;
+  row.style.cssText = `display:flex;align-items:center;gap:4px;padding:5px 4px;border-radius:5px;background:${canAdd?'var(--bg2)':'var(--bg3)'};border:1px solid ${canAdd?'var(--border2)':'var(--border)'};margin-bottom:2px;flex-wrap:wrap;`;
 
+  // 색상 도트 + 라벨
+  const left = document.createElement('div');
+  left.style.cssText = 'display:flex;align-items:center;gap:4px;flex:1;min-width:0;';
   const dot = document.createElement('div');
-  dot.style.cssText = `width:10px;height:10px;border-radius:2px;background:${def.color};border:1.5px solid ${def.border};flex-shrink:0;`;
-
+  dot.style.cssText = `width:8px;height:8px;border-radius:2px;background:${def.color};border:1.5px solid ${def.border};flex-shrink:0;`;
   const lbl = document.createElement('div');
-  lbl.style.cssText = `flex:1;font-size:11px;font-weight:600;color:${canAdd?'var(--text)':'var(--text3)'};`;
-  lbl.innerHTML = `${def.label}<br><span style="font-size:9px;font-weight:400;color:var(--text3);">${def.baseCols*CELL}×${def.baseRows*CELL}m</span>`;
+  lbl.style.cssText = `font-size:10px;font-weight:600;color:${canAdd?'var(--text)':'var(--text3)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+  lbl.textContent = def.label;
+  left.append(dot, lbl);
 
-  const cnt = document.createElement('div');
-  cnt.style.cssText = 'font-size:10px;color:var(--text3);text-align:right;flex-shrink:0;';
-  cnt.innerHTML = `필요 ${req}<br><span style="color:${remain===0?'var(--green)':'var(--accent)'};font-weight:700;">여분 ${remain}</span>`;
+  // 필요 수
+  const reqEl = document.createElement('div');
+  reqEl.style.cssText = 'font-size:10px;color:var(--text3);flex-shrink:0;';
+  reqEl.textContent = `필요 ${req}`;
 
+  // 여유분 ↑↓ 입력칸
+  const extraWrap = document.createElement('div');
+  extraWrap.style.cssText = 'display:flex;align-items:center;gap:0;flex-shrink:0;';
+  const btnDn = document.createElement('button');
+  btnDn.textContent = '▼';
+  btnDn.style.cssText = 'font-size:8px;padding:1px 3px;background:var(--bg3);border:1px solid var(--border);border-radius:3px 0 0 3px;cursor:pointer;line-height:1;';
+  const extraInput = document.createElement('input');
+  extraInput.type = 'number';
+  extraInput.min = '0';
+  extraInput.value = CD.extra[defId] !== undefined ? CD.extra[defId] : (defId==='ev'&&req===0 ? 1 : 0);
+  extraInput.style.cssText = 'width:28px;text-align:center;font-size:10px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:1px 2px;background:var(--bg);color:var(--text);';
+  const btnUp = document.createElement('button');
+  btnUp.textContent = '▲';
+  btnUp.style.cssText = 'font-size:8px;padding:1px 3px;background:var(--bg3);border:1px solid var(--border);border-radius:0 3px 3px 0;cursor:pointer;line-height:1;';
+
+  const updateExtra = (val) => {
+    const v = Math.max(0, val);
+    CD.extra[defId] = v;
+    extraInput.value = v;
+    renderCoreList();
+  };
+  btnUp.onclick = () => updateExtra((CD.extra[defId]||0) + 1);
+  btnDn.onclick = () => updateExtra((CD.extra[defId]||0) - 1);
+  extraInput.onchange = () => updateExtra(parseInt(extraInput.value)||0);
+  extraWrap.append(btnDn, extraInput, btnUp);
+
+  // 잔여
+  const remEl = document.createElement('div');
+  remEl.style.cssText = `font-size:10px;font-weight:700;color:${remain===0?'var(--green)':'var(--accent)'};flex-shrink:0;`;
+  remEl.textContent = `잔여 ${remain}`;
+
+  // 추가 버튼
   const btn = document.createElement('button');
   btn.className = 'btn btn-sm';
   btn.textContent = '추가';
   btn.style.cssText = `font-size:10px;padding:3px 8px;flex-shrink:0;${canAdd?'background:var(--accent);color:#fff;border:none;':'background:var(--bg3);color:var(--text3);border:1px solid var(--border);cursor:not-allowed;'}`;
   btn.disabled = !canAdd;
-  if(canAdd) btn.onclick = ()=>addCoreElement(defId);
-  row.append(dot, lbl, cnt, btn);
+  if(canAdd) btn.onclick = () => addCoreElement(defId);
+
+  row.append(left, reqEl, extraWrap, remEl, btn);
   container.appendChild(row);
 }
 
@@ -3199,6 +3304,46 @@ function flipCoreElement(uid){
   renderSVG();
 }
 
+// ── 전실 인접 경고 체크 ──
+// 전실 요소: 해당 EV/계단과 인접(상하좌우 맞닿음)하지 않으면 true 반환
+// EV/계단 요소: 해당 전실이 하나도 인접하지 않으면 true 반환
+function checkFoyerAdjacency(el){
+  const foyerIds  = ['foyer-emg','foyer-evac','foyer-st'];
+  const emgIds    = ['ev-emg'];
+  const evacIds   = ['ev-evac'];
+  const stairIds  = ['stair-s','stair-sp'];
+
+  // 인접 판단: 두 요소가 상하좌우로 맞닿는지
+  function adjacent(a, b){
+    const touchH = a.row < b.row+b.rows && a.row+a.rows > b.row; // 행 겹침
+    const touchV = a.col < b.col+b.cols && a.col+a.cols > b.col; // 열 겹침
+    const adjL = a.col === b.col+b.cols; // a가 b 오른쪽에 맞닿음
+    const adjR = b.col === a.col+a.cols; // b가 a 오른쪽에 맞닿음
+    const adjT = a.row === b.row+b.rows; // a가 b 아래에 맞닿음
+    const adjB = b.row === a.row+a.rows; // b가 a 아래에 맞닿음
+    return (touchH && (adjL||adjR)) || (touchV && (adjT||adjB));
+  }
+
+  if(el.defId === 'foyer-ev'){
+    const targets = CD.elements.filter(e=>e.defId==='ev');
+    return targets.length > 0 && !targets.some(t=>adjacent(el,t));
+  }
+  if(el.defId === 'foyer-emg'){
+    // 비상EV 전실: ev-emg 중 하나와 인접해야
+    const targets = CD.elements.filter(e=>emgIds.includes(e.defId));
+    return targets.length > 0 && !targets.some(t=>adjacent(el,t));
+  }
+  if(el.defId === 'foyer-evac'){
+    const targets = CD.elements.filter(e=>evacIds.includes(e.defId));
+    return targets.length > 0 && !targets.some(t=>adjacent(el,t));
+  }
+  if(el.defId === 'foyer-st'){
+    const targets = CD.elements.filter(e=>stairIds.includes(e.defId));
+    return targets.length > 0 && !targets.some(t=>adjacent(el,t));
+  }
+  return false;
+}
+
 function renderSVG(){
   const svg = $('core-svg');
   if(!svg) return;
@@ -3230,18 +3375,6 @@ function renderSVG(){
   for(let r=0;r<=maxR;r++) grid.appendChild(mk('line',{x1:0,y1:r*GRID,x2:W,y2:r*GRID}));
   svg.appendChild(grid);
 
-  // 치수
-  const dimX = mk('g',{fill:'#b0b8c8','font-size':'9','font-family':'Pretendard,sans-serif','text-anchor':'middle'});
-  for(let c=0;c<maxC;c++){
-    const t=mk('text',{x:c*GRID+GRID/2,y:10}); t.textContent=`${(c*CELL).toFixed(1)}m`; dimX.appendChild(t);
-  }
-  svg.appendChild(dimX);
-  const dimY = mk('g',{fill:'#b0b8c8','font-size':'9','font-family':'Pretendard,sans-serif','text-anchor':'end'});
-  for(let r=0;r<maxR;r++){
-    const t=mk('text',{x:GRID-4,y:r*GRID+GRID/2+3}); t.textContent=`${(r*CELL).toFixed(1)}m`; dimY.appendChild(t);
-  }
-  svg.appendChild(dimY);
-
   // 요소
   CD.elements.forEach(el=>{
     const def = CORE_DEF.find(d=>d.id===el.defId);
@@ -3252,8 +3385,15 @@ function renderSVG(){
 
     const g = mk('g');
 
+    // 전실 인접 미리 체크 (배경 테두리에 사용)
+    const _warn = checkFoyerAdjacency(el);
+
     // 배경
-    const bg = mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,fill:def.color,stroke:isSel?'#2563eb':def.border,'stroke-width':isSel?2.5:1.5,rx:1});
+    const bg = mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,
+      fill:def.color,
+      stroke: _warn ? '#f97316' : (isSel?'#2563eb':def.border),
+      'stroke-width': _warn ? 2.5 : (isSel?2.5:1.5),
+      rx:1});
     g.appendChild(bg);
     if(isSel){
       const hl = mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,fill:'rgba(37,99,235,0.06)',rx:1});
@@ -3261,32 +3401,63 @@ function renderSVG(){
     }
 
     // SVG 심볼 (image 태그, preserveAspectRatio=none)
+    // 회전 원리: 항상 baseCols×baseRows 크기(0° 기준)를 그린 뒤 현재 칸 중심으로 회전
     const svgStr = CORE_SVGS[def.svgKey];
     if(svgStr){
       const b64 = btoa(unescape(encodeURIComponent(svgStr)));
+      const rot = el.rotation || 0;
+      const sx = el.flipX ? -1 : 1;
+
+      // 0° 기준 크기
+      const bw = def.baseCols * GRID;
+      const bh = def.baseRows * GRID;
+      // 0° 기준으로 그릴 위치 (중심 맞춤)
+      const bx = cx - bw/2;
+      const by = cy - bh/2;
+
       const img = mk('image',{
         href:`data:image/svg+xml;base64,${b64}`,
-        x:x+1, y:y+1, width:w-2, height:h-2,
+        x:bx, y:by, width:bw, height:bh,
         preserveAspectRatio:'none',
         'pointer-events':'none',
       });
-      const rot = el.rotation || 0;
-      const sx = el.flipX ? -1 : 1;
+      // 중심 기준 회전 + 좌우반전
       img.setAttribute('transform', `translate(${cx},${cy}) rotate(${rot}) scale(${sx},1) translate(${-cx},${-cy})`);
       g.appendChild(img);
     }
 
-    // 라벨 (항상 정중앙, 회전 없음)
+    // 전실 인접 경고 체크
+    const foyerWarn = _warn;
+
+    // 라벨 (항상 정중앙, 회전 없음) — 흰색 외곽선으로 배경과 무관하게 선명하게 표시
+    const lblText = foyerWarn ? `⚠ ${def.label}` : def.label;
+    // 외곽선 레이어 (흰색 stroke)
+    const lblStroke = mk('text',{
+      x:cx, y:cy+4,
+      'text-anchor':'middle',
+      'font-size':'11',
+      'font-weight':'700',
+      'font-family':'Pretendard,sans-serif',
+      fill:'none',
+      stroke:'white',
+      'stroke-width':'3',
+      'stroke-linejoin':'round',
+      'paint-order':'stroke',
+      'pointer-events':'none',
+    });
+    lblStroke.textContent = lblText;
+    g.appendChild(lblStroke);
+    // 텍스트 레이어
     const lbl = mk('text',{
       x:cx, y:cy+4,
       'text-anchor':'middle',
       'font-size':'11',
       'font-weight':'700',
       'font-family':'Pretendard,sans-serif',
-      fill:def.textColor,
+      fill: foyerWarn ? '#dc2626' : def.textColor,
       'pointer-events':'none',
     });
-    lbl.textContent = def.label;
+    lbl.textContent = lblText;
     g.appendChild(lbl);
 
     // 핸들 (선택 시)
@@ -3393,8 +3564,13 @@ function resolveCollisions(){
 function updateCoreNextBtn(){
   const btn=$('core-next-btn');
   if(!btn) return;
-  const allDone=CORE_DEF.every(def=>{
-    return (CD.placed[def.id]||0) >= (CD.required[def.id]||0);
+  const allDone = CORE_DEF.every(def => {
+    const req    = CD.required[def.id] || 0;
+    const extra  = CD.extra[def.id]    || 0;
+    const placed = CD.placed[def.id]   || 0;
+    // 승용EV: extra 기본 1 반영
+    const eff = (def.id==='ev' && req===0 && extra===0) ? 1 : extra;
+    return placed >= (req + eff);
   });
   if(allDone){
     btn.disabled=false;
@@ -3406,19 +3582,402 @@ function updateCoreNextBtn(){
 }
 
 function resetCoreCanvas(){
-  CD.elements=[]; CD.placed={}; CD.nextId=1; CD.selected=null;
+  CD.elements=[]; CD.placed={}; CD.extra={}; CD.nextId=1; CD.selected=null; CD._initialized=false;
   renderSVG(); renderCoreList();
 }
 
 function initCoreDesign(){
-  CD.required=calcCoreRequirements();
-  CD.placed={}; CD.elements=[]; CD.nextId=1; CD.selected=null;
+  // 첫 진입 시에만 초기화 (다른 페이지 갔다 돌아와도 데이터 유지)
+  if(!CD._initialized){
+    CD.required=calcCoreRequirements();
+    CD.placed={}; CD.extra={}; CD.elements=[]; CD.nextId=1; CD.selected=null;
+    CD._initialized=true;
+  } else {
+    // 재진입 시 수량만 재산출 (요소/배치는 유지)
+    CD.required=calcCoreRequirements();
+  }
   renderSVG(); renderCoreList();
   initCoreSVGEvents();
 }
 
 // ═══════════════════════════════════════════
-// STEP 5 — THREE.JS
+// STEP 5 — 기준층 계획
+// ═══════════════════════════════════════════
+
+// 코어 그룹 감지 (flood fill)
+function detectCoreGroups(){
+  const els = CD.elements;
+  const visited = new Set();
+  const groups = [];
+
+  function adjacent(a, b){
+    const touchH = a.row < b.row+b.rows && a.row+a.rows > b.row;
+    const touchV = a.col < b.col+b.cols && a.col+a.cols > b.col;
+    return (touchH && (a.col===b.col+b.cols || b.col===a.col+a.cols)) ||
+           (touchV && (a.row===b.row+b.rows || b.row===a.row+a.rows));
+  }
+
+  els.forEach(el => {
+    if(visited.has(el.uid)) return;
+    // BFS
+    const group = [];
+    const queue = [el];
+    visited.add(el.uid);
+    while(queue.length){
+      const cur = queue.shift();
+      group.push(cur);
+      els.forEach(other => {
+        if(visited.has(other.uid)) return;
+        if(adjacent(cur, other)){
+          visited.add(other.uid);
+          queue.push(other);
+        }
+      });
+    }
+    groups.push(group);
+  });
+
+  return groups;
+}
+
+// 코어 그룹 바운딩 박스
+function groupBBox(group){
+  const minC = Math.min(...group.map(e=>e.col));
+  const minR = Math.min(...group.map(e=>e.row));
+  const maxC = Math.max(...group.map(e=>e.col+e.cols));
+  const maxR = Math.max(...group.map(e=>e.row+e.rows));
+  return { col:minC, row:minR, cols:maxC-minC, rows:maxR-minR };
+}
+
+// 기준층 상태
+let FL = {
+  instances: [], // { uid, groupIdx, col, row, rotation, flipX }
+  nextId: 1,
+  selected: null,
+  drag: null,
+  floorW: 30,  // meters
+  floorH: 20,
+};
+
+function initFloorPlanStep(){
+  renderFloorCoreList();
+  renderFloorPlan();
+  initFloorSVGEvents();
+}
+
+function renderFloorCoreList(){
+  const list = $('fl-core-list');
+  if(!list) return;
+  list.innerHTML = '';
+
+  const groups = detectCoreGroups();
+  if(!groups.length){
+    list.innerHTML = '<div style="font-size:10px;color:var(--text3);padding:4px;">5페이지에서 코어를 먼저 배치하세요.</div>';
+    return;
+  }
+
+  // renderSVG로 코어 그룹 외곽선 표시 업데이트
+  renderSVGWithGroups(groups);
+
+  groups.forEach((group, i) => {
+    const bbox = groupBBox(group);
+    const w = (bbox.cols * CELL).toFixed(1);
+    const h = (bbox.rows * CELL).toFixed(1);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 4px;border-radius:5px;background:var(--bg2);border:1px solid var(--border2);margin-bottom:2px;';
+
+    const dot = document.createElement('div');
+    dot.style.cssText = `width:10px;height:10px;border-radius:2px;background:${CORE_COLORS[i % CORE_COLORS.length]};flex-shrink:0;`;
+
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'flex:1;font-size:11px;font-weight:600;color:var(--text);';
+    lbl.innerHTML = `코어 ${i+1}<br><span style="font-size:9px;font-weight:400;color:var(--text3);">${w}×${h}m / ${group.length}개 요소</span>`;
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm';
+    btn.textContent = '배치';
+    btn.style.cssText = 'font-size:10px;padding:3px 8px;background:var(--accent);color:#fff;border:none;';
+    btn.onclick = () => addFloorInstance(i);
+
+    row.append(dot, lbl, btn);
+    list.appendChild(row);
+  });
+}
+
+const CORE_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ec4899','#8b5cf6','#06b6d4'];
+
+function addFloorInstance(groupIdx){
+  const groups = detectCoreGroups();
+  const group  = groups[groupIdx];
+  if(!group) return;
+  const bbox = groupBBox(group);
+  // 빈 위치 찾기
+  const pos = findFloorFreePos(bbox.cols, bbox.rows);
+  FL.instances.push({
+    uid: FL.nextId++,
+    groupIdx,
+    col: pos.col,
+    row: pos.row,
+    cols: bbox.cols,
+    rows: bbox.rows,
+    rotation: 0,
+    flipX: false,
+    group,
+    bbox,
+  });
+  FL.selected = FL.instances[FL.instances.length-1].uid;
+  renderFloorPlan();
+}
+
+function findFloorFreePos(cols, rows){
+  const occ = new Set();
+  FL.instances.forEach(inst=>{
+    for(let c=inst.col;c<inst.col+inst.cols;c++)
+      for(let r=inst.row;r<inst.row+inst.rows;r++) occ.add(`${c},${r}`);
+  });
+  for(let r=0;r<40;r++) for(let c=0;c<40;c++){
+    let free=true;
+    for(let dc=0;dc<cols&&free;dc++) for(let dr=0;dr<rows&&free;dr++) if(occ.has(`${c+dc},${r+dr}`)) free=false;
+    if(free) return {col:c,row:r};
+  }
+  return {col:0,row:0};
+}
+
+function renderFloorPlan(){
+  const svg = $('fl-svg');
+  if(!svg) return;
+
+  // 그리드: 100mm = 0.1m 단위, GRID px 안에 CELL/0.1 = 29칸
+  // 실제로는 2.9m(GRID px) 안에 서브그리드로 표시하되 선은 숨김
+  // → 코어 배치는 2.9m 단위 유지, 그리드 선만 안 보이게
+  let maxC = 16, maxR = 12;
+  FL.instances.forEach(inst=>{
+    maxC = Math.max(maxC, inst.col+inst.cols+2);
+    maxR = Math.max(maxR, inst.row+inst.rows+2);
+  });
+
+  const W = maxC * GRID, H = maxR * GRID;
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const NS = 'http://www.w3.org/2000/svg';
+  function mk(tag, attrs={}){
+    const el = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));
+    return el;
+  }
+
+  svg.innerHTML = '';
+
+  // 배경
+  svg.appendChild(mk('rect',{width:W,height:H,fill:'#f8f9fb'}));
+
+  // 그리드 선 없음 (투명 배경만)
+
+  // 인스턴스 렌더링
+  const groups = detectCoreGroups();
+  FL.instances.forEach(inst=>{
+    const x = inst.col*GRID, y = inst.row*GRID;
+    const w = inst.cols*GRID, h = inst.rows*GRID;
+    const cx = x+w/2, cy = y+h/2;
+    const isSel = FL.selected===inst.uid;
+    const color = CORE_COLORS[inst.groupIdx % CORE_COLORS.length];
+
+    const g = mk('g');
+
+    // 배경
+    g.appendChild(mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,
+      fill:color+'22',
+      stroke:isSel?'#2563eb':color,
+      'stroke-width':isSel?2.5:1.5,
+      rx:2}));
+
+    // 내부 요소들 미니 렌더링
+    const group = groups[inst.groupIdx];
+    if(group){
+      const bbox = inst.bbox;
+      group.forEach(el=>{
+        const def = CORE_DEF.find(d=>d.id===el.defId);
+        if(!def) return;
+        // 상대 위치 → 인스턴스 위치로 변환
+        const relC = el.col - bbox.col;
+        const relR = el.row - bbox.row;
+        const ex = x + relC*GRID + 1;
+        const ey = y + relR*GRID + 1;
+        const ew = el.cols*GRID - 2;
+        const eh = el.rows*GRID - 2;
+        // SVG 심볼 미니
+        g.appendChild(mk('rect',{x:ex,y:ey,width:ew,height:eh,
+          fill:def.color,stroke:def.border,'stroke-width':'1',rx:1}));
+        // 미니 라벨
+        const t = mk('text',{
+          x:ex+ew/2,y:ey+eh/2+3,
+          'text-anchor':'middle','font-size':'7',
+          'font-family':'Pretendard,sans-serif',
+          fill:def.textColor,'pointer-events':'none',
+          'font-weight':'600',
+        });
+        t.textContent = def.label.replace('특별피난','특').replace('피난','피').replace(' EV','EV').replace(' 전실','전');
+        g.appendChild(t);
+      });
+    }
+
+    // 코어 라벨
+    const lbl = mk('text',{
+      x:cx,y:y+14,
+      'text-anchor':'middle','font-size':'10','font-weight':'700',
+      'font-family':'Pretendard,sans-serif',fill:color,'pointer-events':'none',
+    });
+    lbl.textContent = `코어 ${inst.groupIdx+1}`;
+    g.appendChild(lbl);
+
+    // 선택 핸들 (회전만)
+    if(isSel){
+      // 회전
+      const hc = mk('circle',{cx:x+w-10,cy:y+10,r:9,fill:'#2563eb',style:'cursor:pointer'});
+      hc.addEventListener('mousedown',e=>{e.stopPropagation();rotateFloorInstance(inst.uid);});
+      g.appendChild(hc);
+      const ht = mk('text',{x:x+w-10,y:y+14,'text-anchor':'middle','font-size':'11',fill:'white','pointer-events':'none'});
+      ht.textContent='↻'; g.appendChild(ht);
+    }
+
+    svg.appendChild(g);
+  });
+}
+
+function rotateFloorInstance(uid){
+  const inst = FL.instances.find(i=>i.uid===uid);
+  if(!inst) return;
+  inst.rotation = (inst.rotation+90)%360;
+  const tmp = inst.cols; inst.cols = inst.rows; inst.rows = tmp;
+  renderFloorPlan();
+}
+
+function flipFloorInstance(uid){
+  const inst = FL.instances.find(i=>i.uid===uid);
+  if(!inst) return;
+  inst.flipX = !inst.flipX;
+  renderFloorPlan();
+}
+
+function removeFloorInstance(uid){
+  FL.instances = FL.instances.filter(i=>i.uid!==uid);
+  if(FL.selected===uid) FL.selected=null;
+  renderFloorPlan();
+}
+
+function resetFloorPlan(){
+  FL.instances=[]; FL.nextId=1; FL.selected=null;
+  renderFloorPlan();
+}
+
+function initFloorPlan(){
+  FL.floorW = parseFloat($('fl-width')?.value||30);
+  FL.floorH = parseFloat($('fl-height')?.value||20);
+  renderFloorPlan();
+}
+
+function initFloorSVGEvents(){
+  const wrap = $('fl-canvas-wrap');
+  if(!wrap||wrap._flInit) return;
+  wrap._flInit = true;
+  const svg = $('fl-svg');
+
+  svg.addEventListener('mousedown', e=>{
+    if(e.button!==0) return;
+    const {col,row} = flSvgPosToCR(svg,e);
+    const inst = FL.instances.find(i=>col>=i.col&&col<i.col+i.cols&&row>=i.row&&row<i.row+i.rows);
+    if(!inst){ FL.selected=null; renderFloorPlan(); return; }
+    FL.selected = inst.uid;
+    FL.drag = {uid:inst.uid, startCol:col, startRow:row, origCol:inst.col, origRow:inst.row};
+    svg.style.cursor='grabbing';
+    renderFloorPlan();
+    e.preventDefault();
+  });
+
+  svg.addEventListener('mousemove', e=>{
+    if(!FL.drag) return;
+    const {col,row} = flSvgPosToCR(svg,e);
+    const dc=col-FL.drag.startCol, dr=row-FL.drag.startRow;
+    const inst=FL.instances.find(i=>i.uid===FL.drag.uid);
+    if(inst){ inst.col=Math.max(0,FL.drag.origCol+dc); inst.row=Math.max(0,FL.drag.origRow+dr); renderFloorPlan(); }
+  });
+
+  const endDrag=()=>{
+    if(!FL.drag) return;
+    FL.drag=null; svg.style.cursor='default'; renderFloorPlan();
+  };
+  svg.addEventListener('mouseup',endDrag);
+  svg.addEventListener('mouseleave',endDrag);
+
+  svg.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    const {col,row} = flSvgPosToCR(svg,e);
+    const inst=FL.instances.find(i=>col>=i.col&&col<i.col+i.cols&&row>=i.row&&row<i.row+i.rows);
+    if(inst) removeFloorInstance(inst.uid);
+  });
+
+  svg.addEventListener('mousemove',e=>{
+    if(FL.drag) return;
+    const {col,row} = flSvgPosToCR(svg,e);
+    const over=FL.instances.some(i=>col>=i.col&&col<i.col+i.cols&&row>=i.row&&row<i.row+i.rows);
+    svg.style.cursor=over?'grab':'default';
+  });
+
+  document.addEventListener('keydown',e=>{
+    if(document.activeElement.tagName==='INPUT') return;
+    if(!FL.selected) return;
+    if(e.key==='r'||e.key==='R') rotateFloorInstance(FL.selected);
+  });
+}
+
+function flSvgPosToCR(svg,e){
+  const rect=svg.getBoundingClientRect();
+  return {col:Math.floor((e.clientX-rect.left)/GRID), row:Math.floor((e.clientY-rect.top)/GRID)};
+}
+
+// 코어 디자인(step-4) SVG에 그룹 외곽선 오버레이
+function renderSVGWithGroups(groups){
+  const svg = $('core-svg');
+  if(!svg) return;
+  // 기존 그룹 외곽선 제거
+  svg.querySelectorAll('.core-group-outline').forEach(el=>el.remove());
+  if(!groups||!groups.length) return;
+
+  const NS = 'http://www.w3.org/2000/svg';
+  groups.forEach((group,i)=>{
+    const bbox = groupBBox(group);
+    const x = bbox.col*GRID - 3, y = bbox.row*GRID - 3;
+    const w = bbox.cols*GRID + 6, h = bbox.rows*GRID + 6;
+    const color = CORE_COLORS[i % CORE_COLORS.length];
+
+    const rect = document.createElementNS(NS,'rect');
+    rect.setAttribute('x',x); rect.setAttribute('y',y);
+    rect.setAttribute('width',w); rect.setAttribute('height',h);
+    rect.setAttribute('fill','none');
+    rect.setAttribute('stroke',color);
+    rect.setAttribute('stroke-width','2');
+    rect.setAttribute('stroke-dasharray','6,3');
+    rect.setAttribute('rx','4');
+    rect.classList.add('core-group-outline');
+
+    const lbl = document.createElementNS(NS,'text');
+    lbl.setAttribute('x',x+6); lbl.setAttribute('y',y-4);
+    lbl.setAttribute('font-size','10'); lbl.setAttribute('font-weight','700');
+    lbl.setAttribute('font-family','Pretendard,sans-serif');
+    lbl.setAttribute('fill',color);
+    lbl.classList.add('core-group-outline');
+    lbl.textContent = `코어 ${i+1}`;
+
+    svg.appendChild(rect);
+    svg.appendChild(lbl);
+  });
+}
+
+// ═══════════════════════════════════════════
+// STEP 6 — THREE.JS (구 STEP 5)
 // ═══════════════════════════════════════════
 let renderer,scene,camera,meshes3d=[],animId,isWireframe=false,isExploded=false;
 
