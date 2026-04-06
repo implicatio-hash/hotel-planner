@@ -519,7 +519,33 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 
   <!-- 우측: 단면 다이어그램 -->
-  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);position:relative;">
+
+    <!-- 범례 박스 (스크롤 영역 밖 고정) -->
+    <div style="position:absolute;bottom:20px;right:20px;z-index:10;
+      background:rgba(255,255,255,0.95);border:1px solid var(--border2);border-radius:8px;
+      padding:10px 14px;box-shadow:var(--shadow2);min-width:180px;">
+      <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
+          <span style="font-size:11px;color:var(--text2);">용도 선택</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">더블클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 편집 (분할·삭제)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">드래그</span>
+          <span style="font-size:11px;color:var(--text2);">층 이동</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">ESC</span>
+          <span style="font-size:11px;color:var(--text2);">선택 취소</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 상단 규모 요약 -->
     <div style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0 24px;">
       <div style="display:flex;justify-content:center;gap:48px;width:100%;">
@@ -541,32 +567,9 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       </div>
     </div>
     <!-- 다이어그램 영역 -->
-    <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;position:relative;">
+    <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
 
       <!-- 범례 박스 (독립 플로팅) -->
-      <div style="position:absolute;bottom:20px;right:20px;z-index:10;
-        background:rgba(255,255,255,0.95);border:1px solid var(--border2);border-radius:8px;
-        padding:10px 14px;box-shadow:var(--shadow2);min-width:180px;">
-        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
-            <span style="font-size:11px;color:var(--text2);">용도 선택</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">더블클릭</span>
-            <span style="font-size:11px;color:var(--text2);">층 편집 (분할·삭제)</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">드래그</span>
-            <span style="font-size:11px;color:var(--text2);">층 이동</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">ESC</span>
-            <span style="font-size:11px;color:var(--text2);">선택 취소</span>
-          </div>
-        </div>
-      </div>
       <div style="display:flex;flex-direction:column;gap:0;">
         <!-- 헤더 행: 120(레이블) + 500(블록) + 36(층) + 50(층고) + 80(면적) = 786px -->
         <div style="display:flex;align-items:stretch;">
@@ -591,7 +594,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:166px;flex-shrink:0;"></div>
         </div>
         <!-- 지면선 + 지면 텍스트: position:relative로 텍스트를 선 아래 좌측에 absolute 배치 -->
-        <div style="width:786px;border-top:2px solid #1a1d26;flex-shrink:0;position:relative;">
+        <div style="width:786px;height:0;border-top:2px solid #1a1d26;flex-shrink:0;position:relative;">
           <span style="position:absolute;top:2px;left:8px;font-size:10px;font-weight:700;color:var(--text2);">지면</span>
         </div>
       </div>
@@ -614,7 +617,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <div class="form-group" style="margin-bottom:8px;">
         <label>층 수</label>
         <div class="input-unit">
-          <input type="number" id="under-floor-count" placeholder="예: 3" min="1" max="10" step="1">
+          <input type="number" id="under-floor-count" placeholder="" min="1" max="10" step="1">
           <span>층</span>
         </div>
       </div>
@@ -629,7 +632,33 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 
   <!-- 우측: 단면 다이어그램 -->
-  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);position:relative;">
+
+    <!-- 범례 박스 (스크롤 영역 밖 고정) -->
+    <div style="position:absolute;bottom:20px;right:20px;z-index:10;
+      background:rgba(255,255,255,0.95);border:1px solid var(--border2);border-radius:8px;
+      padding:10px 14px;box-shadow:var(--shadow2);min-width:180px;">
+      <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
+          <span style="font-size:11px;color:var(--text2);">용도 선택</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">더블클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 편집 (분할·삭제)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">드래그</span>
+          <span style="font-size:11px;color:var(--text2);">층 이동</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">ESC</span>
+          <span style="font-size:11px;color:var(--text2);">선택 취소</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 상단 요약: 3페이지와 동일한 height:58px -->
     <div style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0 24px;">
       <div style="display:flex;justify-content:center;gap:48px;width:100%;">
@@ -645,10 +674,10 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         </div>
       </div>
     </div>
-    <!-- 다이어그램 영역 -->
+    <!-- 다이어그램 영역: 3페이지와 동일한 구조 -->
     <div style="flex:1;overflow:auto;padding:24px;display:flex;align-items:flex-start;justify-content:center;">
       <!-- 초기 안내 -->
-      <div id="u-diagram-empty" style="display:flex;align-items:center;justify-content:center;min-height:200px;width:100%;">
+      <div id="u-diagram-empty" style="display:flex;align-items:center;justify-content:center;min-height:200px;width:100%;position:absolute;top:58px;left:0;right:0;bottom:0;">
         <div style="color:var(--text3);font-size:12px;text-align:center;">좌측에서 층 수를 입력한 후<br>[적용] 버튼을 누르세요</div>
       </div>
       <!-- 실제 다이어그램 (적용 후 표시) -->
@@ -669,10 +698,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
           </div>
         </div>
-        <!-- 헤더 하단 구분선 (단일 선) -->
-        <div style="width:786px;border-top:2px solid #1a1d26;flex-shrink:0;margin-bottom:0;"></div>
-        <!-- 지면선 + 지면 텍스트: absolute로 이격 없이 배치 -->
-        <div style="width:786px;border-top:2px solid #1a1d26;flex-shrink:0;position:relative;">
+        <!-- 지면선 + 지면 텍스트 (단일 선) -->
+        <div style="width:786px;height:0;border-top:2px solid #1a1d26;flex-shrink:0;position:relative;">
           <span style="position:absolute;top:2px;left:8px;font-size:10px;font-weight:700;color:var(--text2);">지면</span>
         </div>
         <!-- 다이어그램 + 정보: 120(여백) + 500(블록) + 166(info-col) -->
