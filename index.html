@@ -741,7 +741,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     <!-- 상단 툴바 -->
     <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
       <span style="font-size:11px;font-weight:600;color:var(--text2);">코어 편집</span>
-      <span style="font-size:10px;color:var(--text3);">드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
+      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; R키/↻: 회전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
       <div style="flex:1;"></div>
       <span style="font-size:10px;color:var(--text3);">1칸 = 2.9m</span>
       <button class="btn btn-secondary btn-sm" onclick="resetCoreCanvas()" style="font-size:10px;padding:3px 8px;">초기화</button>
@@ -3046,29 +3046,33 @@ function initBoundaryStep(){
 const GRID = 58;   // px per 2.9m cell
 const CELL = 2.9;  // meters
 
-// 코어 요소 정의
-// type: 'single'(1칸), 'double-h'(가로2칸), 'pair-h'(나란히 2칸 한 모듈)
+// 코어 요소 정의 — 전실은 완전 독립 요소
+// baseCols/baseRows: rotation=0 기준 크기
 const CORE_DEF = [
-  { id:'ev',       label:'승용 EV',          cols:1, rows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af' },
-  { id:'ev-emg',   label:'비상 EV',           cols:1, rows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', hasFoyer:true },
-  { id:'ev-evac',  label:'피난 EV',           cols:1, rows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', hasFoyer:true },
-  { id:'stair-s',  label:'피난계단',          cols:2, rows:1, color:'#dcfce7', border:'#22c55e', textColor:'#14532d' },
-  { id:'stair-sp', label:'특별피난계단',      cols:2, rows:1, color:'#d1fae5', border:'#10b981', textColor:'#064e3b', hasFoyer:true },
-  { id:'av',       label:'AV실',              cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
-  { id:'eps',      label:'EPS',               cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
-  { id:'tps',      label:'TPS',               cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
-  { id:'ad',       label:'AD',                cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
-  { id:'ps',       label:'PS',                cols:1, rows:1, color:'#f1f5f9', border:'#94a3b8', textColor:'#334155' },
+  // 계단
+  { id:'stair-s',   label:'피난계단',     baseCols:2, baseRows:1, color:'#dcfce7', border:'#22c55e', textColor:'#14532d', symbol:'stair' },
+  { id:'stair-sp',  label:'특별피난계단', baseCols:2, baseRows:1, color:'#d1fae5', border:'#10b981', textColor:'#064e3b', symbol:'stair' },
+  // 승강기
+  { id:'ev',        label:'승용 EV',      baseCols:1, baseRows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af', symbol:'ev' },
+  { id:'ev-emg',    label:'비상 EV',      baseCols:1, baseRows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', symbol:'ev-emg' },
+  { id:'ev-evac',   label:'피난 EV',      baseCols:1, baseRows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', symbol:'ev-evac' },
+  // 전실 (독립)
+  { id:'foyer-ev',  label:'EV 전실',      baseCols:1, baseRows:1, color:'#eff6ff', border:'#93c5fd', textColor:'#1e40af', symbol:'foyer' },
+  { id:'foyer-st',  label:'계단 전실',    baseCols:1, baseRows:1, color:'#f0fdf4', border:'#86efac', textColor:'#14532d', symbol:'foyer' },
+  // 설비
+  { id:'av',        label:'AV',           baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
+  { id:'eps',       label:'EPS',          baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
+  { id:'tps',       label:'TPS',          baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
+  { id:'ad',        label:'AD',           baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
+  { id:'ps',        label:'PS',           baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
 ];
-
-// 코어 전실 정의 (EV/계단 전실)
-const FOYER_DEF = { label:'전실', cols:1, rows:1, color:'#eff6ff', border:'#93c5fd', textColor:'#1e40af' };
 
 // 코어 상태
 let CD = {
-  elements: [],      // { id(unique), defId, label, col, row, cols, rows, color, border, textColor }
-  required: {},      // { defId: count }
-  placed:   {},      // { defId: count }
+  elements: [],   // { uid, defId, label, col, row, cols, rows, rotation(0/90/180/270), color, border, textColor, symbol }
+  required: {},
+  placed:   {},
+  selected: null, // 선택된 uid
   nextId: 1,
 };
 
@@ -3129,6 +3133,10 @@ function calcCoreRequirements(){
   req['ad']  = 1;
   req['ps']  = 1;
 
+  // 6. 전실 (독립 요소) — EV 전실: 비상+피난 EV 수량, 계단 전실: 특별피난계단 수량
+  req['foyer-ev'] = (req['ev-emg'] || 0) + (req['ev-evac'] || 0);
+  req['foyer-st'] = req['stair-sp'] || 0;
+
   return req;
 }
 
@@ -3154,6 +3162,14 @@ function renderCoreList(){
 
   const evIds = ['ev','ev-emg','ev-evac'];
   evIds.forEach(defId => renderCoreRow(list, defId));
+
+  // 섹션: 전실
+  const foyerSection = document.createElement('div');
+  foyerSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">전실</div>`;
+  list.appendChild(foyerSection);
+
+  const foyerIds = ['foyer-ev','foyer-st'];
+  foyerIds.forEach(defId => renderCoreRow(list, defId));
 
   // 섹션: 설비
   const mechSection = document.createElement('div');
@@ -3186,9 +3202,8 @@ function renderCoreRow(container, defId){
   const lbl = document.createElement('div');
   lbl.style.cssText = `flex:1;font-size:11px;font-weight:600;color:${canAdd ? 'var(--text)' : 'var(--text3)'};`;
 
-  // 모듈 크기 표시
-  const totalCols = def.cols + (def.hasFoyer ? 1 : 0);
-  const sizeStr = `${totalCols * CELL}×${def.rows * CELL}m`;
+  // 모듈 크기 표시 (rotation 0 기준)
+  const sizeStr = `${def.baseCols * CELL}×${def.baseRows * CELL}m`;
   lbl.innerHTML = `${def.label}<br><span style="font-size:9px;font-weight:400;color:var(--text3);">${sizeStr}</span>`;
 
   // 필요/여분
@@ -3216,56 +3231,28 @@ function addCoreElement(defId){
   const def = CORE_DEF.find(d => d.id === defId);
   if(!def) return;
 
-  // 빈 위치 찾기 (좌상단부터)
-  const totalCols = def.cols + (def.hasFoyer ? 1 : 0);
-  const pos = findFreePos(totalCols, def.rows);
+  const cols = def.baseCols;
+  const rows = def.baseRows;
+  const pos = findFreePos(cols, rows);
 
-  if(def.hasFoyer){
-    // 메인 칸
-    CD.elements.push({
-      uid: CD.nextId++,
-      defId,
-      label: def.label,
-      col: pos.col,
-      row: pos.row,
-      cols: def.cols,
-      rows: def.rows,
-      color: def.color,
-      border: def.border,
-      textColor: def.textColor,
-      groupId: CD.nextId,
-    });
-    // 전실 칸 (오른쪽에 붙음)
-    CD.elements.push({
-      uid: CD.nextId++,
-      defId: defId + '-foyer',
-      label: '전실',
-      col: pos.col + def.cols,
-      row: pos.row,
-      cols: 1,
-      rows: def.rows,
-      color: FOYER_DEF.color,
-      border: FOYER_DEF.border,
-      textColor: FOYER_DEF.textColor,
-      groupId: CD.nextId - 1,
-      isFoyer: true,
-    });
-  } else {
-    CD.elements.push({
-      uid: CD.nextId++,
-      defId,
-      label: def.label,
-      col: pos.col,
-      row: pos.row,
-      cols: def.cols,
-      rows: def.rows,
-      color: def.color,
-      border: def.border,
-      textColor: def.textColor,
-    });
-  }
+  const uid = CD.nextId++;
+  CD.elements.push({
+    uid,
+    defId,
+    label: def.label,
+    col: pos.col,
+    row: pos.row,
+    cols,
+    rows,
+    rotation: 0,
+    color: def.color,
+    border: def.border,
+    textColor: def.textColor,
+    symbol: def.symbol,
+  });
 
   CD.placed[defId] = (CD.placed[defId] || 0) + 1;
+  CD.selected = uid;
   drawCoreCanvas();
   renderCoreList();
 }
@@ -3296,43 +3283,43 @@ function findFreePos(cols, rows){
 function removeCoreElement(uid){
   const el = CD.elements.find(e => e.uid === uid);
   if(!el) return;
-
-  // 그룹 (전실 포함) 삭제
-  if(el.groupId || el.isFoyer){
-    const gid = el.groupId || (CD.elements.find(e2 => e2.groupId === el.groupId && e2.isFoyer !== true)?.groupId);
-    const mainEl = el.isFoyer ? CD.elements.find(e2 => e2.groupId === el.uid) : el;
-    const realDefId = el.isFoyer ? (CD.elements.find(e2 => e2.uid === el.groupId)?.defId) : el.defId;
-
-    // 같은 groupId 가진 것들 모두 제거
-    const removeUids = CD.elements
-      .filter(e => e.uid === uid || e.groupId === uid || (el.isFoyer && e.uid === el.groupId))
-      .map(e => e.uid);
-    CD.elements = CD.elements.filter(e => !removeUids.includes(e.uid));
-
-    const actualDefId = realDefId || el.defId;
-    if(!el.isFoyer && CD.placed[actualDefId] > 0){
-      CD.placed[actualDefId]--;
-    }
-  } else {
-    CD.elements = CD.elements.filter(e => e.uid !== uid);
-    if(!el.isFoyer && CD.placed[el.defId] > 0){
-      CD.placed[el.defId]--;
-    }
-  }
-
+  CD.elements = CD.elements.filter(e => e.uid !== uid);
+  if(CD.placed[el.defId] > 0) CD.placed[el.defId]--;
+  if(CD.selected === uid) CD.selected = null;
   drawCoreCanvas();
   renderCoreList();
 }
 
+// ── 선택된 요소 회전 (R키 또는 버튼) ──
+function rotateCoreElement(uid){
+  const el = CD.elements.find(e => e.uid === uid);
+  if(!el) return;
+  const def = CORE_DEF.find(d => d.id === el.defId);
+  if(!def) return;
+
+  // rotation을 90° 씩 증가
+  el.rotation = (el.rotation + 90) % 360;
+
+  // baseCols/baseRows 기준으로 0°/180° = 원래 크기, 90°/270° = swap
+  if(el.rotation === 0 || el.rotation === 180){
+    el.cols = def.baseCols;
+    el.rows = def.baseRows;
+  } else {
+    el.cols = def.baseRows;
+    el.rows = def.baseCols;
+  }
+
+  drawCoreCanvas();
+}
+
 // ── 캔버스 그리기 ──
-let _cDrag = null; // 드래그 상태
+let _cDrag = null;
 
 function drawCoreCanvas(){
   const wrap = $('core-canvas-wrap');
   const canvas = $('core-canvas');
   if(!wrap || !canvas) return;
 
-  // 필요한 그리드 크기 계산 (최소 16×12)
   let maxC = 15, maxR = 11;
   CD.elements.forEach(el => {
     maxC = Math.max(maxC, el.col + el.cols);
@@ -3341,79 +3328,148 @@ function drawCoreCanvas(){
   maxC = Math.max(maxC + 2, 16);
   maxR = Math.max(maxR + 2, 12);
 
-  const W = maxC * GRID;
-  const H = maxR * GRID;
-  canvas.width  = W;
-  canvas.height = H;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
+  const W = maxC * GRID, H = maxR * GRID;
+  canvas.width = W; canvas.height = H;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,W,H);
-
-  // 배경
-  ctx.fillStyle = '#f8f9fb';
-  ctx.fillRect(0,0,W,H);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#f8f9fb'; ctx.fillRect(0, 0, W, H);
 
   // 그리드
-  ctx.strokeStyle = '#e2e4ea';
-  ctx.lineWidth = 0.5;
-  for(let c=0; c<=maxC; c++){
-    ctx.beginPath(); ctx.moveTo(c*GRID,0); ctx.lineTo(c*GRID,H); ctx.stroke();
+  ctx.strokeStyle = '#dde0e8'; ctx.lineWidth = 0.5;
+  for(let c = 0; c <= maxC; c++){
+    ctx.beginPath(); ctx.moveTo(c*GRID, 0); ctx.lineTo(c*GRID, H); ctx.stroke();
   }
-  for(let r=0; r<=maxR; r++){
-    ctx.beginPath(); ctx.moveTo(0,r*GRID); ctx.lineTo(W,r*GRID); ctx.stroke();
+  for(let r = 0; r <= maxR; r++){
+    ctx.beginPath(); ctx.moveTo(0, r*GRID); ctx.lineTo(W, r*GRID); ctx.stroke();
   }
 
-  // 치수 라벨 (상단, 좌측)
-  ctx.fillStyle = '#9ca3af';
-  ctx.font = '9px Pretendard,sans-serif';
+  // 치수 라벨
+  ctx.fillStyle = '#b0b8c8'; ctx.font = '9px Pretendard,sans-serif';
   ctx.textAlign = 'center';
-  for(let c=0; c<maxC; c++){
-    ctx.fillText((c*CELL).toFixed(1)+'m', c*GRID + GRID/2, 10);
-  }
+  for(let c = 0; c < maxC; c++)
+    ctx.fillText((c*CELL).toFixed(1)+'m', c*GRID+GRID/2, 10);
   ctx.textAlign = 'right';
-  for(let r=0; r<maxR; r++){
-    ctx.fillText((r*CELL).toFixed(1)+'m', GRID-4, r*GRID + GRID/2 + 3);
-  }
+  for(let r = 0; r < maxR; r++)
+    ctx.fillText((r*CELL).toFixed(1)+'m', GRID-4, r*GRID+GRID/2+3);
 
   // 요소 그리기
   CD.elements.forEach(el => {
-    const x = el.col * GRID;
-    const y = el.row * GRID;
-    const w = el.cols * GRID;
-    const h = el.rows * GRID;
+    const x = el.col*GRID, y = el.row*GRID;
+    const w = el.cols*GRID, h = el.rows*GRID;
+    const isSel = CD.selected === el.uid;
 
-    // 채우기
     ctx.fillStyle = el.color;
     ctx.fillRect(x+1, y+1, w-2, h-2);
-
-    // 테두리
-    ctx.strokeStyle = el.border;
-    ctx.lineWidth = 1.5;
+    if(isSel){ ctx.fillStyle='rgba(37,99,235,0.08)'; ctx.fillRect(x+1,y+1,w-2,h-2); }
+    ctx.strokeStyle = isSel ? '#2563eb' : el.border;
+    ctx.lineWidth = isSel ? 2.5 : 1.5;
     ctx.strokeRect(x+1, y+1, w-2, h-2);
 
-    // 라벨
-    ctx.fillStyle = el.textColor;
-    ctx.font = `bold ${el.cols > 1 ? 11 : 10}px Pretendard,sans-serif`;
-    ctx.textAlign = 'center';
+    drawSymbol(ctx, el, x, y, w, h);
 
-    const lines = el.label.split(' ');
-    const lineH = 13;
-    const totalTH = lines.length * lineH;
-    lines.forEach((line, i) => {
-      ctx.fillText(line, x + w/2, y + h/2 - totalTH/2 + i*lineH + lineH*0.7, w-6);
-    });
-
-    // 치수 (가로)
-    const dimStr = `${(el.cols*CELL).toFixed(1)}m`;
-    ctx.fillStyle = '#6b7280';
-    ctx.font = '8px Pretendard,sans-serif';
-    ctx.fillText(dimStr, x + w/2, y + h - 4);
+    // 선택 시 회전 핸들
+    if(isSel){
+      ctx.fillStyle = '#2563eb';
+      ctx.beginPath(); ctx.arc(x+w-10, y+10, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('↻', x+w-10, y+14);
+    }
   });
 }
 
-// ── 드래그 ──
+// ── SVG 심볼 데이터 (CAD → SVG 변환 파일 인라인 내장) ──
+const CORE_SVGS = {
+  elevator: `<svg viewBox="0 0 1024 768" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" > <defs > <style >g[clip-path] > * {vector-effect: non-scaling-stroke;}</style> <clipPath id="clipId0" > </clipPath> </defs> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" /> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" > <polyline points="148.975,733.58 875.025,733.58 875.025,7.52941 148.975,7.52941 148.975,733.58 " /> <polyline points="646.454,182.588 646.454,228.303 " /> <polyline points="377.546,182.588 377.546,228.303 " /> <polyline points="646.454,182.588 377.546,182.588 " /> <polyline points="646.454,228.303 377.546,228.303 " /> <polyline points="353.345,680.067 353.345,689.479 670.655,689.479 670.655,680.067 353.345,680.067 " /> <polyline points="670.655,677.378 662.588,677.378 662.588,663.933 780.908,663.933 780.908,260.571 243.092,260.571 243.092,663.933 361.412,663.933 361.412,677.378 353.345,677.378 " /> <polyline points="216.202,698.084 807.798,698.084 807.798,673.882 794.353,673.882 794.353,247.126 229.647,247.126 229.647,673.882 216.202,673.882 216.202,698.084 " /> <polyline points="353.345,711.529 670.655,711.529 670.655,720.941 353.345,720.941 353.345,711.529 " /> <polyline points="512,680.067 512,689.479 " /> <polyline points="512,711.529 512,720.941 " /> <polyline points="780.908,260.571 243.092,663.933 " /> <polyline points="780.908,663.933 243.092,260.571 " /> </g> </svg>`,
+  foyer: `<svg viewBox="0 0 1024 768" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" > <defs > <style >g[clip-path] > * {vector-effect: non-scaling-stroke;}</style> <clipPath id="clipId0" > </clipPath> </defs> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" /> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <path d="M679.32,425.83 A334.641,334.641 0 0,0 344.68,760.471 " /> <polyline points="679.32,760.471 679.32,425.83 " /> </g> </svg>`,
+  shaft: `<svg viewBox="0 0 1024 768" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" > <defs > <style >g[clip-path] > * {vector-effect: non-scaling-stroke;}</style> <clipPath id="clipId0" > </clipPath> </defs> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" /> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <polyline points="888.471,7.52941 135.529,760.471 " /> <polyline points="135.529,7.52941 888.471,760.471 " /> </g> </svg>`,
+  stair: `<svg viewBox="0 0 1024 768" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" > <defs > <style >g[clip-path] > * {vector-effect: non-scaling-stroke;}</style> <clipPath id="clipId0" > </clipPath> </defs> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" /> <g clip-path="url(#clipId0)" fill="none" stroke="currentColor" stroke-width="1px" > <polyline points="1013.96,141.983 1013.96,626.017 10.0392,626.017 10.0392,141.983 1013.96,141.983 " /> <polyline points="512,626.017 512,141.983 " /> <polyline points="780.908,626.017 780.908,141.983 " /> <polyline points="727.126,626.017 727.126,141.983 " /> <polyline points="673.345,626.017 673.345,141.983 " /> <polyline points="619.563,626.017 619.563,141.983 " /> <polyline points="565.782,626.017 565.782,141.983 " /> <polyline points="243.092,626.017 243.092,141.983 " /> <polyline points="296.874,626.017 296.874,141.983 " /> <polyline points="350.655,626.017 350.655,141.983 " /> <polyline points="404.437,626.017 404.437,141.983 " /> <polyline points="458.218,626.017 458.218,141.983 " /> <polyline points="243.092,384 780.908,384 " /> </g> </svg>`,
+};
+
+// SVG → Image 객체 캐시 (색상별)
+const _svgImgCache = {};
+
+function getSvgImage(svgKey, strokeColor){
+  const cacheKey = svgKey + '_' + strokeColor;
+  if(_svgImgCache[cacheKey]) return _svgImgCache[cacheKey];
+
+  const svgStr = CORE_SVGS[svgKey];
+  if(!svgStr) return null;
+
+  // stroke 색상 치환
+  const colored = svgStr.replace(/stroke="currentColor"/g, `stroke="${strokeColor}"`);
+  const blob = new Blob([colored], {type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.src = url;
+  img.onload = () => { drawCoreCanvas(); }; // 로드 완료 시 재드로우
+  _svgImgCache[cacheKey] = img;
+  return img;
+}
+
+// ── 건축 표준 심볼 (SVG 이미지 기반) ──
+function drawSymbol(ctx, el, x, y, w, h){
+  ctx.save();
+  const sym = el.symbol;
+  const rot = el.rotation || 0;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+
+  // SVG 키 결정
+  const svgKey = {
+    'ev': 'elevator', 'ev-emg': 'elevator', 'ev-evac': 'elevator',
+    'stair': 'stair', 'stair-sp': 'stair',
+    'foyer': 'foyer',
+    'shaft': 'shaft',
+  }[sym] || null;
+
+  if(svgKey){
+    // SVG 이미지 그리기 (rotation transform 적용)
+    const img = getSvgImage(svgKey, el.border);
+
+    // 회전 transform: 중심 기준
+    ctx.translate(cx, cy);
+    ctx.rotate(rot * Math.PI / 180);
+    ctx.translate(-cx, -cy);
+
+    if(img && img.complete && img.naturalWidth > 0){
+      ctx.drawImage(img, x + 1, y + 1, w - 2, h - 2);
+    } else {
+      // 이미지 로딩 중 fallback
+      ctx.fillStyle = el.color;
+      ctx.fillRect(x+1, y+1, w-2, h-2);
+    }
+
+    // 회전 되돌리기
+    ctx.translate(cx, cy);
+    ctx.rotate(-rot * Math.PI / 180);
+    ctx.translate(-cx, -cy);
+
+  } else {
+    // 설비류: 텍스트만 (회전 없음)
+    ctx.fillStyle = el.textColor;
+    ctx.font = 'bold 12px Pretendard,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(el.label, cx, cy);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // 라벨 텍스트 (항상 정중앙, 회전 없음)
+  if(svgKey){
+    ctx.fillStyle = el.textColor;
+    ctx.font = 'bold 10px Pretendard,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(el.label, cx, cy);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  ctx.restore();
+}
+
+// ── 드래그 + 선택 + 회전 이벤트 ──
 function initCoreDragEvents(){
   const canvas = $('core-canvas');
   if(!canvas) return;
@@ -3422,27 +3478,29 @@ function initCoreDragEvents(){
     if(e.button !== 0) return;
     const {col, row} = canvasPosToCR(canvas, e);
     const el = CD.elements.find(el =>
-      col >= el.col && col < el.col + el.cols &&
-      row >= el.row && row < el.row + el.rows
+      col >= el.col && col < el.col+el.cols &&
+      row >= el.row && row < el.row+el.rows
     );
-    if(!el) return;
+    if(!el){ CD.selected = null; drawCoreCanvas(); return; }
 
-    // 그룹 전체를 드래그 (전실 포함)
-    const groupEls = el.groupId
-      ? CD.elements.filter(e2 => e2.uid === el.groupId || e2.groupId === el.uid || e2.uid === el.uid || e2.groupId === el.groupId)
-      : el.isFoyer
-        ? CD.elements.filter(e2 => e2.uid === el.groupId || e2.groupId === el.groupId || e2.uid === el.uid)
-        : [el];
+    // 회전 핸들 클릭 감지 (우상단 작은 원)
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    const hx = el.col*GRID + el.cols*GRID - 10;
+    const hy = el.row*GRID + 10;
+    if(CD.selected === el.uid && Math.hypot(px-hx, py-hy) < 10){
+      rotateCoreElement(el.uid);
+      return;
+    }
 
-    const uniqueGroup = [...new Map(groupEls.map(e=>[e.uid,e])).values()];
-
+    CD.selected = el.uid;
     _cDrag = {
-      els: uniqueGroup,
-      startCol: col,
-      startRow: row,
-      origPositions: uniqueGroup.map(e => ({uid: e.uid, col: e.col, row: e.row})),
+      el,
+      startCol: col, startRow: row,
+      origCol: el.col, origRow: el.row,
     };
     canvas.style.cursor = 'grabbing';
+    drawCoreCanvas();
     e.preventDefault();
   });
 
@@ -3451,32 +3509,28 @@ function initCoreDragEvents(){
     const {col, row} = canvasPosToCR(canvas, e);
     const dc = col - _cDrag.startCol;
     const dr = row - _cDrag.startRow;
-
-    _cDrag.els.forEach((el, i) => {
-      const orig = _cDrag.origPositions[i];
-      el.col = Math.max(0, orig.col + dc);
-      el.row = Math.max(0, orig.row + dr);
-    });
+    _cDrag.el.col = Math.max(0, _cDrag.origCol + dc);
+    _cDrag.el.row = Math.max(0, _cDrag.origRow + dr);
     drawCoreCanvas();
   });
 
   const endDrag = () => {
     if(!_cDrag) return;
     _cDrag = null;
-    $('core-canvas').style.cursor = 'default';
+    canvas.style.cursor = 'default';
     resolveCollisions();
     drawCoreCanvas();
   };
   canvas.addEventListener('mouseup', endDrag);
   canvas.addEventListener('mouseleave', endDrag);
 
-  // 우클릭 삭제
+  // 우클릭: 삭제
   canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
     const {col, row} = canvasPosToCR(canvas, e);
     const el = CD.elements.find(el =>
-      col >= el.col && col < el.col + el.cols &&
-      row >= el.row && row < el.row + el.rows
+      col >= el.col && col < el.col+el.cols &&
+      row >= el.row && row < el.row+el.rows
     );
     if(el) removeCoreElement(el.uid);
   });
@@ -3486,10 +3540,19 @@ function initCoreDragEvents(){
     if(_cDrag) return;
     const {col, row} = canvasPosToCR(canvas, e);
     const over = CD.elements.some(el =>
-      col >= el.col && col < el.col + el.cols &&
-      row >= el.row && row < el.row + el.rows
+      col >= el.col && col < el.col+el.cols &&
+      row >= el.row && row < el.row+el.rows
     );
     canvas.style.cursor = over ? 'grab' : 'default';
+  });
+
+  // R키 회전
+  document.addEventListener('keydown', e => {
+    if(e.key === 'r' || e.key === 'R'){
+      if(CD.selected !== null && document.activeElement.tagName !== 'INPUT'){
+        rotateCoreElement(CD.selected);
+      }
+    }
   });
 }
 
