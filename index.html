@@ -354,17 +354,19 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         </div>
       </div>
 
-      <!-- 합산 면적 + 프로젝트 생성 -->
+      <!-- 합산 면적 -->
       <div id="lots-summary" style="display:none;margin-top:auto;">
-        <div class="info-box green" style="text-align:center;margin-bottom:10px;">
+        <div class="info-box green" style="text-align:center;">
           <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:2px;">합산 대지 면적</div>
           <div id="total-site-area" style="font-size:22px;font-weight:800;color:#16a34a;">0 m²</div>
         </div>
-        <button class="btn btn-primary btn-full" onclick="createProject()" style="font-size:13px;padding:11px;letter-spacing:.01em;">
-          이 장소로 프로젝트 생성
-        </button>
       </div>
 
+    </div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="createProject()" style="font-size:13px;padding:11px;letter-spacing:.01em;">
+        이 장소로 프로젝트 생성
+      </button>
     </div>
   </div>
 
@@ -401,9 +403,13 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           style="background:#fff7ed;color:#ea580c;font-weight:700;font-size:14px;cursor:default;border-color:#fed7aa;">
       </div>
 
+      <!-- 구분선 -->
+      <div style="border-top:1px solid var(--border);margin-bottom:12px;"></div>
+
       <!-- 이격거리 입력 -->
       <div class="form-group" style="margin-bottom:12px;">
-        <label>필지선 이격거리 (m)</label>
+        <label>지하층 필지선 이격거리 (m)</label>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">시공을 위한 이격거리 입력</div>
         <div class="input-unit">
           <input type="number" id="under-setback" value="0.00"
             min="0" max="3" step="0.01"
@@ -411,7 +417,6 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             placeholder="0.00">
           <span>m</span>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">0 ~ 3m · 소수점 2자리</div>
       </div>
 
       <!-- 지하 건축 가능 영역 확인 버튼 -->
@@ -466,16 +471,25 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <div class="input-row" style="margin-bottom:8px;">
         <div class="form-group">
           <label>건폐율 (%)</label>
-          <input type="number" id="bcr" placeholder="예: 60" min="1" max="100">
+          <div class="input-unit">
+            <input type="number" id="bcr" placeholder="" min="1" max="100">
+            <span>%</span>
+          </div>
         </div>
         <div class="form-group">
           <label>용적률 (%)</label>
-          <input type="number" id="far" placeholder="예: 800" min="1">
+          <div class="input-unit">
+            <input type="number" id="far" placeholder="" min="1">
+            <span>%</span>
+          </div>
         </div>
       </div>
       <div class="form-group" style="margin-bottom:8px;">
         <label>최대 높이 (m)</label>
-        <input type="number" id="max-height" placeholder="예: 90" min="10" step="1">
+        <div class="input-unit">
+          <input type="number" id="max-height" placeholder="" min="10" step="1">
+          <span>m</span>
+        </div>
       </div>
       <button class="btn btn-primary btn-full" onclick="applyVolumeSettings()">적용 →</button>
       <div id="volume-result" style="display:none;margin-top:8px;">
@@ -527,7 +541,24 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       </div>
     </div>
     <!-- 다이어그램 영역 -->
-    <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
+    <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;position:relative;">
+
+      <!-- 범례 박스 (독립 플로팅) -->
+      <div style="position:absolute;bottom:20px;right:20px;z-index:10;
+        background:rgba(255,255,255,0.95);border:1px solid var(--border2);border-radius:8px;
+        padding:10px 14px;box-shadow:var(--shadow2);min-width:180px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
+            <span style="font-size:11px;color:var(--text2);">용도 선택</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">더블클릭</span>
+            <span style="font-size:11px;color:var(--text2);">층 편집 (분할·삭제)</span>
+          </div>
+        </div>
+      </div>
       <div style="display:flex;flex-direction:column;gap:0;">
         <!-- 헤더 행: 120(레이블) + 500(블록) + 36(층) + 50(층고) + 80(면적) = 786px -->
         <div style="display:flex;align-items:stretch;">
