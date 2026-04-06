@@ -735,7 +735,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     <!-- 툴바 -->
     <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
       <span style="font-size:11px;font-weight:600;color:var(--text2);">코어 편집</span>
-      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; R키/↻: 회전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
+      <span style="font-size:10px;color:var(--text3);">선택 후 &nbsp; R키/↻: 회전 &nbsp;|&nbsp; F키/↔: 좌우반전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
       <div style="flex:1;"></div>
       <span style="font-size:10px;color:var(--text3);">1칸 = 2.9m</span>
       <button class="btn btn-secondary btn-sm" onclick="resetCoreCanvas()" style="font-size:10px;padding:3px 8px;">초기화</button>
@@ -3035,10 +3035,10 @@ const CELL = 2.9; // meters
 
 // SVG 심볼 (인라인, 정확한 비율 viewBox)
 const CORE_SVGS = {
-  elevator: `<svg preserveAspectRatio="none" viewBox="149 8 727 726" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="148.975,733.58 875.025,733.58 875.025,7.52941 148.975,7.52941 148.975,733.58 " /> <polyline points="646.454,182.588 646.454,228.303 " /> <polyline points="377.546,182.588 377.546,228.303 " /> <polyline points="646.454,182.588 377.546,182.588 " /> <polyline points="646.454,228.303 377.546,228.303 " /> <polyline points="353.345,680.067 353.345,689.479 670.655,689.479 670.655,680.067 353.345,680.067 " /> <polyline points="670.655,677.378 662.588,677.378 662.588,663.933 780.908,663.933 780.908,260.571 243.092,260.571 243.092,663.933 361.412,663.933 361.412,677.378 353.345,677.378 " /> <polyline points="216.202,698.084 807.798,698.084 807.798,673.882 794.353,673.882 794.353,247.126 229.647,247.126 229.647,673.882 216.202,673.882 216.202,698.084 " /> <polyline points="353.345,711.529 670.655,711.529 670.655,720.941 353.345,720.941 353.345,711.529 " /> <polyline points="512,680.067 512,689.479 " /> <polyline points="512,711.529 512,720.941 " /> <polyline points="780.908,260.571 243.092,663.933 " /> <polyline points="780.908,663.933 243.092,260.571 " /> <polyline points="346.622,724.168 346.622,728.236 345.277,728.236 345.277,722.824 364.101,722.824 353.345,760.471 345.277,760.471 345.277,755.092 346.622,755.092 346.622,759.126 352.184,759.126 362.543,724.168 346.622,724.168 " /> <polyline points="678.723,722.824 807.798,722.824 807.798,706.151 216.202,706.151 216.202,722.824 345.277,722.824 " /> <polyline points="677.378,724.168 677.378,728.236 678.723,728.236 678.723,722.824 659.899,722.824 670.655,760.471 678.723,760.471 678.723,755.092 677.378,755.092 677.378,759.126 671.816,759.126 661.457,724.168 677.378,724.168 " /> <polyline points="377.546,182.588 377.546,228.303 " /> </g> </svg>`,
-  foyer:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <path d="M679.32,425.83 A334.641,334.641 0 0,0 344.68,760.471 " /> <polyline points="679.32,760.471 679.32,425.83 " /> </g> </svg>`,
-  shaft:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <polyline points="888.471,7.52941 135.529,760.471 " /> <polyline points="135.529,7.52941 888.471,760.471 " /> </g> </svg>`,
-  stair:    `<svg preserveAspectRatio="none" viewBox="10 142 1004 484" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="1013.96,141.983 1013.96,626.017 10.0392,626.017 10.0392,141.983 1013.96,141.983 " /> <polyline points="512,626.017 512,141.983 " /> <polyline points="780.908,626.017 780.908,141.983 " /> <polyline points="727.126,626.017 727.126,141.983 " /> <polyline points="673.345,626.017 673.345,141.983 " /> <polyline points="619.563,626.017 619.563,141.983 " /> <polyline points="565.782,626.017 565.782,141.983 " /> <polyline points="243.092,626.017 243.092,141.983 " /> <polyline points="296.874,626.017 296.874,141.983 " /> <polyline points="350.655,626.017 350.655,141.983 " /> <polyline points="404.437,626.017 404.437,141.983 " /> <polyline points="458.218,626.017 458.218,141.983 " /> <polyline points="243.092,384 780.908,384 " /> </g> </svg>`,
+  elevator: `<svg preserveAspectRatio="none" viewBox="149 8 727 726" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="148.975,733.58 875.025,733.58 875.025,7.52941 148.975,7.52941 148.975,733.58 " /> <polyline points="646.454,182.588 646.454,228.303 " /> <polyline points="377.546,182.588 377.546,228.303 " /> <polyline points="646.454,182.588 377.546,182.588 " /> <polyline points="646.454,228.303 377.546,228.303 " /> <polyline points="353.345,680.067 353.345,689.479 670.655,689.479 670.655,680.067 353.345,680.067 " /> <polyline points="670.655,677.378 662.588,677.378 662.588,663.933 780.908,663.933 780.908,260.571 243.092,260.571 243.092,663.933 361.412,663.933 361.412,677.378 353.345,677.378 " /> <polyline points="216.202,698.084 807.798,698.084 807.798,673.882 794.353,673.882 794.353,247.126 229.647,247.126 229.647,673.882 216.202,673.882 216.202,698.084 " /> <polyline points="353.345,711.529 670.655,711.529 670.655,720.941 353.345,720.941 353.345,711.529 " /> <polyline points="512,680.067 512,689.479 " /> <polyline points="512,711.529 512,720.941 " /> <polyline points="780.908,260.571 243.092,663.933 " /> <polyline points="780.908,663.933 243.092,260.571 " /> <polyline points="346.622,724.168 346.622,728.236 345.277,728.236 345.277,722.824 364.101,722.824 353.345,760.471 345.277,760.471 345.277,755.092 346.622,755.092 346.622,759.126 352.184,759.126 362.543,724.168 346.622,724.168 " /> <polyline points="678.723,722.824 807.798,722.824 807.798,706.151 216.202,706.151 216.202,722.824 345.277,722.824 " /> <polyline points="677.378,724.168 677.378,728.236 678.723,728.236 678.723,722.824 659.899,722.824 670.655,760.471 678.723,760.471 678.723,755.092 677.378,755.092 677.378,759.126 671.816,759.126 661.457,724.168 677.378,724.168 " /> <polyline points="377.546,182.588 377.546,228.303 " /> </g> </svg>`,
+  foyer:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <path d="M679.32,425.83 A334.641,334.641 0 0,0 344.68,760.471 " /> <polyline points="679.32,760.471 679.32,425.83 " /> </g> </svg>`,
+  shaft:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <polyline points="888.471,7.52941 135.529,760.471 " /> <polyline points="135.529,7.52941 888.471,760.471 " /> </g> </svg>`,
+  stair:    `<svg preserveAspectRatio="none" viewBox="10 142 1004 484" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="24px" /> <g fill="none" stroke="#1a1d26" stroke-width="24px" > <polyline points="1013.96,141.983 1013.96,626.017 10.0392,626.017 10.0392,141.983 1013.96,141.983 " /> <polyline points="512,626.017 512,141.983 " /> <polyline points="780.908,626.017 780.908,141.983 " /> <polyline points="727.126,626.017 727.126,141.983 " /> <polyline points="673.345,626.017 673.345,141.983 " /> <polyline points="619.563,626.017 619.563,141.983 " /> <polyline points="565.782,626.017 565.782,141.983 " /> <polyline points="243.092,626.017 243.092,141.983 " /> <polyline points="296.874,626.017 296.874,141.983 " /> <polyline points="350.655,626.017 350.655,141.983 " /> <polyline points="404.437,626.017 404.437,141.983 " /> <polyline points="458.218,626.017 458.218,141.983 " /> <polyline points="243.092,384 780.908,384 " /> </g> </svg>`,
 };
 
 // 요소 정의
@@ -3150,7 +3150,7 @@ function addCoreElement(defId){
   if(!def) return;
   const pos = findFreePos(def.baseCols, def.baseRows);
   const uid = CD.nextId++;
-  CD.elements.push({ uid, defId, col:pos.col, row:pos.row, cols:def.baseCols, rows:def.baseRows, rotation:0 });
+  CD.elements.push({ uid, defId, col:pos.col, row:pos.row, cols:def.baseCols, rows:def.baseRows, rotation:0, flipX:false });
   CD.placed[defId] = (CD.placed[defId]||0) + 1;
   CD.selected = uid;
   renderSVG();
@@ -3189,6 +3189,13 @@ function rotateCoreElement(uid){
   el.rotation = (el.rotation+90)%360;
   if(el.rotation===0||el.rotation===180){ el.cols=def.baseCols; el.rows=def.baseRows; }
   else { el.cols=def.baseRows; el.rows=def.baseCols; }
+  renderSVG();
+}
+
+function flipCoreElement(uid){
+  const el = CD.elements.find(e=>e.uid===uid);
+  if(!el) return;
+  el.flipX = !el.flipX;
   renderSVG();
 }
 
@@ -3263,9 +3270,9 @@ function renderSVG(){
         preserveAspectRatio:'none',
         'pointer-events':'none',
       });
-      if(el.rotation){
-        img.setAttribute('transform',`rotate(${el.rotation},${cx},${cy})`);
-      }
+      const rot = el.rotation || 0;
+      const sx = el.flipX ? -1 : 1;
+      img.setAttribute('transform', `translate(${cx},${cy}) rotate(${rot}) scale(${sx},1) translate(${-cx},${-cy})`);
       g.appendChild(img);
     }
 
@@ -3282,10 +3289,18 @@ function renderSVG(){
     lbl.textContent = def.label;
     g.appendChild(lbl);
 
-    // 회전 핸들
+    // 핸들 (선택 시)
     if(isSel){
-      const hc = mk('circle',{cx:x+w-10,cy:y+10,r:9,fill:'#2563eb',style:'cursor:pointer','data-rotate':el.uid});
-      hc.addEventListener('click', e=>{ e.stopPropagation(); rotateCoreElement(el.uid); });
+      // 반전 핸들 ↔
+      const hf = mk('circle',{cx:x+w-30,cy:y+10,r:9,fill:'#ea580c',style:'cursor:pointer'});
+      hf.addEventListener('mousedown', e=>{ e.stopPropagation(); flipCoreElement(el.uid); });
+      g.appendChild(hf);
+      const hft = mk('text',{x:x+w-30,y:y+14,'text-anchor':'middle','font-size':'11',fill:'white','pointer-events':'none'});
+      hft.textContent = '↔';
+      g.appendChild(hft);
+      // 회전 핸들 ↻
+      const hc = mk('circle',{cx:x+w-10,cy:y+10,r:9,fill:'#2563eb',style:'cursor:pointer'});
+      hc.addEventListener('mousedown', e=>{ e.stopPropagation(); rotateCoreElement(el.uid); });
       g.appendChild(hc);
       const ht = mk('text',{x:x+w-10,y:y+14,'text-anchor':'middle','font-size':'11',fill:'white','pointer-events':'none'});
       ht.textContent = '↻';
@@ -3347,8 +3362,12 @@ function initCoreSVGEvents(){
   });
 
   document.addEventListener('keydown', e=>{
-    if((e.key==='r'||e.key==='R')&&CD.selected!==null&&document.activeElement.tagName!=='INPUT'){
+    if(document.activeElement.tagName==='INPUT') return;
+    if((e.key==='r'||e.key==='R')&&CD.selected!==null){
       rotateCoreElement(CD.selected);
+    }
+    if((e.key==='f'||e.key==='F')&&CD.selected!==null){
+      flipCoreElement(CD.selected);
     }
   });
 }
