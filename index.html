@@ -252,7 +252,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 /* ───── PANEL WITH TABS ───── */
 .wide-panel { width: 340px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
 .wide-panel #panel-body { padding: 14px 16px; }
-/* ───── STEP 2 SECTION DIAGRAM ───── */
+/* ───── STEP 3 SECTION DIAGRAM ───── */
 .use-btn{padding:7px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid var(--border2);background:var(--bg3);color:var(--text2);text-align:center;transition:all .15s;}
 .use-btn.active{color:#fff;border-color:transparent;}
 .sec-block-row{display:flex;width:100%;position:relative;box-sizing:border-box;}
@@ -291,32 +291,32 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
 <!-- STEP NAV -->
 <div id="stepnav">
-  <button class="step-btn active" data-step="0" onclick="goStep(0)"><span class="snum">1</span>대지 선택</button>
+  <button class="step-btn active" data-step="1" onclick="goStep(1)"><span class="snum">1</span>대지 선택</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="1" onclick="goStep(1)"><span class="snum">2</span>대지 정보</button>
+  <button class="step-btn" data-step="2" onclick="goStep(2)"><span class="snum">2</span>대지 정보</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="2" onclick="goStep(2)"><span class="snum">3</span>지상 볼륨</button>
+  <button class="step-btn" data-step="3" onclick="goStep(3)"><span class="snum">3</span>지상 볼륨</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="3" onclick="goStep(3)"><span class="snum">4</span>지하 볼륨</button>
+  <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="snum">4</span>지하 볼륨</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="snum">5</span>코어 계획</button>
+  <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="snum">5</span>코어 계획</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="snum">6</span>기준층 계획</button>
+  <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="snum">6</span>기준층 계획</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="snum">7</span>3D 모델링</button>
+  <button class="step-btn" data-step="7" onclick="goStep(7)"><span class="snum">7</span>3D 모델링</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="7" onclick="goStep(7)"><span class="snum">8</span>층별 개요</button>
+  <button class="step-btn" data-step="8" onclick="goStep(8)"><span class="snum">8</span>층별 개요</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="8" onclick="goStep(8)"><span class="snum">9</span>승강기 계획</button>
+  <button class="step-btn" data-step="9" onclick="goStep(9)"><span class="snum">9</span>승강기 계획</button>
   <span class="step-sep">›</span>
-  <button class="step-btn" data-step="9" onclick="goStep(9)"><span class="snum">10</span>평면 다이어그램</button>
+  <button class="step-btn" data-step="10" onclick="goStep(10)"><span class="snum">10</span>평면 다이어그램</button>
 </div>
 
 <!-- MAIN -->
 <div id="main">
 
-<!-- ═══ STEP 0: 대지 선택 ═══ -->
-<div id="step-0" class="step-panel active" style="flex-direction:row;">
+<!-- ═══ STEP 1: 대지 선택 ═══ -->
+<div id="step-1" class="step-panel active" style="flex-direction:row;">
   <div id="panel">
     <div id="panel-header">
       <h2>대지 위치 선택</h2>
@@ -379,8 +379,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 1: 대지 정보 ═══ -->
-<div id="step-1" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 2: 대지 정보 ═══ -->
+<div id="step-2" class="step-panel" style="flex-direction:row;">
   <div id="panel" style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>대지 정보</h2>
@@ -436,7 +436,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
     </div><!-- /panel-body -->
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
-      <button class="btn btn-primary btn-full" onclick="goStep(2)"
+      <button class="btn btn-primary btn-full" onclick="goStep(3)"
         style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 지상 볼륨 →</button>
     </div>
   </div>
@@ -458,8 +458,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 2: 지상 볼륨 ═══ -->
-<div id="step-2" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 3: 지상 볼륨 ═══ -->
+<div id="step-3" class="step-panel" style="flex-direction:row;">
 
   <!-- 좌측: 규모 입력 + 용도 선택 패널 -->
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
@@ -516,7 +516,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <!-- 용도 버튼들은 JS로 생성 -->
     </div>
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
-      <button class="btn btn-primary btn-full" onclick="goStep(3)" style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 지하 볼륨 →</button>
+      <button class="btn btn-primary btn-full" onclick="goStep(4)" style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 지하 볼륨 →</button>
     </div>
   </div>
 
@@ -608,8 +608,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 3: 지하 볼륨 다이어그램 ═══ -->
-<div id="step-3" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 4: 지하 볼륨 ═══ -->
+<div id="step-4" class="step-panel" style="flex-direction:row;">
 
   <!-- 좌측 패널 -->
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
@@ -632,7 +632,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
     <div style="flex:1;"></div>
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
-      <button class="btn btn-primary btn-full" onclick="goStep(4)"
+      <button class="btn btn-primary btn-full" onclick="goStep(5)"
         style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 코어 계획 →</button>
     </div>
   </div>
@@ -723,8 +723,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 4: 코어 계획 ═══ -->
-<div id="step-4" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 5: 코어 계획 ═══ -->
+<div id="step-5" class="step-panel" style="flex-direction:row;">
 
   <!-- 좌측 패널 -->
   <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
@@ -735,7 +735,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
       <button id="core-next-btn" class="btn btn-full"
         style="font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;"
-        disabled onclick="goStep(5)">다음: 기준층 계획 →</button>
+        disabled onclick="goStep(6)">다음: 기준층 계획 →</button>
     </div>
   </div>
 
@@ -756,8 +756,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 </div>
 
 
-<!-- ═══ STEP 5: 기준층 계획 ═══ -->
-<div id="step-5" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 6: 기준층 계획 ═══ -->
+<div id="step-6" class="step-panel" style="flex-direction:row;">
 
   <!-- 좌측 패널 -->
   <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
@@ -773,7 +773,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
     <div style="flex:1;"></div>
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
-      <button class="btn btn-primary btn-full" onclick="goStep(6)" style="font-size:13px;padding:11px;">다음: 3D 모델링 →</button>
+      <button class="btn btn-primary btn-full" onclick="goStep(7)" style="font-size:13px;padding:11px;">다음: 3D 모델링 →</button>
     </div>
   </div>
 
@@ -791,8 +791,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 5: 3D ═══ -->
-<div id="step-6" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 7: 3D 모델링 ═══ -->
+<div id="step-7" class="step-panel" style="flex-direction:row;">
   <div style="width:240px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>3D 매스 모델링</h2>
@@ -808,7 +808,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
         <div class="stat-row" style="margin-top:4px;"><span class="stat-label">지하 층수</span><span class="stat-val" id="3d-below">-</span></div>
         <div class="stat-row" style="margin-top:4px;"><span class="stat-label">총 높이</span><span class="stat-val" id="3d-height">-</span></div>
       </div>
-      <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(7)">다음: 층별 개요 →</button>
+      <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(8)">다음: 층별 개요 →</button>
     </div>
   </div>
   <div id="view3d-container" style="flex:1;position:relative;">
@@ -822,8 +822,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 6: 층별 개요 ═══ -->
-<div id="step-7" class="step-panel" style="flex-direction:column;">
+<!-- ═══ STEP 8: 층별 개요 ═══ -->
+<div id="step-8" class="step-panel" style="flex-direction:column;">
   <div style="display:flex;flex:1;overflow:hidden;">
     <!-- left -->
     <div style="width:240px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
@@ -855,7 +855,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           <div class="sec-label" style="margin-bottom:5px;">변경 이력</div>
           <div id="change-log"><div style="font-size:10px;color:var(--text3);">변경 없음</div></div>
         </div>
-        <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(8)">다음: 승강기 계획 →</button>
+        <button class="btn btn-primary btn-full" style="margin-top:auto;" onclick="goStep(9)">다음: 승강기 계획 →</button>
       </div>
     </div>
     <!-- table -->
@@ -871,8 +871,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 7: 승강기 ═══ -->
-<div id="step-8" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 9: 승강기 ═══ -->
+<div id="step-9" class="step-panel" style="flex-direction:row;">
   <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>승강기 계획</h2>
@@ -898,7 +898,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
           <div class="form-group"><label>대수</label><input type="number" id="elev-vip-n" value="1" min="1" max="4" oninput="calcElevTraffic()" disabled></div>
         </div>
       </div>
-      <button class="btn btn-primary btn-full" onclick="goStep(9)">다음: 평면 다이어그램 →</button>
+      <button class="btn btn-primary btn-full" onclick="goStep(10)">다음: 평면 다이어그램 →</button>
     </div>
   </div>
   <!-- 교통량 분석 -->
@@ -908,8 +908,8 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   </div>
 </div>
 
-<!-- ═══ STEP 8: 평면 다이어그램 ═══ -->
-<div id="step-9" class="step-panel" style="flex-direction:row;">
+<!-- ═══ STEP 10: 평면 다이어그램 ═══ -->
+<div id="step-10" class="step-panel" style="flex-direction:row;">
   <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div id="panel-header">
       <h2>평면 다이어그램</h2>
@@ -985,25 +985,24 @@ function showToast(msg, dur=2800){
 
 function goStep(idx){
   document.querySelectorAll('.step-panel').forEach((p,i)=>{
-    p.classList.toggle('active',i===idx);
+    p.classList.toggle('active', i+1===idx);
   });
   document.querySelectorAll('.step-btn').forEach(b=>{
     b.classList.toggle('active',+b.dataset.step===idx);
   });
-  if(idx===0){ if(vMap){ vMap.updateSize(); } else initVMap(); }
-  if(idx===1){ syncStep1(); drawLotOutline(); }
-  if(idx===2){ initStep2(); }
-  if(idx===3){ initUnderDiagram(); }
-  if(idx===4){ initBoundaryStep(); }
-  if(idx===5){ initFloorPlanStep(); }
-  if(idx===6){ initThreeJS(); }
-  if(idx===7){ buildFloorTable(); recalcFAR(); }
-  if(idx===7){ calcElevTraffic(); updateElevCards(); }
-  if(idx===8){ drawDiagram(); }
+  if(idx===1){ if(vMap){ vMap.updateSize(); } else initVMap(); }
+  if(idx===2){ syncStep1(); drawLotOutline(); }
+  if(idx===3){ initStep2(); }
+  if(idx===4){ initUnderDiagram(); }
+  if(idx===5){ initBoundaryStep(); }
+  if(idx===6){ initFloorPlanStep(); }
+  if(idx===7){ initThreeJS(); }
+  if(idx===8){ buildFloorTable(); recalcFAR(); calcElevTraffic(); updateElevCards(); }
+  if(idx===9){ drawDiagram(); }
 }
 
 // ═══════════════════════════════════════════
-// STEP 0 — VWORLD MAP SDK + SEARCH + 필지
+// STEP 1 — VWORLD MAP SDK + SEARCH + 필지
 // ═══════════════════════════════════════════
 const VWORLD_KEY = 'F6A1D87B-4FE7-3E62-9D90-11C694E11A53';
 
@@ -1410,7 +1409,7 @@ function createProject(){
   // state에 대지 정보 저장 후 다음 단계로
   state.lots = [...selectedLots.values()];
   state.siteAddr = state.searchMarker?.addr || state.lots[0]?.addr || '';
-  goStep(1);
+  goStep(2);
 }
 
 
@@ -1952,7 +1951,7 @@ function calcSiteInfo(){
 }
 
 // ═══════════════════════════════════════════
-// STEP 2 — 단면 조닝 다이어그램
+// STEP 3 — 단면 조닝 다이어그램
 // ═══════════════════════════════════════════
 
 const USE_TYPES = [
@@ -2665,7 +2664,7 @@ function selectAlt(i){
 }
 
 // ═══════════════════════════════════════════
-// STEP 3 — 지하 볼륨 다이어그램
+// STEP 4 — 지하 볼륨 다이어그램
 // ═══════════════════════════════════════════
 
 const SU = {
@@ -3055,7 +3054,7 @@ function startUnderFloorDrag(e, fi){
 }
 
 // ═══════════════════════════════════════════
-// STEP 4 — 바운더리 설정
+// STEP 5 — 바운더리 설정
 // ═══════════════════════════════════════════
 
 // 알파벳 라벨 생성 (0→A, 1→B, ...)
@@ -3067,12 +3066,12 @@ function initBoundaryStep(){
 }
 
 // ═══════════════════════════════════════════
-// STEP 4 — 코어 디자인
+// STEP 5 — 코어 디자인
 // ═══════════════════════════════════════════
 
 
 // ═══════════════════════════════════════════
-// STEP 4 — 코어 디자인 (SVG 오버레이 방식)
+// STEP 5 — 코어 디자인 (SVG 오버레이 방식)
 // ═══════════════════════════════════════════
 
 const GRID = 58;  // px per 2.9m cell
@@ -3384,7 +3383,7 @@ function renderSVG(){
   svg.appendChild(grid);
 
   // 6페이지(기준층 계획) 진입 시 회색으로 표시
-  const isGrayed = $('step-5')?.classList.contains('active');
+  const isGrayed = $('step-6')?.classList.contains('active');
 
   // 요소
   CD.elements.forEach(el=>{
@@ -3621,7 +3620,7 @@ function initCoreDesign(){
 }
 
 // ═══════════════════════════════════════════
-// STEP 5 — 기준층 계획
+// STEP 6 — 기준층 계획
 // ═══════════════════════════════════════════
 
 // 코어 그룹 감지 (flood fill)
@@ -4093,7 +4092,7 @@ function renderSVGWithGroups(groups){
 }
 
 // ═══════════════════════════════════════════
-// STEP 6 — THREE.JS (구 STEP 5)
+// STEP 7 — THREE.JS
 // ═══════════════════════════════════════════
 let renderer,scene,camera,meshes3d=[],animId,isWireframe=false,isExploded=false;
 
@@ -4197,7 +4196,7 @@ function toggleExplode(){
 }
 
 // ═══════════════════════════════════════════
-// STEP 6 — FLOOR TABLE
+// STEP 8 — FLOOR TABLE
 // ═══════════════════════════════════════════
 const FAC_GROUPS = {
   '객실':['객실층','스위트층','서비스드 레지던스'],
@@ -4355,7 +4354,7 @@ function recalcFAR(){
 }
 
 // ═══════════════════════════════════════════
-// STEP 7 — ELEVATOR
+// STEP 9 — ELEVATOR
 // ═══════════════════════════════════════════
 function updateElevCards(){
   ['guest','service','staff','vip'].forEach(t=>{
@@ -4399,7 +4398,7 @@ function calcElevTraffic(){
 }
 
 // ═══════════════════════════════════════════
-// STEP 8 — FLOOR DIAGRAM
+// STEP 10 — FLOOR DIAGRAM
 // ═══════════════════════════════════════════
 function drawDiagram(){
   const type=$('diag-floor')?.value||'ground';
