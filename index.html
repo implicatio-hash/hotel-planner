@@ -1654,10 +1654,9 @@ function sharpInsetPolygon(poly, distM){
       const j=(i+1)%n;
       area2 += ring3857[i][0]*ring3857[j][1] - ring3857[j][0]*ring3857[i][1];
     }
-    // CCW(area2>0)이면 내측은 우측 법선(-dy, dx) 방향
-    // CW(area2<0)이면 내측은 좌측 법선(dy, -dx) 방향
-    // 부호를 통일: CCW 기준 내측 sign = -1, CW 기준 내측 sign = +1
-    const sign = area2 > 0 ? -1 : 1;
+    // CCW(area2>0): 내측은 각 변의 왼쪽 → (-dy,dx) 방향에 +1
+    // CW(area2<0):  내측은 각 변의 오른쪽 → (-dy,dx) 방향에 -1
+    const sign = area2 > 0 ? 1 : -1;
 
     // 각 변을 distM만큼 내측 평행이동
     function offsetEdge(p1, p2){
