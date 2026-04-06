@@ -722,13 +722,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <h2>코어 디자인</h2>
       <p>필요 요소를 모두 배치하면 다음 단계로 이동합니다</p>
     </div>
-
-    <!-- 요소 리스트 -->
-    <div style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:4px;" id="core-element-list">
-      <!-- JS로 생성 -->
-    </div>
-
-    <!-- 하단 버튼 -->
+    <div style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:4px;" id="core-element-list"></div>
     <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
       <button id="core-next-btn" class="btn btn-full"
         style="font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;"
@@ -736,9 +730,9 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     </div>
   </div>
 
-  <!-- 우측: 코어 캔버스 -->
-  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);position:relative;">
-    <!-- 상단 툴바 -->
+  <!-- 우측: SVG 편집 영역 -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
+    <!-- 툴바 -->
     <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
       <span style="font-size:11px;font-weight:600;color:var(--text2);">코어 편집</span>
       <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; R키/↻: 회전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
@@ -746,9 +740,9 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <span style="font-size:10px;color:var(--text3);">1칸 = 2.9m</span>
       <button class="btn btn-secondary btn-sm" onclick="resetCoreCanvas()" style="font-size:10px;padding:3px 8px;">초기화</button>
     </div>
-    <!-- 캔버스 영역 -->
-    <div id="core-canvas-wrap" style="flex:1;overflow:auto;position:relative;">
-      <canvas id="core-canvas"></canvas>
+    <!-- SVG 캔버스 -->
+    <div id="core-canvas-wrap" style="flex:1;overflow:auto;position:relative;cursor:default;">
+      <svg id="core-svg" xmlns="http://www.w3.org/2000/svg" style="display:block;"></svg>
     </div>
   </div>
 </div>
@@ -3023,18 +3017,6 @@ function startUnderFloorDrag(e, fi){
 function typeLabel(i){ return String.fromCharCode(65 + i); }
 
 // 색상 팔레트
-const TYPE_COLORS = [
-  '#2563eb','#ea580c','#16a34a','#9333ea','#0891b2',
-  '#dc2626','#ca8a04','#065f46','#7c3aed','#b45309'
-];
-
-// 바운더리 state
-const SB = {
-  aboveTypes: [],  // [{label, area, color, poly, selected}]
-  underTypes: [],  // [{label, area, color, poly, selected}]
-  selectedKey: null, // 'above-0', 'under-1' 등
-};
-
 function initBoundaryStep(){
   initCoreDesign();
 }
@@ -3043,946 +3025,377 @@ function initBoundaryStep(){
 // STEP 4 — 코어 디자인
 // ═══════════════════════════════════════════
 
-const GRID = 58;   // px per 2.9m cell
-const CELL = 2.9;  // meters
 
-// 코어 요소 정의 — 전실은 완전 독립 요소
-// baseCols/baseRows: rotation=0 기준 크기
-const CORE_DEF = [
-  // 계단
-  { id:'stair-s',   label:'피난계단',     baseCols:2, baseRows:1, color:'#dcfce7', border:'#22c55e', textColor:'#14532d', symbol:'stair' },
-  { id:'stair-sp',  label:'특별피난계단', baseCols:2, baseRows:1, color:'#d1fae5', border:'#10b981', textColor:'#064e3b', symbol:'stair' },
-  // 승강기
-  { id:'ev',        label:'승용 EV',      baseCols:1, baseRows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af', symbol:'ev' },
-  { id:'ev-emg',    label:'비상 EV',      baseCols:1, baseRows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', symbol:'ev-emg' },
-  { id:'ev-evac',   label:'피난 EV',      baseCols:1, baseRows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', symbol:'ev-evac' },
-  // 전실 (독립)
-  { id:'foyer-ev',  label:'EV 전실',      baseCols:1, baseRows:1, color:'#eff6ff', border:'#93c5fd', textColor:'#1e40af', symbol:'foyer' },
-  { id:'foyer-st',  label:'계단 전실',    baseCols:1, baseRows:1, color:'#f0fdf4', border:'#86efac', textColor:'#14532d', symbol:'foyer' },
-  // 설비
-  { id:'av',        label:'AV',           baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
-  { id:'eps',       label:'EPS',          baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
-  { id:'tps',       label:'TPS',          baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
-  { id:'ad',        label:'AD',           baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
-  { id:'ps',        label:'PS',           baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', symbol:'shaft' },
-];
+// ═══════════════════════════════════════════
+// STEP 4 — 코어 디자인 (SVG 오버레이 방식)
+// ═══════════════════════════════════════════
 
-// 코어 상태
-let CD = {
-  elements: [],   // { uid, defId, label, col, row, cols, rows, rotation(0/90/180/270), color, border, textColor, symbol }
-  required: {},
-  placed:   {},
-  selected: null, // 선택된 uid
-  nextId: 1,
+const GRID = 58;  // px per 2.9m cell
+const CELL = 2.9; // meters
+
+// SVG 심볼 (인라인, 정확한 비율 viewBox)
+const CORE_SVGS = {
+  elevator: `<svg preserveAspectRatio="none" viewBox="149 8 727 726" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="148.975,733.58 875.025,733.58 875.025,7.52941 148.975,7.52941 148.975,733.58 " /> <polyline points="646.454,182.588 646.454,228.303 " /> <polyline points="377.546,182.588 377.546,228.303 " /> <polyline points="646.454,182.588 377.546,182.588 " /> <polyline points="646.454,228.303 377.546,228.303 " /> <polyline points="353.345,680.067 353.345,689.479 670.655,689.479 670.655,680.067 353.345,680.067 " /> <polyline points="670.655,677.378 662.588,677.378 662.588,663.933 780.908,663.933 780.908,260.571 243.092,260.571 243.092,663.933 361.412,663.933 361.412,677.378 353.345,677.378 " /> <polyline points="216.202,698.084 807.798,698.084 807.798,673.882 794.353,673.882 794.353,247.126 229.647,247.126 229.647,673.882 216.202,673.882 216.202,698.084 " /> <polyline points="353.345,711.529 670.655,711.529 670.655,720.941 353.345,720.941 353.345,711.529 " /> <polyline points="512,680.067 512,689.479 " /> <polyline points="512,711.529 512,720.941 " /> <polyline points="780.908,260.571 243.092,663.933 " /> <polyline points="780.908,663.933 243.092,260.571 " /> <polyline points="346.622,724.168 346.622,728.236 345.277,728.236 345.277,722.824 364.101,722.824 353.345,760.471 345.277,760.471 345.277,755.092 346.622,755.092 346.622,759.126 352.184,759.126 362.543,724.168 346.622,724.168 " /> <polyline points="678.723,722.824 807.798,722.824 807.798,706.151 216.202,706.151 216.202,722.824 345.277,722.824 " /> <polyline points="677.378,724.168 677.378,728.236 678.723,728.236 678.723,722.824 659.899,722.824 670.655,760.471 678.723,760.471 678.723,755.092 677.378,755.092 677.378,759.126 671.816,759.126 661.457,724.168 677.378,724.168 " /> <polyline points="377.546,182.588 377.546,228.303 " /> </g> </svg>`,
+  foyer:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <path d="M679.32,425.83 A334.641,334.641 0 0,0 344.68,760.471 " /> <polyline points="679.32,760.471 679.32,425.83 " /> </g> </svg>`,
+  shaft:    `<svg preserveAspectRatio="none" viewBox="136 8 752 752" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="135.529,760.471 888.471,760.471 888.471,7.52941 135.529,7.52941 135.529,760.471 " /> <polyline points="888.471,7.52941 135.529,760.471 " /> <polyline points="135.529,7.52941 888.471,760.471 " /> </g> </svg>`,
+  stair:    `<svg preserveAspectRatio="none" viewBox="10 142 1004 484" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd" xml:space="preserve" >  <g fill="none" stroke="#1a1d26" stroke-width="1px" /> <g fill="none" stroke="#1a1d26" stroke-width="1px" > <polyline points="1013.96,141.983 1013.96,626.017 10.0392,626.017 10.0392,141.983 1013.96,141.983 " /> <polyline points="512,626.017 512,141.983 " /> <polyline points="780.908,626.017 780.908,141.983 " /> <polyline points="727.126,626.017 727.126,141.983 " /> <polyline points="673.345,626.017 673.345,141.983 " /> <polyline points="619.563,626.017 619.563,141.983 " /> <polyline points="565.782,626.017 565.782,141.983 " /> <polyline points="243.092,626.017 243.092,141.983 " /> <polyline points="296.874,626.017 296.874,141.983 " /> <polyline points="350.655,626.017 350.655,141.983 " /> <polyline points="404.437,626.017 404.437,141.983 " /> <polyline points="458.218,626.017 458.218,141.983 " /> <polyline points="243.092,384 780.908,384 " /> </g> </svg>`,
 };
 
-// ── 필요 수량 산출 ──
+// 요소 정의
+const CORE_DEF = [
+  { id:'stair-s',  label:'피난계단',     baseCols:2, baseRows:1, color:'#dcfce7', border:'#22c55e', textColor:'#14532d', svgKey:'stair' },
+  { id:'stair-sp', label:'특별피난계단', baseCols:2, baseRows:1, color:'#d1fae5', border:'#10b981', textColor:'#064e3b', svgKey:'stair' },
+  { id:'ev',       label:'승용 EV',      baseCols:1, baseRows:1, color:'#dbeafe', border:'#3b82f6', textColor:'#1e40af', svgKey:'elevator' },
+  { id:'ev-emg',   label:'비상 EV',      baseCols:1, baseRows:1, color:'#fef3c7', border:'#f59e0b', textColor:'#92400e', svgKey:'elevator' },
+  { id:'ev-evac',  label:'피난 EV',      baseCols:1, baseRows:1, color:'#fce7f3', border:'#ec4899', textColor:'#831843', svgKey:'elevator' },
+  { id:'foyer-ev', label:'EV 전실',      baseCols:1, baseRows:1, color:'#eff6ff', border:'#93c5fd', textColor:'#1e40af', svgKey:'foyer' },
+  { id:'foyer-st', label:'계단 전실',    baseCols:1, baseRows:1, color:'#f0fdf4', border:'#86efac', textColor:'#14532d', svgKey:'foyer' },
+  { id:'av',  label:'AV',  baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
+  { id:'eps', label:'EPS', baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
+  { id:'tps', label:'TPS', baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
+  { id:'ad',  label:'AD',  baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
+  { id:'ps',  label:'PS',  baseCols:1, baseRows:1, color:'#f8fafc', border:'#94a3b8', textColor:'#334155', svgKey:'shaft' },
+];
+
+let CD = {
+  elements: [],
+  required: {},
+  placed:   {},
+  selected: null,
+  nextId: 1,
+  drag: null,
+};
+
 function calcCoreRequirements(){
   const req = {};
-
   const floors   = S2.floors?.length ? S2.floors : [];
   const aboveF   = state.aboveFloors || (floors.length > 0 ? floors.length : 20);
   const fh       = state.floorHeight  || 3.5;
   const lh       = state.lobbyHeight  || 6.0;
   const totalH   = lh + (aboveF - 1) * fh;
   const underF   = SU.floors?.length || state.underFloors || 4;
-  const maxFloorArea = floors.length > 0
-    ? Math.max(...floors.map(f => f.area), 1)
-    : (state.maxCoverage || 1500);
-  const gfa6plus = floors.filter((_,i) => i >= 5)
-    .reduce((s, f) => s + f.area, 0);
+  const maxFloorArea = floors.length > 0 ? Math.max(...floors.map(f=>f.area), 1) : (state.maxCoverage || 1500);
+  const gfa6plus = floors.filter((_,i)=>i>=5).reduce((s,f)=>s+f.area, 0);
 
-  // 1. 직통계단 (숙박시설 3층↑ 거실 200㎡↑ → 2개소)
-  // 피난계단 vs 특별피난계단
-  if(aboveF >= 11 || underF >= 3){
-    req['stair-sp'] = 2;
-    req['stair-s']  = 0;
-  } else if(aboveF >= 5 || underF >= 2){
-    req['stair-s']  = 2;
-    req['stair-sp'] = 0;
-  } else {
-    req['stair-s']  = 2;
-    req['stair-sp'] = 0;
-  }
+  if(aboveF >= 11 || underF >= 3){ req['stair-sp']=2; req['stair-s']=0; }
+  else { req['stair-s']=2; req['stair-sp']=0; }
 
-  // 2. 승용 EV (6층 이상 연면적 2000㎡↑, 숙박 2호그룹)
-  // 별표1의2 2호: 3000㎡이하→1대, 초과→1+(초과/2000) 올림
   let evCount = 0;
   if(aboveF >= 6 && gfa6plus > 0){
-    if(gfa6plus <= 3000) evCount = 1;
-    else evCount = 1 + Math.ceil((gfa6plus - 3000) / 2000);
+    evCount = gfa6plus <= 3000 ? 1 : 1 + Math.ceil((gfa6plus-3000)/2000);
   }
-  req['ev'] = Math.max(evCount, aboveF >= 6 ? 1 : 0);
-
-  // 3. 비상용 EV (높이 31m 초과)
-  if(totalH > 31){
-    const base = maxFloorArea <= 1500 ? 1
-      : 1 + Math.ceil((maxFloorArea - 1500) / 3000);
-    req['ev-emg'] = base;
-  } else {
-    req['ev-emg'] = 0;
-  }
-
-  // 4. 피난용 EV (30층↑ 또는 120m↑)
-  req['ev-evac'] = (aboveF >= 30 || totalH >= 120) ? 1 : 0;
-
-  // 5. 부속 설비 (각 1개 고정)
-  req['av']  = 1;
-  req['eps'] = 1;
-  req['tps'] = 1;
-  req['ad']  = 1;
-  req['ps']  = 1;
-
-  // 6. 전실 (독립 요소) — EV 전실: 비상+피난 EV 수량, 계단 전실: 특별피난계단 수량
-  req['foyer-ev'] = (req['ev-emg'] || 0) + (req['ev-evac'] || 0);
-  req['foyer-st'] = req['stair-sp'] || 0;
-
+  req['ev']      = Math.max(evCount, aboveF>=6 ? 1 : 0);
+  req['ev-emg']  = totalH > 31 ? (maxFloorArea<=1500 ? 1 : 1+Math.ceil((maxFloorArea-1500)/3000)) : 0;
+  req['ev-evac'] = (aboveF>=30 || totalH>=120) ? 1 : 0;
+  req['av']=req['eps']=req['tps']=req['ad']=req['ps']=1;
+  req['foyer-ev'] = (req['ev-emg']||0) + (req['ev-evac']||0);
+  req['foyer-st'] = req['stair-sp']||0;
   return req;
 }
 
-// ── 좌측 패널 렌더링 ──
 function renderCoreList(){
   const list = $('core-element-list');
   if(!list) return;
-
   list.innerHTML = '';
-
-  // 섹션: 계단
-  const stairSection = document.createElement('div');
-  stairSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:6px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">계단</div>`;
-  list.appendChild(stairSection);
-
-  const stairIds = ['stair-sp','stair-s'];
-  stairIds.forEach(defId => renderCoreRow(list, defId));
-
-  // 섹션: 승강기
-  const evSection = document.createElement('div');
-  evSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">승강기</div>`;
-  list.appendChild(evSection);
-
-  const evIds = ['ev','ev-emg','ev-evac'];
-  evIds.forEach(defId => renderCoreRow(list, defId));
-
-  // 섹션: 전실
-  const foyerSection = document.createElement('div');
-  foyerSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">전실</div>`;
-  list.appendChild(foyerSection);
-
-  const foyerIds = ['foyer-ev','foyer-st'];
-  foyerIds.forEach(defId => renderCoreRow(list, defId));
-
-  // 섹션: 설비
-  const mechSection = document.createElement('div');
-  mechSection.innerHTML = `<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;">설비</div>`;
-  list.appendChild(mechSection);
-
-  const mechIds = ['av','eps','tps','ad','ps'];
-  mechIds.forEach(defId => renderCoreRow(list, defId));
-
+  const sections = [
+    { title:'계단', ids:['stair-sp','stair-s'] },
+    { title:'승강기', ids:['ev','ev-emg','ev-evac'] },
+    { title:'전실', ids:['foyer-ev','foyer-st'] },
+    { title:'설비', ids:['av','eps','tps','ad','ps'] },
+  ];
+  sections.forEach(sec => {
+    const hd = document.createElement('div');
+    hd.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:6px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;';
+    hd.textContent = sec.title;
+    list.appendChild(hd);
+    sec.ids.forEach(id => renderCoreRow(list, id));
+  });
   updateCoreNextBtn();
 }
 
 function renderCoreRow(container, defId){
-  const def = CORE_DEF.find(d => d.id === defId);
+  const def = CORE_DEF.find(d=>d.id===defId);
   if(!def) return;
-
-  const req = CD.required[defId] || 0;
-  const placed = CD.placed[defId] || 0;
-  const remain = Math.max(0, req - placed);
+  const req    = CD.required[defId]||0;
+  const placed = CD.placed[defId]||0;
+  const remain = Math.max(0, req-placed);
   const canAdd = remain > 0;
 
   const row = document.createElement('div');
-  row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:5px;background:${canAdd ? 'var(--bg2)' : 'var(--bg3)'};border:1px solid ${canAdd ? 'var(--border2)' : 'var(--border)'};margin-bottom:2px;`;
+  row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:5px;background:${canAdd?'var(--bg2)':'var(--bg3)'};border:1px solid ${canAdd?'var(--border2)':'var(--border)'};margin-bottom:2px;`;
 
-  // 색상 도트
   const dot = document.createElement('div');
   dot.style.cssText = `width:10px;height:10px;border-radius:2px;background:${def.color};border:1.5px solid ${def.border};flex-shrink:0;`;
 
-  // 라벨
   const lbl = document.createElement('div');
-  lbl.style.cssText = `flex:1;font-size:11px;font-weight:600;color:${canAdd ? 'var(--text)' : 'var(--text3)'};`;
+  lbl.style.cssText = `flex:1;font-size:11px;font-weight:600;color:${canAdd?'var(--text)':'var(--text3)'};`;
+  lbl.innerHTML = `${def.label}<br><span style="font-size:9px;font-weight:400;color:var(--text3);">${def.baseCols*CELL}×${def.baseRows*CELL}m</span>`;
 
-  // 모듈 크기 표시 (rotation 0 기준)
-  const sizeStr = `${def.baseCols * CELL}×${def.baseRows * CELL}m`;
-  lbl.innerHTML = `${def.label}<br><span style="font-size:9px;font-weight:400;color:var(--text3);">${sizeStr}</span>`;
-
-  // 필요/여분
   const cnt = document.createElement('div');
-  cnt.style.cssText = `font-size:10px;color:var(--text3);text-align:right;flex-shrink:0;`;
+  cnt.style.cssText = 'font-size:10px;color:var(--text3);text-align:right;flex-shrink:0;';
   cnt.innerHTML = `필요 ${req}<br><span style="color:${remain===0?'var(--green)':'var(--accent)'};font-weight:700;">여분 ${remain}</span>`;
 
-  // 추가 버튼
   const btn = document.createElement('button');
   btn.className = 'btn btn-sm';
   btn.textContent = '추가';
-  btn.style.cssText = `font-size:10px;padding:3px 8px;flex-shrink:0;${canAdd ? 'background:var(--accent);color:#fff;border:none;' : 'background:var(--bg3);color:var(--text3);border:1px solid var(--border);cursor:not-allowed;'}`;
+  btn.style.cssText = `font-size:10px;padding:3px 8px;flex-shrink:0;${canAdd?'background:var(--accent);color:#fff;border:none;':'background:var(--bg3);color:var(--text3);border:1px solid var(--border);cursor:not-allowed;'}`;
   btn.disabled = !canAdd;
-  if(canAdd) btn.onclick = () => addCoreElement(defId);
-
-  row.appendChild(dot);
-  row.appendChild(lbl);
-  row.appendChild(cnt);
-  row.appendChild(btn);
+  if(canAdd) btn.onclick = ()=>addCoreElement(defId);
+  row.append(dot, lbl, cnt, btn);
   container.appendChild(row);
 }
 
-// ── 요소 추가 ──
 function addCoreElement(defId){
-  const def = CORE_DEF.find(d => d.id === defId);
+  const def = CORE_DEF.find(d=>d.id===defId);
   if(!def) return;
-
-  const cols = def.baseCols;
-  const rows = def.baseRows;
-  const pos = findFreePos(cols, rows);
-
+  const pos = findFreePos(def.baseCols, def.baseRows);
   const uid = CD.nextId++;
-  CD.elements.push({
-    uid,
-    defId,
-    label: def.label,
-    col: pos.col,
-    row: pos.row,
-    cols,
-    rows,
-    rotation: 0,
-    color: def.color,
-    border: def.border,
-    textColor: def.textColor,
-    symbol: def.symbol,
-  });
-
-  CD.placed[defId] = (CD.placed[defId] || 0) + 1;
+  CD.elements.push({ uid, defId, col:pos.col, row:pos.row, cols:def.baseCols, rows:def.baseRows, rotation:0 });
+  CD.placed[defId] = (CD.placed[defId]||0) + 1;
   CD.selected = uid;
-  drawCoreCanvas();
+  renderSVG();
   renderCoreList();
 }
 
-// ── 빈 위치 탐색 ──
 function findFreePos(cols, rows){
-  const occupied = new Set();
-  CD.elements.forEach(el => {
-    for(let c = el.col; c < el.col + el.cols; c++)
-      for(let r = el.row; r < el.row + el.rows; r++)
-        occupied.add(`${c},${r}`);
+  const occ = new Set();
+  CD.elements.forEach(el=>{
+    for(let c=el.col;c<el.col+el.cols;c++)
+      for(let r=el.row;r<el.row+el.rows;r++) occ.add(`${c},${r}`);
   });
-
-  // 16×16 범위 내에서 탐색
-  for(let r = 0; r < 16; r++){
-    for(let c = 0; c < 16; c++){
-      let free = true;
-      for(let dc = 0; dc < cols && free; dc++)
-        for(let dr = 0; dr < rows && free; dr++)
-          if(occupied.has(`${c+dc},${r+dr}`)) free = false;
-      if(free) return {col:c, row:r};
-    }
+  for(let r=0;r<20;r++) for(let c=0;c<20;c++){
+    let free=true;
+    for(let dc=0;dc<cols&&free;dc++) for(let dr=0;dr<rows&&free;dr++) if(occ.has(`${c+dc},${r+dr}`)) free=false;
+    if(free) return {col:c, row:r};
   }
-  return {col:0, row: Math.max(...CD.elements.map(e=>e.row+e.rows), 0)};
+  return {col:0, row:Math.max(...CD.elements.map(e=>e.row+e.rows),0)};
 }
 
-// ── 요소 삭제 ──
 function removeCoreElement(uid){
-  const el = CD.elements.find(e => e.uid === uid);
+  const el = CD.elements.find(e=>e.uid===uid);
   if(!el) return;
-  CD.elements = CD.elements.filter(e => e.uid !== uid);
-  if(CD.placed[el.defId] > 0) CD.placed[el.defId]--;
-  if(CD.selected === uid) CD.selected = null;
-  drawCoreCanvas();
+  CD.elements = CD.elements.filter(e=>e.uid!==uid);
+  if((CD.placed[el.defId]||0)>0) CD.placed[el.defId]--;
+  if(CD.selected===uid) CD.selected=null;
+  renderSVG();
   renderCoreList();
 }
 
-// ── 선택된 요소 회전 (R키 또는 버튼) ──
 function rotateCoreElement(uid){
-  const el = CD.elements.find(e => e.uid === uid);
+  const el = CD.elements.find(e=>e.uid===uid);
   if(!el) return;
-  const def = CORE_DEF.find(d => d.id === el.defId);
+  const def = CORE_DEF.find(d=>d.id===el.defId);
   if(!def) return;
-
-  // rotation을 90° 씩 증가
-  el.rotation = (el.rotation + 90) % 360;
-
-  // baseCols/baseRows 기준으로 0°/180° = 원래 크기, 90°/270° = swap
-  if(el.rotation === 0 || el.rotation === 180){
-    el.cols = def.baseCols;
-    el.rows = def.baseRows;
-  } else {
-    el.cols = def.baseRows;
-    el.rows = def.baseCols;
-  }
-
-  drawCoreCanvas();
+  el.rotation = (el.rotation+90)%360;
+  if(el.rotation===0||el.rotation===180){ el.cols=def.baseCols; el.rows=def.baseRows; }
+  else { el.cols=def.baseRows; el.rows=def.baseCols; }
+  renderSVG();
 }
 
-// ── 캔버스 그리기 ──
-let _cDrag = null;
+function renderSVG(){
+  const svg = $('core-svg');
+  if(!svg) return;
 
-function drawCoreCanvas(){
-  const wrap = $('core-canvas-wrap');
-  const canvas = $('core-canvas');
-  if(!wrap || !canvas) return;
+  let maxC=15, maxR=11;
+  CD.elements.forEach(el=>{ maxC=Math.max(maxC,el.col+el.cols); maxR=Math.max(maxR,el.row+el.rows); });
+  maxC=Math.max(maxC+2,16); maxR=Math.max(maxR+2,12);
+  const W=maxC*GRID, H=maxR*GRID;
 
-  let maxC = 15, maxR = 11;
-  CD.elements.forEach(el => {
-    maxC = Math.max(maxC, el.col + el.cols);
-    maxR = Math.max(maxR, el.row + el.rows);
-  });
-  maxC = Math.max(maxC + 2, 16);
-  maxR = Math.max(maxR + 2, 12);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-  const W = maxC * GRID, H = maxR * GRID;
-  canvas.width = W; canvas.height = H;
-  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const NS = 'http://www.w3.org/2000/svg';
+  function mk(tag, attrs={}){
+    const el = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));
+    return el;
+  }
 
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#f8f9fb'; ctx.fillRect(0, 0, W, H);
+  svg.innerHTML = '';
+
+  // 배경
+  svg.appendChild(mk('rect',{width:W,height:H,fill:'#f8f9fb'}));
 
   // 그리드
-  ctx.strokeStyle = '#dde0e8'; ctx.lineWidth = 0.5;
-  for(let c = 0; c <= maxC; c++){
-    ctx.beginPath(); ctx.moveTo(c*GRID, 0); ctx.lineTo(c*GRID, H); ctx.stroke();
+  const grid = mk('g',{stroke:'#dde0e8','stroke-width':'0.5'});
+  for(let c=0;c<=maxC;c++) grid.appendChild(mk('line',{x1:c*GRID,y1:0,x2:c*GRID,y2:H}));
+  for(let r=0;r<=maxR;r++) grid.appendChild(mk('line',{x1:0,y1:r*GRID,x2:W,y2:r*GRID}));
+  svg.appendChild(grid);
+
+  // 치수
+  const dimX = mk('g',{fill:'#b0b8c8','font-size':'9','font-family':'Pretendard,sans-serif','text-anchor':'middle'});
+  for(let c=0;c<maxC;c++){
+    const t=mk('text',{x:c*GRID+GRID/2,y:10}); t.textContent=`${(c*CELL).toFixed(1)}m`; dimX.appendChild(t);
   }
-  for(let r = 0; r <= maxR; r++){
-    ctx.beginPath(); ctx.moveTo(0, r*GRID); ctx.lineTo(W, r*GRID); ctx.stroke();
+  svg.appendChild(dimX);
+  const dimY = mk('g',{fill:'#b0b8c8','font-size':'9','font-family':'Pretendard,sans-serif','text-anchor':'end'});
+  for(let r=0;r<maxR;r++){
+    const t=mk('text',{x:GRID-4,y:r*GRID+GRID/2+3}); t.textContent=`${(r*CELL).toFixed(1)}m`; dimY.appendChild(t);
   }
+  svg.appendChild(dimY);
 
-  // 치수 라벨
-  ctx.fillStyle = '#b0b8c8'; ctx.font = '9px Pretendard,sans-serif';
-  ctx.textAlign = 'center';
-  for(let c = 0; c < maxC; c++)
-    ctx.fillText((c*CELL).toFixed(1)+'m', c*GRID+GRID/2, 10);
-  ctx.textAlign = 'right';
-  for(let r = 0; r < maxR; r++)
-    ctx.fillText((r*CELL).toFixed(1)+'m', GRID-4, r*GRID+GRID/2+3);
+  // 요소
+  CD.elements.forEach(el=>{
+    const def = CORE_DEF.find(d=>d.id===el.defId);
+    if(!def) return;
+    const x=el.col*GRID, y=el.row*GRID, w=el.cols*GRID, h=el.rows*GRID;
+    const cx=x+w/2, cy=y+h/2;
+    const isSel = CD.selected===el.uid;
 
-  // 요소 그리기
-  CD.elements.forEach(el => {
-    const x = el.col*GRID, y = el.row*GRID;
-    const w = el.cols*GRID, h = el.rows*GRID;
-    const isSel = CD.selected === el.uid;
+    const g = mk('g');
 
-    ctx.fillStyle = el.color;
-    ctx.fillRect(x+1, y+1, w-2, h-2);
-    if(isSel){ ctx.fillStyle='rgba(37,99,235,0.08)'; ctx.fillRect(x+1,y+1,w-2,h-2); }
-    ctx.strokeStyle = isSel ? '#2563eb' : el.border;
-    ctx.lineWidth = isSel ? 2.5 : 1.5;
-    ctx.strokeRect(x+1, y+1, w-2, h-2);
-
-    drawSymbol(ctx, el, x, y, w, h);
-
-    // 선택 시 회전 핸들
+    // 배경
+    const bg = mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,fill:def.color,stroke:isSel?'#2563eb':def.border,'stroke-width':isSel?2.5:1.5,rx:1});
+    g.appendChild(bg);
     if(isSel){
-      ctx.fillStyle = '#2563eb';
-      ctx.beginPath(); ctx.arc(x+w-10, y+10, 8, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('↻', x+w-10, y+14);
+      const hl = mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,fill:'rgba(37,99,235,0.06)',rx:1});
+      g.appendChild(hl);
     }
+
+    // SVG 심볼 (image 태그, preserveAspectRatio=none)
+    const svgStr = CORE_SVGS[def.svgKey];
+    if(svgStr){
+      const b64 = btoa(unescape(encodeURIComponent(svgStr)));
+      const img = mk('image',{
+        href:`data:image/svg+xml;base64,${b64}`,
+        x:x+1, y:y+1, width:w-2, height:h-2,
+        preserveAspectRatio:'none',
+        'pointer-events':'none',
+      });
+      if(el.rotation){
+        img.setAttribute('transform',`rotate(${el.rotation},${cx},${cy})`);
+      }
+      g.appendChild(img);
+    }
+
+    // 라벨 (항상 정중앙, 회전 없음)
+    const lbl = mk('text',{
+      x:cx, y:cy+4,
+      'text-anchor':'middle',
+      'font-size':'11',
+      'font-weight':'700',
+      'font-family':'Pretendard,sans-serif',
+      fill:def.textColor,
+      'pointer-events':'none',
+    });
+    lbl.textContent = def.label;
+    g.appendChild(lbl);
+
+    // 회전 핸들
+    if(isSel){
+      const hc = mk('circle',{cx:x+w-10,cy:y+10,r:9,fill:'#2563eb',style:'cursor:pointer','data-rotate':el.uid});
+      hc.addEventListener('click', e=>{ e.stopPropagation(); rotateCoreElement(el.uid); });
+      g.appendChild(hc);
+      const ht = mk('text',{x:x+w-10,y:y+14,'text-anchor':'middle','font-size':'11',fill:'white','pointer-events':'none'});
+      ht.textContent = '↻';
+      g.appendChild(ht);
+    }
+
+    svg.appendChild(g);
   });
 }
 
-// ── SVG 심볼 데이터 (Base64 Data URL, 미리 로드) ──
-const CORE_SVG_URLS = {
-  elevator: "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAyNCA3NjgiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIHhtbDpzcGFjZT0icHJlc2VydmUiID4gIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiIC8+IDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiID4gPHBvbHlsaW5lIHBvaW50cz0iMTQ4Ljk3NSw3MzMuNTggODc1LjAyNSw3MzMuNTggODc1LjAyNSw3LjUyOTQxIDE0OC45NzUsNy41Mjk0MSAxNDguOTc1LDczMy41OCAiIC8+IDxwb2x5bGluZSBwb2ludHM9IjY0Ni40NTQsMTgyLjU4OCA2NDYuNDU0LDIyOC4zMDMgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSIzNzcuNTQ2LDE4Mi41ODggMzc3LjU0NiwyMjguMzAzICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iNjQ2LjQ1NCwxODIuNTg4IDM3Ny41NDYsMTgyLjU4OCAiIC8+IDxwb2x5bGluZSBwb2ludHM9IjY0Ni40NTQsMjI4LjMwMyAzNzcuNTQ2LDIyOC4zMDMgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSIzNTMuMzQ1LDY4MC4wNjcgMzUzLjM0NSw2ODkuNDc5IDY3MC42NTUsNjg5LjQ3OSA2NzAuNjU1LDY4MC4wNjcgMzUzLjM0NSw2ODAuMDY3ICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iNjcwLjY1NSw2NzcuMzc4IDY2Mi41ODgsNjc3LjM3OCA2NjIuNTg4LDY2My45MzMgNzgwLjkwOCw2NjMuOTMzIDc4MC45MDgsMjYwLjU3MSAyNDMuMDkyLDI2MC41NzEgMjQzLjA5Miw2NjMuOTMzIDM2MS40MTIsNjYzLjkzMyAzNjEuNDEyLDY3Ny4zNzggMzUzLjM0NSw2NzcuMzc4ICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iMjE2LjIwMiw2OTguMDg0IDgwNy43OTgsNjk4LjA4NCA4MDcuNzk4LDY3My44ODIgNzk0LjM1Myw2NzMuODgyIDc5NC4zNTMsMjQ3LjEyNiAyMjkuNjQ3LDI0Ny4xMjYgMjI5LjY0Nyw2NzMuODgyIDIxNi4yMDIsNjczLjg4MiAyMTYuMjAyLDY5OC4wODQgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSIzNTMuMzQ1LDcxMS41MjkgNjcwLjY1NSw3MTEuNTI5IDY3MC42NTUsNzIwLjk0MSAzNTMuMzQ1LDcyMC45NDEgMzUzLjM0NSw3MTEuNTI5ICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iNTEyLDY4MC4wNjcgNTEyLDY4OS40NzkgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSI1MTIsNzExLjUyOSA1MTIsNzIwLjk0MSAiIC8+IDxwb2x5bGluZSBwb2ludHM9Ijc4MC45MDgsMjYwLjU3MSAyNDMuMDkyLDY2My45MzMgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSI3ODAuOTA4LDY2My45MzMgMjQzLjA5MiwyNjAuNTcxICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iMzQ2LjYyMiw3MjQuMTY4IDM0Ni42MjIsNzI4LjIzNiAzNDUuMjc3LDcyOC4yMzYgMzQ1LjI3Nyw3MjIuODI0IDM2NC4xMDEsNzIyLjgyNCAzNTMuMzQ1LDc2MC40NzEgMzQ1LjI3Nyw3NjAuNDcxIDM0NS4yNzcsNzU1LjA5MiAzNDYuNjIyLDc1NS4wOTIgMzQ2LjYyMiw3NTkuMTI2IDM1Mi4xODQsNzU5LjEyNiAzNjIuNTQzLDcyNC4xNjggMzQ2LjYyMiw3MjQuMTY4ICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iNjc4LjcyMyw3MjIuODI0IDgwNy43OTgsNzIyLjgyNCA4MDcuNzk4LDcwNi4xNTEgMjE2LjIwMiw3MDYuMTUxIDIxNi4yMDIsNzIyLjgyNCAzNDUuMjc3LDcyMi44MjQgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSI2NzcuMzc4LDcyNC4xNjggNjc3LjM3OCw3MjguMjM2IDY3OC43MjMsNzI4LjIzNiA2NzguNzIzLDcyMi44MjQgNjU5Ljg5OSw3MjIuODI0IDY3MC42NTUsNzYwLjQ3MSA2NzguNzIzLDc2MC40NzEgNjc4LjcyMyw3NTUuMDkyIDY3Ny4zNzgsNzU1LjA5MiA2NzcuMzc4LDc1OS4xMjYgNjcxLjgxNiw3NTkuMTI2IDY2MS40NTcsNzI0LjE2OCA2NzcuMzc4LDcyNC4xNjggIiAvPiA8cG9seWxpbmUgcG9pbnRzPSIzNzcuNTQ2LDE4Mi41ODggMzc3LjU0NiwyMjguMzAzICIgLz4gPC9nPiA8L3N2Zz4=",
-  foyer: "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAyNCA3NjgiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIHhtbDpzcGFjZT0icHJlc2VydmUiID4gIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiIC8+IDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiID4gPHBvbHlsaW5lIHBvaW50cz0iMTM1LjUyOSw3NjAuNDcxIDg4OC40NzEsNzYwLjQ3MSA4ODguNDcxLDcuNTI5NDEgMTM1LjUyOSw3LjUyOTQxIDEzNS41MjksNzYwLjQ3MSAiIC8+IDxwYXRoIGQ9Ik02NzkuMzIsNDI1LjgzIEEzMzQuNjQxLDMzNC42NDEgMCAwLDAgMzQ0LjY4LDc2MC40NzEgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSI2NzkuMzIsNzYwLjQ3MSA2NzkuMzIsNDI1LjgzICIgLz4gPC9nPiA8L3N2Zz4=",
-  shaft: "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAyNCA3NjgiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIHhtbDpzcGFjZT0icHJlc2VydmUiID4gIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiIC8+IDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiID4gPHBvbHlsaW5lIHBvaW50cz0iMTM1LjUyOSw3NjAuNDcxIDg4OC40NzEsNzYwLjQ3MSA4ODguNDcxLDcuNTI5NDEgMTM1LjUyOSw3LjUyOTQxIDEzNS41MjksNzYwLjQ3MSAiIC8+IDxwb2x5bGluZSBwb2ludHM9Ijg4OC40NzEsNy41Mjk0MSAxMzUuNTI5LDc2MC40NzEgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSIxMzUuNTI5LDcuNTI5NDEgODg4LjQ3MSw3NjAuNDcxICIgLz4gPC9nPiA8L3N2Zz4=",
-  stair: "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAyNCA3NjgiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIHhtbDpzcGFjZT0icHJlc2VydmUiID4gIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiIC8+IDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWQyNiIgc3Ryb2tlLXdpZHRoPSIxcHgiID4gPHBvbHlsaW5lIHBvaW50cz0iMTAxMy45NiwxNDEuOTgzIDEwMTMuOTYsNjI2LjAxNyAxMC4wMzkyLDYyNi4wMTcgMTAuMDM5MiwxNDEuOTgzIDEwMTMuOTYsMTQxLjk4MyAiIC8+IDxwb2x5bGluZSBwb2ludHM9IjUxMiw2MjYuMDE3IDUxMiwxNDEuOTgzICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iNzgwLjkwOCw2MjYuMDE3IDc4MC45MDgsMTQxLjk4MyAiIC8+IDxwb2x5bGluZSBwb2ludHM9IjcyNy4xMjYsNjI2LjAxNyA3MjcuMTI2LDE0MS45ODMgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSI2NzMuMzQ1LDYyNi4wMTcgNjczLjM0NSwxNDEuOTgzICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iNjE5LjU2Myw2MjYuMDE3IDYxOS41NjMsMTQxLjk4MyAiIC8+IDxwb2x5bGluZSBwb2ludHM9IjU2NS43ODIsNjI2LjAxNyA1NjUuNzgyLDE0MS45ODMgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSIyNDMuMDkyLDYyNi4wMTcgMjQzLjA5MiwxNDEuOTgzICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iMjk2Ljg3NCw2MjYuMDE3IDI5Ni44NzQsMTQxLjk4MyAiIC8+IDxwb2x5bGluZSBwb2ludHM9IjM1MC42NTUsNjI2LjAxNyAzNTAuNjU1LDE0MS45ODMgIiAvPiA8cG9seWxpbmUgcG9pbnRzPSI0MDQuNDM3LDYyNi4wMTcgNDA0LjQzNywxNDEuOTgzICIgLz4gPHBvbHlsaW5lIHBvaW50cz0iNDU4LjIxOCw2MjYuMDE3IDQ1OC4yMTgsMTQxLjk4MyAiIC8+IDxwb2x5bGluZSBwb2ludHM9IjI0My4wOTIsMzg0IDc4MC45MDgsMzg0ICIgLz4gPC9nPiA8L3N2Zz4=",
-};
+function initCoreSVGEvents(){
+  const wrap = $('core-canvas-wrap');
+  if(!wrap || wrap._coreInit) return;
+  wrap._coreInit = true;
+  const svg = $('core-svg');
 
-const _svgImages = {};
-function preloadSvgImages(){
-  Object.entries(CORE_SVG_URLS).forEach(([k, url]) => {
-    const img = new Image();
-    img.onload = () => { _svgImages[k] = img; drawCoreCanvas(); };
-    img.src = url;
-  });
-}
-
-// ── 건축 표준 심볼 (SVG 이미지 기반) ──
-function drawSymbol(ctx, el, x, y, w, h){
-  ctx.save();
-  const sym = el.symbol;
-  const rot = el.rotation || 0;
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-
-  // SVG 키 결정
-  const svgKey = {
-    'ev': 'elevator', 'ev-emg': 'elevator', 'ev-evac': 'elevator',
-    'stair': 'stair', 'stair-sp': 'stair',
-    'foyer': 'foyer',
-    'shaft': 'shaft',
-  }[sym] || null;
-
-  if(svgKey){
-    // SVG 이미지 그리기 (rotation transform 적용)
-    const img = _svgImages[svgKey];
-
-    // 회전 transform: 중심 기준
-    ctx.translate(cx, cy);
-    ctx.rotate(rot * Math.PI / 180);
-    ctx.translate(-cx, -cy);
-
-    if(img && img.complete && img.naturalWidth > 0){
-      ctx.drawImage(img, x + 1, y + 1, w - 2, h - 2);
-    } else {
-      // 이미지 로딩 중 fallback - 색상 채우기만
-      ctx.fillStyle = el.color;
-      ctx.fillRect(x+1, y+1, w-2, h-2);
-    }
-
-    // 회전 되돌리기
-    ctx.translate(cx, cy);
-    ctx.rotate(-rot * Math.PI / 180);
-    ctx.translate(-cx, -cy);
-
-  } else {
-    // 설비류: 텍스트만 (회전 없음)
-    ctx.fillStyle = el.textColor;
-    ctx.font = 'bold 12px Pretendard,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(el.label, cx, cy);
-    ctx.textBaseline = 'alphabetic';
-  }
-
-  // 라벨 텍스트 (항상 정중앙, 회전 없음)
-  if(svgKey){
-    ctx.fillStyle = el.textColor;
-    ctx.font = 'bold 10px Pretendard,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(el.label, cx, cy);
-    ctx.textBaseline = 'alphabetic';
-  }
-
-  ctx.restore();
-}
-
-// ── 드래그 + 선택 + 회전 이벤트 ──
-function initCoreDragEvents(){
-  const canvas = $('core-canvas');
-  if(!canvas) return;
-
-  canvas.addEventListener('mousedown', e => {
-    if(e.button !== 0) return;
-    const {col, row} = canvasPosToCR(canvas, e);
-    const el = CD.elements.find(el =>
-      col >= el.col && col < el.col+el.cols &&
-      row >= el.row && row < el.row+el.rows
-    );
-    if(!el){ CD.selected = null; drawCoreCanvas(); return; }
-
-    // 회전 핸들 클릭 감지 (우상단 작은 원)
-    const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left, py = e.clientY - rect.top;
-    const hx = el.col*GRID + el.cols*GRID - 10;
-    const hy = el.row*GRID + 10;
-    if(CD.selected === el.uid && Math.hypot(px-hx, py-hy) < 10){
-      rotateCoreElement(el.uid);
-      return;
-    }
-
+  svg.addEventListener('mousedown', e=>{
+    if(e.button!==0) return;
+    const {col,row} = svgPosToCR(svg, e);
+    const el = CD.elements.find(el=>col>=el.col&&col<el.col+el.cols&&row>=el.row&&row<el.row+el.rows);
+    if(!el){ CD.selected=null; renderSVG(); return; }
     CD.selected = el.uid;
-    _cDrag = {
-      el,
-      startCol: col, startRow: row,
-      origCol: el.col, origRow: el.row,
-    };
-    canvas.style.cursor = 'grabbing';
-    drawCoreCanvas();
+    CD.drag = { uid:el.uid, startCol:col, startRow:row, origCol:el.col, origRow:el.row };
+    svg.style.cursor='grabbing';
+    renderSVG();
     e.preventDefault();
   });
 
-  canvas.addEventListener('mousemove', e => {
-    if(!_cDrag) return;
-    const {col, row} = canvasPosToCR(canvas, e);
-    const dc = col - _cDrag.startCol;
-    const dr = row - _cDrag.startRow;
-    _cDrag.el.col = Math.max(0, _cDrag.origCol + dc);
-    _cDrag.el.row = Math.max(0, _cDrag.origRow + dr);
-    drawCoreCanvas();
+  svg.addEventListener('mousemove', e=>{
+    if(!CD.drag) return;
+    const {col,row} = svgPosToCR(svg, e);
+    const dc=col-CD.drag.startCol, dr=row-CD.drag.startRow;
+    const el=CD.elements.find(e2=>e2.uid===CD.drag.uid);
+    if(el){ el.col=Math.max(0,CD.drag.origCol+dc); el.row=Math.max(0,CD.drag.origRow+dr); renderSVG(); }
   });
 
-  const endDrag = () => {
-    if(!_cDrag) return;
-    _cDrag = null;
-    canvas.style.cursor = 'default';
+  const endDrag=()=>{
+    if(!CD.drag) return;
+    CD.drag=null;
+    svg.style.cursor='default';
     resolveCollisions();
-    drawCoreCanvas();
+    renderSVG();
   };
-  canvas.addEventListener('mouseup', endDrag);
-  canvas.addEventListener('mouseleave', endDrag);
+  svg.addEventListener('mouseup', endDrag);
+  svg.addEventListener('mouseleave', endDrag);
 
-  // 우클릭: 삭제
-  canvas.addEventListener('contextmenu', e => {
+  svg.addEventListener('contextmenu', e=>{
     e.preventDefault();
-    const {col, row} = canvasPosToCR(canvas, e);
-    const el = CD.elements.find(el =>
-      col >= el.col && col < el.col+el.cols &&
-      row >= el.row && row < el.row+el.rows
-    );
+    const {col,row} = svgPosToCR(svg, e);
+    const el=CD.elements.find(el=>col>=el.col&&col<el.col+el.cols&&row>=el.row&&row<el.row+el.rows);
     if(el) removeCoreElement(el.uid);
   });
 
-  // 호버 커서
-  canvas.addEventListener('mousemove', e => {
-    if(_cDrag) return;
-    const {col, row} = canvasPosToCR(canvas, e);
-    const over = CD.elements.some(el =>
-      col >= el.col && col < el.col+el.cols &&
-      row >= el.row && row < el.row+el.rows
-    );
-    canvas.style.cursor = over ? 'grab' : 'default';
+  svg.addEventListener('mousemove', e=>{
+    if(CD.drag) return;
+    const {col,row} = svgPosToCR(svg, e);
+    const over=CD.elements.some(el=>col>=el.col&&col<el.col+el.cols&&row>=el.row&&row<el.row+el.rows);
+    svg.style.cursor=over?'grab':'default';
   });
 
-  // R키 회전
-  document.addEventListener('keydown', e => {
-    if(e.key === 'r' || e.key === 'R'){
-      if(CD.selected !== null && document.activeElement.tagName !== 'INPUT'){
-        rotateCoreElement(CD.selected);
-      }
+  document.addEventListener('keydown', e=>{
+    if((e.key==='r'||e.key==='R')&&CD.selected!==null&&document.activeElement.tagName!=='INPUT'){
+      rotateCoreElement(CD.selected);
     }
   });
 }
 
-function canvasPosToCR(canvas, e){
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  return { col: Math.floor(x / GRID), row: Math.floor(y / GRID) };
+function svgPosToCR(svg, e){
+  const rect=svg.getBoundingClientRect();
+  return { col:Math.floor((e.clientX-rect.left)/GRID), row:Math.floor((e.clientY-rect.top)/GRID) };
 }
 
-// ── 충돌 해소 (겹치면 우측으로 밀기) ──
 function resolveCollisions(){
-  // 드래그된 요소들을 제외한 나머지와 충돌 시 밀기
-  // 간단 구현: 충돌하는 요소를 우측으로 한 칸씩 이동
-  const MAX_ITER = 50;
-  for(let iter=0; iter<MAX_ITER; iter++){
-    let moved = false;
-    for(let i=0; i<CD.elements.length; i++){
-      for(let j=i+1; j<CD.elements.length; j++){
-        const a = CD.elements[i], b = CD.elements[j];
-        if(overlaps(a,b)){
-          // b를 a 오른쪽으로 밀기
-          b.col = a.col + a.cols;
-          moved = true;
-        }
+  for(let iter=0;iter<50;iter++){
+    let moved=false;
+    for(let i=0;i<CD.elements.length;i++) for(let j=i+1;j<CD.elements.length;j++){
+      const a=CD.elements[i],b=CD.elements[j];
+      if(a.col<b.col+b.cols&&a.col+a.cols>b.col&&a.row<b.row+b.rows&&a.row+a.rows>b.row){
+        b.col=a.col+a.cols; moved=true;
       }
     }
     if(!moved) break;
   }
 }
 
-function overlaps(a, b){
-  return a.col < b.col+b.cols && a.col+a.cols > b.col &&
-         a.row < b.row+b.rows && a.row+a.rows > b.row;
-}
-
-// ── 다음 버튼 활성화 체크 ──
 function updateCoreNextBtn(){
-  const btn = $('core-next-btn');
+  const btn=$('core-next-btn');
   if(!btn) return;
-  const allDone = CORE_DEF.every(def => {
-    const req = CD.required[def.id] || 0;
-    const placed = CD.placed[def.id] || 0;
-    return placed >= req;
+  const allDone=CORE_DEF.every(def=>{
+    return (CD.placed[def.id]||0) >= (CD.required[def.id]||0);
   });
   if(allDone){
-    btn.disabled = false;
-    btn.style.cssText = 'font-size:13px;padding:11px;letter-spacing:.01em;background:var(--accent);color:#fff;border:none;cursor:pointer;width:100%;border-radius:6px;font-weight:600;';
+    btn.disabled=false;
+    btn.style.cssText='font-size:13px;padding:11px;letter-spacing:.01em;background:var(--accent);color:#fff;border:none;cursor:pointer;width:100%;border-radius:6px;font-weight:600;';
   } else {
-    btn.disabled = true;
-    btn.style.cssText = 'font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;width:100%;border-radius:6px;font-weight:600;';
+    btn.disabled=true;
+    btn.style.cssText='font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;width:100%;border-radius:6px;font-weight:600;';
   }
 }
 
-// ── 초기화 ──
 function resetCoreCanvas(){
-  CD.elements = [];
-  CD.placed   = {};
-  CD.nextId   = 1;
-  drawCoreCanvas();
-  renderCoreList();
+  CD.elements=[]; CD.placed={}; CD.nextId=1; CD.selected=null;
+  renderSVG(); renderCoreList();
 }
 
 function initCoreDesign(){
-  // SVG 이미지 미리 로드
-  preloadSvgImages();
-
-  // 수량 산출
-  CD.required = calcCoreRequirements();
-  CD.placed   = {};
-  CD.elements = [];
-  CD.nextId   = 1;
-
-  // 캔버스 초기화
-  drawCoreCanvas();
-  renderCoreList();
-
-  // 드래그 이벤트 (한 번만 등록)
-  const canvas = $('core-canvas');
-  if(canvas && !canvas._coreEventsInit){
-    canvas._coreEventsInit = true;
-    initCoreDragEvents();
-  }
-
-  // 캔버스 크기 맞추기
-  setTimeout(() => {
-    const map = $('core-canvas-wrap');
-    if(map) { drawCoreCanvas(); }
-  }, 100);
-}
-
-function extractAboveTypes(){
-  const floors = S2.floors || [];
-  if(!floors.length) return;
-  // unique area 추출 (기존 타입 유지)
-  const existingAreas = new Set(SB.aboveTypes.map(t=>t.area));
-  const areas = [...new Set(floors.map(f=>f.area))].sort((a,b)=>b-a);
-  areas.forEach(area=>{
-    if(!existingAreas.has(area)){
-      const i = SB.aboveTypes.length;
-      SB.aboveTypes.push({
-        label: typeLabel(i),
-        area,
-        color: TYPE_COLORS[i % TYPE_COLORS.length],
-        poly: null,
-        selected: false,
-      });
-    }
-  });
-}
-
-function extractUnderTypes(){
-  const floors = SU.floors || [];
-  if(!floors.length) return;
-  const existingAreas = new Set(SB.underTypes.map(t=>t.area));
-  const areas = [...new Set(floors.map(f=>f.area))].sort((a,b)=>b-a);
-  areas.forEach(area=>{
-    if(!existingAreas.has(area)){
-      const i = SB.underTypes.length;
-      SB.underTypes.push({
-        label: 'G' + typeLabel(i),
-        area,
-        color: TYPE_COLORS[(i+5) % TYPE_COLORS.length],
-        poly: null,
-        selected: false,
-      });
-    }
-  });
-}
-
-function addAboveType(){
-  const i = SB.aboveTypes.length;
-  SB.aboveTypes.push({
-    label: typeLabel(i),
-    area: 0,
-    color: TYPE_COLORS[i % TYPE_COLORS.length],
-    poly: null,
-    selected: false,
-  });
-  renderTypeList();
-}
-
-function addUnderType(){
-  const i = SB.underTypes.length;
-  SB.underTypes.push({
-    label: 'G' + typeLabel(i),
-    area: 0,
-    color: TYPE_COLORS[(i+5) % TYPE_COLORS.length],
-    poly: null,
-    selected: false,
-  });
-  renderTypeList();
-}
-
-function renderTypeList(){
-  renderOneTypeList('above-type-list', SB.aboveTypes, 'above');
-  renderOneTypeList('under-type-list', SB.underTypes, 'under');
-  updateStep4Legend();
-}
-
-function renderOneTypeList(containerId, types, kind){
-  const wrap = $(containerId);
-  if(!wrap) return;
-  if(!types.length){
-    wrap.innerHTML = '<div style="font-size:11px;color:var(--text3);text-align:center;padding:4px 0;">3·4페이지에서 면적을 입력해 주세요</div>';
-    return;
-  }
-  wrap.innerHTML = types.map((t, i) => `
-    <div class="boundary-type-item" id="btype-${kind}-${i}"
-      style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;
-        border:2px solid ${SB.selectedKey===kind+'-'+i ? t.color : 'var(--border)'};
-        background:${SB.selectedKey===kind+'-'+i ? t.color+'18' : 'var(--bg3)'};"
-      onclick="selectType('${kind}',${i})">
-      <div style="width:12px;height:12px;border-radius:3px;background:${t.color};flex-shrink:0;"></div>
-      <div style="font-size:12px;font-weight:700;color:var(--text);flex-shrink:0;min-width:24px;">${t.label}</div>
-      <div style="flex:1;font-size:11px;color:var(--text2);">${t.area ? t.area.toLocaleString()+'㎡' : '—'}</div>
-      <button onclick="event.stopPropagation();applyTypeOffset('${kind}',${i})"
-        style="font-size:10px;padding:3px 7px;border-radius:4px;border:1px solid var(--border2);
-          background:var(--bg2);color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap;">적용</button>
-      <button onclick="event.stopPropagation();removeType('${kind}',${i})"
-        style="font-size:11px;padding:2px 6px;border-radius:4px;border:none;background:none;color:var(--text3);cursor:pointer;">✕</button>
-    </div>
-  `).join('');
-}
-
-function selectType(kind, i){
-  const key = kind+'-'+i;
-  SB.selectedKey = SB.selectedKey === key ? null : key;
-  renderTypeList();
-  showTypeOnMap(kind, i);
-}
-
-function removeType(kind, i){
-  if(kind==='above') SB.aboveTypes.splice(i,1);
-  else SB.underTypes.splice(i,1);
-  // 라벨 재정렬
-  SB.aboveTypes.forEach((t,idx)=>{ t.label = typeLabel(idx); t.color = TYPE_COLORS[idx%TYPE_COLORS.length]; });
-  SB.underTypes.forEach((t,idx)=>{ t.label = 'G'+typeLabel(idx); t.color = TYPE_COLORS[(idx+5)%TYPE_COLORS.length]; });
-  if(SB.selectedKey === kind+'-'+i) SB.selectedKey = null;
-  renderTypeList();
-  refreshStep4Map();
-}
-
-// ── 오프셋으로 boundary 폴리곤 생성 ──
-function applyTypeOffset(kind, i){
-  const types = kind==='above' ? SB.aboveTypes : SB.underTypes;
-  const t = types[i];
-  if(!t) return;
-
-  // 기준 폴리곤 선택: 지상→건축한계선(buildable), 지하→merged+setback
-  let basePoly = null;
-  if(kind==='above'){
-    // 건축한계선 buildable 피처
-    const src = window._step1OutlineSource;
-    if(src){
-      const bf = src.getFeatures().find(f=>f.get('type')==='buildable');
-      if(bf){
-        const fmt = new ol.format.GeoJSON();
-        const clone = bf.getGeometry().clone();
-        clone.transform('EPSG:3857','EPSG:4326');
-        basePoly = {type:'Feature', geometry: JSON.parse(fmt.writeGeometry(clone))};
-      }
-    }
-    // buildable 없으면 merged 사용
-    if(!basePoly) basePoly = window._step1MergedPoly;
-  } else {
-    // 지하: merged에서 under-setback offset 적용된 폴리곤
-    const merged = window._step1MergedPoly;
-    if(!merged){ showToast('2페이지에서 필지를 먼저 선택해 주세요'); return; }
-    const dist = parseFloat($('under-setback')?.value) || 0;
-    basePoly = dist > 0 ? sharpInsetPolygon(merged, dist) : merged;
-  }
-
-  if(!basePoly){ showToast('기준 폴리곤이 없습니다. 2페이지를 먼저 완료해 주세요'); return; }
-
-  // 목표 면적에 맞게 이진탐색으로 offset 거리 찾기
-  const targetArea = t.area;
-  const baseArea = turf.area(basePoly);
-  if(targetArea >= baseArea){
-    t.poly = basePoly;
-  } else {
-    // 이진탐색: offset 거리를 늘려가며 면적 수렴
-    let lo=0, hi=50, poly=basePoly;
-    for(let iter=0; iter<20; iter++){
-      const mid=(lo+hi)/2;
-      const inset = sharpInsetPolygon(basePoly, mid);
-      if(!inset){ hi=mid; continue; }
-      const a = turf.area(inset);
-      if(Math.abs(a-targetArea) < 1){ poly=inset; break; }
-      if(a > targetArea) lo=mid;
-      else hi=mid;
-      poly=inset;
-    }
-    t.poly = poly;
-  }
-
-  SB.selectedKey = kind+'-'+i;
-  renderTypeList();
-  showTypeOnMap(kind, i);
-  showToast(`✅ ${t.label} 타입 바운더리 생성 완료`);
-}
-
-// ── 지도에 선택된 타입 boundary 표시 ──
-function showTypeOnMap(kind, i){
-  const src = window._step4BoundarySource;
-  if(!src) return;
-  src.clear();
-
-  const types = kind==='above' ? SB.aboveTypes : SB.underTypes;
-  const t = types[i];
-  if(!t || !t.poly) return;
-
-  const fmt = new ol.format.GeoJSON();
-  const olGeom = fmt.readGeometry(t.poly.geometry, {dataProjection:'EPSG:4326', featureProjection:'EPSG:3857'});
-  const feat = new ol.Feature({geometry: olGeom});
-  feat.set('color', t.color);
-  src.addFeature(feat);
-
-  // 뷰 맞춤
-  window._step4Map?.getView().fit(src.getExtent(), {padding:[40,40,40,40], maxZoom:19, duration:300});
-}
-
-function refreshStep4Map(){
-  const src = window._step4BoundarySource;
-  if(src) src.clear();
-}
-
-// ── 지도 초기화 ──
-function initStep4Map(){
-  if(!window._step4Map){
-    // 지적도 레이어
-    const cadSource = new ol.source.Vector();
-    window._step4CadSource = cadSource;
-    const cadLayer = new ol.layer.Vector({
-      source: cadSource,
-      style: new ol.style.Style({
-        stroke: new ol.style.Stroke({color:'#9ca3af', width:0.8})
-      })
-    });
-
-    // 필지 경계 + 건축한계선 레이어 (2페이지 데이터 재사용)
-    const baseOutlineSource = new ol.source.Vector();
-    window._step4BaseSource = baseOutlineSource;
-    const baseLayer = new ol.layer.Vector({
-      source: baseOutlineSource,
-      style: function(f){
-        const t = f.get('type');
-        if(t==='boundary') return new ol.style.Style({
-          stroke: new ol.style.Stroke({color:'#e74c3c', width:2.5})
-        });
-        if(t==='buildable') return new ol.style.Style({
-          fill: new ol.style.Fill({color:'rgba(234,88,12,0.08)'}),
-          stroke: new ol.style.Stroke({color:'#e67e22', width:1.5, lineDash:[8,5]})
-        });
-        if(t==='under-offset') return new ol.style.Style({
-          fill: new ol.style.Fill({color:'rgba(37,99,235,0.08)'}),
-          stroke: new ol.style.Stroke({color:'#2563eb', width:1.5, lineDash:[8,5]})
-        });
-      }
-    });
-
-    // 바운더리 타입 레이어
-    const boundarySource = new ol.source.Vector();
-    window._step4BoundarySource = boundarySource;
-    const boundaryLayer = new ol.layer.Vector({
-      source: boundarySource,
-      style: function(f){
-        const color = f.get('color') || '#2563eb';
-        return new ol.style.Style({
-          fill: new ol.style.Fill({color: color+'33'}),
-          stroke: new ol.style.Stroke({color, width:2.5})
-        });
-      }
-    });
-
-    window._step4Map = new ol.Map({
-      target: 'step4-map',
-      layers: [cadLayer, baseLayer, boundaryLayer],
-      view: new ol.View({center: ol.proj.fromLonLat([126.978,37.566]), zoom:17}),
-      controls: []
-    });
-  }
-
-  window._step4Map.updateSize();
-
-  // 2페이지 데이터 복사
-  const baseSource = window._step4BaseSource;
-  baseSource.clear();
-  const fmt = new ol.format.GeoJSON();
-
-  // 필지 경계
-  const merged = window._step1MergedPoly;
-  if(merged){
-    const geom = fmt.readGeometry(merged.geometry);
-    geom.transform('EPSG:4326','EPSG:3857');
-    const f = new ol.Feature({geometry:geom});
-    f.set('type','boundary');
-    baseSource.addFeature(f);
-  }
-
-  // 건축한계선 buildable
-  const s1src = window._step1OutlineSource;
-  if(s1src){
-    s1src.getFeatures().filter(f=>f.get('type')==='buildable').forEach(f=>{
-      const clone = f.clone();
-      clone.set('type','buildable');
-      baseSource.addFeature(clone);
-    });
-    s1src.getFeatures().filter(f=>f.get('type')==='under-offset').forEach(f=>{
-      const clone = f.clone();
-      clone.set('type','under-offset');
-      baseSource.addFeature(clone);
-    });
-  }
-
-  // 뷰 맞춤
-  if(merged){
-    const ext = baseSource.getExtent();
-    if(ext && ext[0] !== Infinity){
-      window._step4Map.getView().fit(ext, {padding:[60,60,60,60], maxZoom:19, duration:300});
-    }
-  }
-
-  // 지적도 WFS 로드
-  setTimeout(loadStep4CadWFS, 400);
-}
-
-function updateStep4Legend(){
-  const legend = $('step4-legend');
-  if(!legend) return;
-  const allTypes = [
-    ...SB.aboveTypes.map(t=>({...t, kind:'above'})),
-    ...SB.underTypes.map(t=>({...t, kind:'under'}))
-  ].filter(t=>t.poly);
-  if(!allTypes.length){ legend.style.display='none'; return; }
-  legend.style.display='block';
-  legend.innerHTML = allTypes.map(t=>`
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
-      <div style="width:10px;height:10px;border-radius:2px;background:${t.color};flex-shrink:0;"></div>
-      <span style="font-size:10px;">${t.label} — ${t.area.toLocaleString()}㎡</span>
-    </div>
-  `).join('');
-}
-
-// 지적도 WFS 로드 (step4)
-let _s4CadLoading = false;
-function loadStep4CadWFS(){
-  if(!window._step4Map || _s4CadLoading) return;
-  _s4CadLoading = true;
-  const view = window._step4Map.getView();
-  const size = window._step4Map.getSize();
-  if(!size){ _s4CadLoading=false; return; }
-  const ext = view.calculateExtent(size);
-  const [minLng,minLat,maxLng,maxLat] = ol.proj.transformExtent(ext,'EPSG:3857','EPSG:4326');
-  const cbName = 's4cad_'+Date.now();
-  const script = document.createElement('script');
-  const timer = setTimeout(()=>{ _s4CadLoading=false; cleanup(); }, 10000);
-  function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
-  window[cbName] = function(data){
-    _s4CadLoading=false; cleanup();
-    const feats = data?.features || [];
-    if(!feats.length) return;
-    const fmt2 = new ol.format.GeoJSON();
-    const src = window._step4CadSource;
-    if(!src) return;
-    const existing = new Set(src.getFeatures().map(f=>f.get('pnu')));
-    feats.forEach(f=>{
-      const pnu = f.properties?.pnu;
-      if(pnu && existing.has(pnu)) return;
-      try {
-        const olF = fmt2.readFeature(f,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});
-        olF.set('pnu',pnu);
-        src.addFeature(olF);
-      }catch(e){}
-    });
-  };
-  script.onerror = ()=>{ _s4CadLoading=false; cleanup(); };
-  script.src = `https://api.vworld.kr/req/wfs?service=WFS&version=1.1.0&request=GetFeature`
-    +`&typename=lp_pa_cbnd_bubun&bbox=${minLat},${minLng},${maxLat},${maxLng},EPSG:4326`
-    +`&srsname=EPSG:4326&maxfeatures=300`
-    +`&output=text/javascript&format_options=callback:${cbName}&key=${VWORLD_KEY}`;
-  document.body.appendChild(script);
+  CD.required=calcCoreRequirements();
+  CD.placed={}; CD.elements=[]; CD.nextId=1; CD.selected=null;
+  renderSVG(); renderCoreList();
+  initCoreSVGEvents();
 }
 
 // ═══════════════════════════════════════════
