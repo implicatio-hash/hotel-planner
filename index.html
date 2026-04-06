@@ -530,6 +530,10 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
         <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">좌클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 선택 (Shift: 범위 선택)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
           <span style="font-size:11px;color:var(--text2);">용도 선택</span>
         </div>
@@ -642,6 +646,10 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       padding:10px 14px;box-shadow:var(--shadow2);min-width:180px;">
       <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">좌클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 선택 (Shift: 범위 선택)</span>
+        </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
           <span style="font-size:11px;color:var(--text2);">용도 선택</span>
@@ -773,7 +781,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
     <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
       <span style="font-size:11px;font-weight:600;color:var(--text2);">기준층 편집</span>
-      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; R키/↻: 회전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
+      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; R키/↻: 회전 &nbsp;|&nbsp; 드래그/화살표키: 이동(100mm) &nbsp;|&nbsp; 우클릭: 삭제 &nbsp;|&nbsp; ESC: 선택취소</span>
       <div style="flex:1;"></div>
       <button class="btn btn-secondary btn-sm" onclick="resetFloorPlan()" style="font-size:10px;padding:3px 8px;">초기화</button>
     </div>
@@ -3375,6 +3383,9 @@ function renderSVG(){
   for(let r=0;r<=maxR;r++) grid.appendChild(mk('line',{x1:0,y1:r*GRID,x2:W,y2:r*GRID}));
   svg.appendChild(grid);
 
+  // 6페이지(기준층 계획) 진입 시 회색으로 표시
+  const isGrayed = $('step-5')?.classList.contains('active');
+
   // 요소
   CD.elements.forEach(el=>{
     const def = CORE_DEF.find(d=>d.id===el.defId);
@@ -3388,88 +3399,69 @@ function renderSVG(){
     // 전실 인접 미리 체크 (배경 테두리에 사용)
     const _warn = checkFoyerAdjacency(el);
 
+    // 회색 모드 색상
+    const fillColor  = isGrayed ? '#b0b4be' : def.color;
+    const strokeColor = isGrayed ? '#888c96' : (_warn ? '#f97316' : (isSel?'#2563eb':def.border));
+    const strokeW    = isGrayed ? 1.5 : (_warn ? 2.5 : (isSel?2.5:1.5));
+
     // 배경
     const bg = mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,
-      fill:def.color,
-      stroke: _warn ? '#f97316' : (isSel?'#2563eb':def.border),
-      'stroke-width': _warn ? 2.5 : (isSel?2.5:1.5),
-      rx:1});
+      fill:fillColor, stroke:strokeColor, 'stroke-width':strokeW, rx:1});
     g.appendChild(bg);
-    if(isSel){
+    if(isSel && !isGrayed){
       const hl = mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,fill:'rgba(37,99,235,0.06)',rx:1});
       g.appendChild(hl);
     }
 
-    // SVG 심볼 (image 태그, preserveAspectRatio=none)
-    // 회전 원리: 항상 baseCols×baseRows 크기(0° 기준)를 그린 뒤 현재 칸 중심으로 회전
+    // SVG 심볼 (image 태그)
     const svgStr = CORE_SVGS[def.svgKey];
     if(svgStr){
       const b64 = btoa(unescape(encodeURIComponent(svgStr)));
       const rot = el.rotation || 0;
       const sx = el.flipX ? -1 : 1;
-
-      // 0° 기준 크기
       const bw = def.baseCols * GRID;
       const bh = def.baseRows * GRID;
-      // 0° 기준으로 그릴 위치 (중심 맞춤)
       const bx = cx - bw/2;
       const by = cy - bh/2;
-
       const img = mk('image',{
         href:`data:image/svg+xml;base64,${b64}`,
         x:bx, y:by, width:bw, height:bh,
         preserveAspectRatio:'none',
         'pointer-events':'none',
+        opacity: isGrayed ? '0.2' : '1',
       });
-      // 중심 기준 회전 + 좌우반전
       img.setAttribute('transform', `translate(${cx},${cy}) rotate(${rot}) scale(${sx},1) translate(${-cx},${-cy})`);
       g.appendChild(img);
     }
 
-    // 전실 인접 경고 체크
+    // 라벨
     const foyerWarn = _warn;
-
-    // 라벨 (항상 정중앙, 회전 없음) — 흰색 외곽선으로 배경과 무관하게 선명하게 표시
-    const lblText = foyerWarn ? `⚠ ${def.label}` : def.label;
-    // 외곽선 레이어 (흰색 stroke)
+    const lblText = (!isGrayed && foyerWarn) ? `⚠ ${def.label}` : def.label;
     const lblStroke = mk('text',{
-      x:cx, y:cy+4,
-      'text-anchor':'middle',
-      'font-size':'11',
-      'font-weight':'700',
-      'font-family':'Pretendard,sans-serif',
-      fill:'none',
-      stroke:'white',
-      'stroke-width':'3',
-      'stroke-linejoin':'round',
-      'paint-order':'stroke',
-      'pointer-events':'none',
+      x:cx, y:cy+4, 'text-anchor':'middle', 'font-size':'11', 'font-weight':'700',
+      'font-family':'Pretendard,sans-serif', fill:'none',
+      stroke: isGrayed ? '#b0b4be' : 'white',
+      'stroke-width':'3', 'stroke-linejoin':'round', 'paint-order':'stroke', 'pointer-events':'none',
     });
     lblStroke.textContent = lblText;
     g.appendChild(lblStroke);
-    // 텍스트 레이어
     const lbl = mk('text',{
-      x:cx, y:cy+4,
-      'text-anchor':'middle',
-      'font-size':'11',
-      'font-weight':'700',
+      x:cx, y:cy+4, 'text-anchor':'middle', 'font-size':'11', 'font-weight':'700',
       'font-family':'Pretendard,sans-serif',
-      fill: foyerWarn ? '#dc2626' : def.textColor,
+      fill: isGrayed ? '#666a74' : (foyerWarn ? '#dc2626' : def.textColor),
       'pointer-events':'none',
     });
     lbl.textContent = lblText;
     g.appendChild(lbl);
 
-    // 핸들 (선택 시)
-    if(isSel){
-      // 반전 핸들 ↔
+    // 핸들 (선택 시, 회색 모드에서는 표시 안 함)
+    if(isSel && !isGrayed){
       const hf = mk('circle',{cx:x+w-30,cy:y+10,r:9,fill:'#ea580c',style:'cursor:pointer'});
       hf.addEventListener('mousedown', e=>{ e.stopPropagation(); flipCoreElement(el.uid); });
       g.appendChild(hf);
       const hft = mk('text',{x:x+w-30,y:y+14,'text-anchor':'middle','font-size':'11',fill:'white','pointer-events':'none'});
       hft.textContent = '↔';
       g.appendChild(hft);
-      // 회전 핸들 ↻
       const hc = mk('circle',{cx:x+w-10,cy:y+10,r:9,fill:'#2563eb',style:'cursor:pointer'});
       hc.addEventListener('mousedown', e=>{ e.stopPropagation(); rotateCoreElement(el.uid); });
       g.appendChild(hc);
@@ -3490,11 +3482,16 @@ function initCoreSVGEvents(){
 
   svg.addEventListener('mousedown', e=>{
     if(e.button!==0) return;
-    const {col,row} = svgPosToCR(svg, e);
-    const el = CD.elements.find(el=>col>=el.col&&col<el.col+el.cols&&row>=el.row&&row<el.row+el.rows);
+    e.stopPropagation(); // document mousedown 핸들러로 버블링 차단
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const el = CD.elements.find(el=>{
+      const ex=el.col*GRID, ey=el.row*GRID, ew=el.cols*GRID, eh=el.rows*GRID;
+      return mx>=ex && mx<ex+ew && my>=ey && my<ey+eh;
+    });
     if(!el){ CD.selected=null; renderSVG(); return; }
     CD.selected = el.uid;
-    CD.drag = { uid:el.uid, startCol:col, startRow:row, origCol:el.col, origRow:el.row };
+    CD.drag = { uid:el.uid, startPx:{x:mx,y:my}, origCol:el.col, origRow:el.row };
     svg.style.cursor='grabbing';
     renderSVG();
     e.preventDefault();
@@ -3502,10 +3499,15 @@ function initCoreSVGEvents(){
 
   svg.addEventListener('mousemove', e=>{
     if(!CD.drag) return;
-    const {col,row} = svgPosToCR(svg, e);
-    const dc=col-CD.drag.startCol, dr=row-CD.drag.startRow;
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const dx=mx-CD.drag.startPx.x, dy=my-CD.drag.startPx.y;
     const el=CD.elements.find(e2=>e2.uid===CD.drag.uid);
-    if(el){ el.col=Math.max(0,CD.drag.origCol+dc); el.row=Math.max(0,CD.drag.origRow+dr); renderSVG(); }
+    if(el){
+      el.col=Math.max(0, CD.drag.origCol + Math.round(dx/GRID));
+      el.row=Math.max(0, CD.drag.origRow + Math.round(dy/GRID));
+      renderSVG();
+    }
   });
 
   const endDrag=()=>{
@@ -3520,27 +3522,45 @@ function initCoreSVGEvents(){
 
   svg.addEventListener('contextmenu', e=>{
     e.preventDefault();
-    const {col,row} = svgPosToCR(svg, e);
-    const el=CD.elements.find(el=>col>=el.col&&col<el.col+el.cols&&row>=el.row&&row<el.row+el.rows);
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const el=CD.elements.find(el=>{
+      const ex=el.col*GRID,ey=el.row*GRID,ew=el.cols*GRID,eh=el.rows*GRID;
+      return mx>=ex&&mx<ex+ew&&my>=ey&&my<ey+eh;
+    });
     if(el) removeCoreElement(el.uid);
   });
 
   svg.addEventListener('mousemove', e=>{
     if(CD.drag) return;
-    const {col,row} = svgPosToCR(svg, e);
-    const over=CD.elements.some(el=>col>=el.col&&col<el.col+el.cols&&row>=el.row&&row<el.row+el.rows);
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const over=CD.elements.some(el=>{
+      const ex=el.col*GRID,ey=el.row*GRID,ew=el.cols*GRID,eh=el.rows*GRID;
+      return mx>=ex&&mx<ex+ew&&my>=ey&&my<ey+eh;
+    });
     svg.style.cursor=over?'grab':'default';
   });
 
-  document.addEventListener('keydown', e=>{
-    if(document.activeElement.tagName==='INPUT') return;
-    if((e.key==='r'||e.key==='R')&&CD.selected!==null){
-      rotateCoreElement(CD.selected);
-    }
-    if((e.key==='f'||e.key==='F')&&CD.selected!==null){
-      flipCoreElement(CD.selected);
-    }
-  });
+  // document 레벨 이벤트: 중복 등록 방지
+  if(!window._coreDocRegistered){
+    window._coreDocRegistered = true;
+    document.addEventListener('keydown', e=>{
+      if(document.activeElement.tagName==='INPUT') return;
+      if(e.key==='Escape'){
+        CD.selected=null; renderSVG();
+        return;
+      }
+      if((e.key==='r'||e.key==='R')&&CD.selected!==null) rotateCoreElement(CD.selected);
+      if((e.key==='f'||e.key==='F')&&CD.selected!==null) flipCoreElement(CD.selected);
+    });
+    // SVG에서 stopPropagation하므로 여기 도달하면 외부 클릭
+    document.addEventListener('mousedown', e=>{
+      if(CD.selected!==null){
+        CD.selected=null; renderSVG();
+      }
+    });
+  }
 }
 
 function svgPosToCR(svg, e){
@@ -3640,13 +3660,20 @@ function detectCoreGroups(){
   return groups;
 }
 
-// 코어 그룹 바운딩 박스
+// 코어 그룹 바운딩 박스 + 실제 점유 셀 집합 반환
 function groupBBox(group){
   const minC = Math.min(...group.map(e=>e.col));
   const minR = Math.min(...group.map(e=>e.row));
   const maxC = Math.max(...group.map(e=>e.col+e.cols));
   const maxR = Math.max(...group.map(e=>e.row+e.rows));
-  return { col:minC, row:minR, cols:maxC-minC, rows:maxR-minR };
+  // 실제 점유 셀 집합 (상대좌표 기준)
+  const cells = new Set();
+  group.forEach(el=>{
+    for(let c=el.col; c<el.col+el.cols; c++)
+      for(let r=el.row; r<el.row+el.rows; r++)
+        cells.add(`${c-minC},${r-minR}`);
+  });
+  return { col:minC, row:minR, cols:maxC-minC, rows:maxR-minR, cells };
 }
 
 // 기준층 상태
@@ -3655,8 +3682,9 @@ let FL = {
   nextId: 1,
   selected: null,
   drag: null,
-  floorW: 30,  // meters
+  floorW: 30,
   floorH: 20,
+  placedGroups: new Set(), // 이미 배치한 그룹 인덱스
 };
 
 function initFloorPlanStep(){
@@ -3676,7 +3704,7 @@ function renderFloorCoreList(){
     return;
   }
 
-  // renderSVG로 코어 그룹 외곽선 표시 업데이트
+  // renderSVGWithGroups로 코어 그룹 외곽선 표시
   renderSVGWithGroups(groups);
 
   groups.forEach((group, i) => {
@@ -3696,9 +3724,13 @@ function renderFloorCoreList(){
 
     const btn = document.createElement('button');
     btn.className = 'btn btn-sm';
-    btn.textContent = '배치';
-    btn.style.cssText = 'font-size:10px;padding:3px 8px;background:var(--accent);color:#fff;border:none;';
-    btn.onclick = () => addFloorInstance(i);
+    const alreadyPlaced = FL.placedGroups.has(i);
+    btn.textContent = alreadyPlaced ? '배치됨' : '배치';
+    btn.disabled = alreadyPlaced;
+    btn.style.cssText = alreadyPlaced
+      ? 'font-size:10px;padding:3px 8px;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;'
+      : 'font-size:10px;padding:3px 8px;background:var(--accent);color:#fff;border:none;cursor:pointer;';
+    if(!alreadyPlaced) btn.onclick = () => addFloorInstance(i);
 
     row.append(dot, lbl, btn);
     list.appendChild(row);
@@ -3711,8 +3743,8 @@ function addFloorInstance(groupIdx){
   const groups = detectCoreGroups();
   const group  = groups[groupIdx];
   if(!group) return;
+  if(FL.placedGroups.has(groupIdx)) return; // 중복 배치 방지
   const bbox = groupBBox(group);
-  // 빈 위치 찾기
   const pos = findFloorFreePos(bbox.cols, bbox.rows);
   FL.instances.push({
     uid: FL.nextId++,
@@ -3726,8 +3758,10 @@ function addFloorInstance(groupIdx){
     group,
     bbox,
   });
+  FL.placedGroups.add(groupIdx);
   FL.selected = FL.instances[FL.instances.length-1].uid;
   renderFloorPlan();
+  renderFloorCoreList(); // 버튼 상태 갱신
 }
 
 function findFloorFreePos(cols, rows){
@@ -3753,8 +3787,8 @@ function renderFloorPlan(){
   // → 코어 배치는 2.9m 단위 유지, 그리드 선만 안 보이게
   let maxC = 16, maxR = 12;
   FL.instances.forEach(inst=>{
-    maxC = Math.max(maxC, inst.col+inst.cols+2);
-    maxR = Math.max(maxR, inst.row+inst.rows+2);
+    maxC = Math.max(maxC, Math.ceil(inst.col+inst.cols)+2);
+    maxR = Math.max(maxR, Math.ceil(inst.row+inst.rows)+2);
   });
 
   const W = maxC * GRID, H = maxR * GRID;
@@ -3787,30 +3821,24 @@ function renderFloorPlan(){
 
     const g = mk('g');
 
-    // 배경
-    g.appendChild(mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,
-      fill:color+'22',
-      stroke:isSel?'#2563eb':color,
-      'stroke-width':isSel?2.5:1.5,
-      rx:2}));
-
-    // 내부 요소들 미니 렌더링
+    // 실제 점유 셀만 개별 rect로 렌더링 (ㄱ자 등 실제 형태 반영)
     const group = groups[inst.groupIdx];
+    const bbox = inst.bbox;
     if(group){
-      const bbox = inst.bbox;
       group.forEach(el=>{
         const def = CORE_DEF.find(d=>d.id===el.defId);
         if(!def) return;
-        // 상대 위치 → 인스턴스 위치로 변환
         const relC = el.col - bbox.col;
         const relR = el.row - bbox.row;
         const ex = x + relC*GRID + 1;
         const ey = y + relR*GRID + 1;
         const ew = el.cols*GRID - 2;
         const eh = el.rows*GRID - 2;
-        // SVG 심볼 미니
+        // 각 요소 배경 (실제 형태)
         g.appendChild(mk('rect',{x:ex,y:ey,width:ew,height:eh,
-          fill:def.color,stroke:def.border,'stroke-width':'1',rx:1}));
+          fill:def.color,
+          stroke:isSel?'#2563eb':def.border,
+          'stroke-width':isSel?2:1,rx:1}));
         // 미니 라벨
         const t = mk('text',{
           x:ex+ew/2,y:ey+eh/2+3,
@@ -3822,6 +3850,11 @@ function renderFloorPlan(){
         t.textContent = def.label.replace('특별피난','특').replace('피난','피').replace(' EV','EV').replace(' 전실','전');
         g.appendChild(t);
       });
+    } else {
+      // fallback: bbox 전체 rect
+      g.appendChild(mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,
+        fill:color+'22',stroke:isSel?'#2563eb':color,
+        'stroke-width':isSel?2.5:1.5,rx:2}));
     }
 
     // 코어 라벨
@@ -3863,14 +3896,20 @@ function flipFloorInstance(uid){
 }
 
 function removeFloorInstance(uid){
+  const inst = FL.instances.find(i=>i.uid===uid);
+  if(inst){
+    FL.placedGroups.delete(inst.groupIdx); // 배치 버튼 재활성화
+  }
   FL.instances = FL.instances.filter(i=>i.uid!==uid);
   if(FL.selected===uid) FL.selected=null;
   renderFloorPlan();
+  renderFloorCoreList(); // 버튼 상태 갱신
 }
 
 function resetFloorPlan(){
-  FL.instances=[]; FL.nextId=1; FL.selected=null;
+  FL.instances=[]; FL.nextId=1; FL.selected=null; FL.placedGroups=new Set();
   renderFloorPlan();
+  renderFloorCoreList();
 }
 
 function initFloorPlan(){
@@ -3885,13 +3924,40 @@ function initFloorSVGEvents(){
   wrap._flInit = true;
   const svg = $('fl-svg');
 
+  // 100mm = 0.1m 단위 snap: GRID px = CELL(2.9m), 0.1m = GRID/CELL*0.1 px
+  const PX_PER_100MM = GRID / CELL * 0.1; // ≈2px
+  function snapTo100mm(px){ return Math.round(px / PX_PER_100MM) * PX_PER_100MM; }
+
+  // px 기반 히트 테스트 함수
+  function hitTest(mx, my){
+    return FL.instances.find(i=>{
+      const ix = i.col*GRID, iy = i.row*GRID;
+      const iw = i.cols*GRID, ih = i.rows*GRID;
+      if(mx < ix || mx >= ix+iw || my < iy || my >= iy+ih) return false;
+      // ㄱ자 등 실제 점유 셀 체크
+      const bbox = i.bbox;
+      if(bbox && bbox.cells){
+        const relC = Math.floor((mx - ix) / GRID);
+        const relR = Math.floor((my - iy) / GRID);
+        return bbox.cells.has(`${relC},${relR}`);
+      }
+      return true;
+    });
+  }
+
   svg.addEventListener('mousedown', e=>{
     if(e.button!==0) return;
-    const {col,row} = flSvgPosToCR(svg,e);
-    const inst = FL.instances.find(i=>col>=i.col&&col<i.col+i.cols&&row>=i.row&&row<i.row+i.rows);
+    e.stopPropagation(); // document mousedown으로 버블링 차단
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const inst = hitTest(mx, my);
     if(!inst){ FL.selected=null; renderFloorPlan(); return; }
     FL.selected = inst.uid;
-    FL.drag = {uid:inst.uid, startCol:col, startRow:row, origCol:inst.col, origRow:inst.row};
+    FL.drag = {
+      uid: inst.uid,
+      startPx: {x:mx, y:my},
+      origPx: {x: inst.col*GRID, y: inst.row*GRID},
+    };
     svg.style.cursor='grabbing';
     renderFloorPlan();
     e.preventDefault();
@@ -3899,10 +3965,15 @@ function initFloorSVGEvents(){
 
   svg.addEventListener('mousemove', e=>{
     if(!FL.drag) return;
-    const {col,row} = flSvgPosToCR(svg,e);
-    const dc=col-FL.drag.startCol, dr=row-FL.drag.startRow;
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const dx=mx-FL.drag.startPx.x, dy=my-FL.drag.startPx.y;
     const inst=FL.instances.find(i=>i.uid===FL.drag.uid);
-    if(inst){ inst.col=Math.max(0,FL.drag.origCol+dc); inst.row=Math.max(0,FL.drag.origRow+dr); renderFloorPlan(); }
+    if(inst){
+      inst.col = snapTo100mm(Math.max(0, FL.drag.origPx.x+dx)) / GRID;
+      inst.row = snapTo100mm(Math.max(0, FL.drag.origPx.y+dy)) / GRID;
+      renderFloorPlan();
+    }
   });
 
   const endDrag=()=>{
@@ -3914,23 +3985,41 @@ function initFloorSVGEvents(){
 
   svg.addEventListener('contextmenu',e=>{
     e.preventDefault();
-    const {col,row} = flSvgPosToCR(svg,e);
-    const inst=FL.instances.find(i=>col>=i.col&&col<i.col+i.cols&&row>=i.row&&row<i.row+i.rows);
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const inst=hitTest(mx, my);
     if(inst) removeFloorInstance(inst.uid);
   });
 
   svg.addEventListener('mousemove',e=>{
     if(FL.drag) return;
-    const {col,row} = flSvgPosToCR(svg,e);
-    const over=FL.instances.some(i=>col>=i.col&&col<i.col+i.cols&&row>=i.row&&row<i.row+i.rows);
-    svg.style.cursor=over?'grab':'default';
+    const rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    svg.style.cursor=hitTest(mx,my)?'grab':'default';
   });
 
-  document.addEventListener('keydown',e=>{
-    if(document.activeElement.tagName==='INPUT') return;
-    if(!FL.selected) return;
-    if(e.key==='r'||e.key==='R') rotateFloorInstance(FL.selected);
-  });
+  if(!window._flDocRegistered){
+    window._flDocRegistered = true;
+    document.addEventListener('keydown',e=>{
+      if(document.activeElement.tagName==='INPUT') return;
+      if(e.key==='Escape'){ FL.selected=null; renderFloorPlan(); return; }
+      if(!FL.selected) return;
+      if(e.key==='r'||e.key==='R'){ rotateFloorInstance(FL.selected); return; }
+      const step = PX_PER_100MM / GRID;
+      const inst = FL.instances.find(i=>i.uid===FL.selected);
+      if(!inst) return;
+      if(e.key==='ArrowLeft'){ inst.col=Math.max(0,inst.col-step); e.preventDefault(); }
+      else if(e.key==='ArrowRight'){ inst.col+=step; e.preventDefault(); }
+      else if(e.key==='ArrowUp'){ inst.row=Math.max(0,inst.row-step); e.preventDefault(); }
+      else if(e.key==='ArrowDown'){ inst.row+=step; e.preventDefault(); }
+      else return;
+      renderFloorPlan();
+    });
+    // SVG에서 stopPropagation하므로 여기 도달하면 외부 클릭
+    document.addEventListener('mousedown',e=>{
+      if(FL.selected!==null){ FL.selected=null; renderFloorPlan(); }
+    });
+  }
 }
 
 function flSvgPosToCR(svg,e){
@@ -3938,7 +4027,34 @@ function flSvgPosToCR(svg,e){
   return {col:Math.floor((e.clientX-rect.left)/GRID), row:Math.floor((e.clientY-rect.top)/GRID)};
 }
 
-// 코어 디자인(step-4) SVG에 그룹 외곽선 오버레이
+// 코어 디자인(step-4) SVG를 짙은 회색으로 표시 (6페이지 진입 시)
+function renderSVGGrayed(){
+  const svg = $('core-svg');
+  if(!svg) return;
+  // 기존 gray 오버레이 제거
+  svg.querySelectorAll('.gray-overlay').forEach(el=>el.remove());
+  // 모든 rect fill/stroke를 회색으로 교체
+  svg.querySelectorAll('rect').forEach(r=>{
+    const fill=r.getAttribute('fill');
+    if(fill && fill!=='none' && !fill.startsWith('rgba(0,0,0')){
+      r.setAttribute('fill','#b0b4be');
+      r.setAttribute('data-orig-fill', fill);
+    }
+    const stroke=r.getAttribute('stroke');
+    if(stroke && stroke!=='none'){
+      r.setAttribute('stroke','#888c96');
+      r.setAttribute('data-orig-stroke', stroke);
+    }
+  });
+  svg.querySelectorAll('text').forEach(t=>{ t.setAttribute('fill','#888c96'); t.setAttribute('stroke','none'); });
+  svg.querySelectorAll('image').forEach(img=>{ img.setAttribute('opacity','0.25'); });
+  // 그룹 외곽선도 회색으로
+  svg.querySelectorAll('.core-group-outline').forEach(el=>{
+    if(el.tagName==='rect'||el.tagName==='rect') el.setAttribute('stroke','#888c96');
+    if(el.tagName==='text') el.setAttribute('fill','#888c96');
+  });
+}
+
 function renderSVGWithGroups(groups){
   const svg = $('core-svg');
   if(!svg) return;
