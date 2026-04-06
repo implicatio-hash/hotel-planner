@@ -557,6 +557,14 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
             <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">더블클릭</span>
             <span style="font-size:11px;color:var(--text2);">층 편집 (분할·삭제)</span>
           </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">드래그</span>
+            <span style="font-size:11px;color:var(--text2);">층 이동</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">ESC</span>
+            <span style="font-size:11px;color:var(--text2);">선택 취소</span>
+          </div>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:0;">
@@ -1978,7 +1986,7 @@ function updateTotals(){
   if($('max-gfa-disp')) $('max-gfa-disp').textContent = Math.round(maxGFA).toLocaleString();
   if($('remain-area-disp')){
     $('remain-area-disp').textContent = (remain >= 0 ? '+' : '') + Math.round(remain).toLocaleString();
-    $('remain-area-disp').style.color = Math.abs(remain) < 1 ? 'var(--green)' : remain < 0 ? 'var(--red)' : 'var(--accent)';
+    $('remain-area-disp').style.color = Math.abs(remain) < 1 ? 'var(--red)' : remain < 0 ? 'var(--red)' : 'var(--accent)';
   }
 
   // 건축면적 (현재 층의 최대 바닥면적)
@@ -2013,14 +2021,14 @@ function updateTotals(){
   const remHEl = $('remain-height-disp');
   if(remHEl){
     remHEl.textContent = (hRemain >= 0 ? '+' : '') + hRemain.toFixed(2);
-    remHEl.style.color = Math.abs(hRemain) < 0.01 ? 'var(--green)' : hRemain < 0 ? 'var(--red)' : 'var(--accent)';
+    remHEl.style.color = Math.abs(hRemain) < 0.01 ? 'var(--red)' : hRemain < 0 ? 'var(--red)' : 'var(--accent)';
   }
 
   // 잔여 건축면적도 표시
   const covRemainEl = $('remain-coverage-disp');
   if(covRemainEl){
     covRemainEl.textContent = (covRemain >= 0 ? '+' : '') + covRemain.toFixed(2);
-    covRemainEl.style.color = Math.abs(covRemain) < 0.01 ? 'var(--green)' : covRemain < 0 ? 'var(--red)' : 'var(--accent)';
+    covRemainEl.style.color = Math.abs(covRemain) < 0.01 ? 'var(--red)' : covRemain < 0 ? 'var(--red)' : 'var(--accent)';
   }
 }
 
