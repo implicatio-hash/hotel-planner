@@ -3488,6 +3488,7 @@ let FL = {
   placedGroups: new Set(),
   siteOverlay: null,   // { x_mm, y_mm, rotation, lotCoords, buildableCoords, selected }
   siteDrag: null,
+  siteRotate: null,
 };
 
 async function initFloorPlanStep(){
@@ -3676,17 +3677,71 @@ function renderFloorPlan(){
       });
     }
 
-    // 선택 시 중심점 표시
+    // 선택 시: bbox 4모서리 회전 핸들
     if(isSiteSel){
-      siteG.appendChild(mk('circle',{cx:ox,cy:oy,r:5,fill:'#dc2626',opacity:'0.7'}));
+      // lotCoords 전체 bbox 계산
+      const allPts = so.lotCoords.flat();
+      const bx1 = Math.min(...allPts.map(p=>mmToPx(p.x)));
+      const by1 = Math.min(...allPts.map(p=>mmToPx(p.y)));
+      const bx2 = Math.max(...allPts.map(p=>mmToPx(p.x)));
+      const by2 = Math.max(...allPts.map(p=>mmToPx(p.y)));
+
+      const corners = [
+        {x: ox+bx1, y: oy+by1, idx:0},
+        {x: ox+bx2, y: oy+by1, idx:1},
+        {x: ox+bx2, y: oy+by2, idx:2},
+        {x: ox+bx1, y: oy+by2, idx:3},
+      ];
+
+      corners.forEach(c=>{
+        // 회전 핸들 원
+        const hc = mk('circle',{
+          cx:c.x, cy:c.y, r:8,
+          fill:'#dc2626', stroke:'white', 'stroke-width':'2',
+          style:'cursor:crosshair', 'data-rot-handle':c.idx,
+        });
+        hc.addEventListener('mousedown', ev=>{
+          ev.stopPropagation(); ev.preventDefault();
+          FL.siteRotate = {
+            startAngle: Math.atan2(ev.clientY - (svg.getBoundingClientRect().top+oy),
+                                   ev.clientX - (svg.getBoundingClientRect().left+ox)) * 180/Math.PI,
+            startRotation: so.rotation,
+          };
+        });
+        siteG.appendChild(hc);
+        // 화살표 아이콘 텍스트
+        const ht = mk('text',{
+          x:c.x, y:c.y+4, 'text-anchor':'middle',
+          'font-size':'10', fill:'white', 'pointer-events':'none',
+        });
+        ht.textContent='↻'; siteG.appendChild(ht);
+      });
+
+      // 라벨
+      const siteLbl=mk('text',{
+        x:ox+(bx1+bx2)/2, y:oy+by1-10,
+        'text-anchor':'middle','font-size':'9','font-weight':'700',
+        'font-family':'Pretendard,sans-serif',
+        fill:'#dc2626','pointer-events':'none',
+      });
+      siteLbl.textContent=`대지 (${so.rotation}°)`;
+      siteG.appendChild(siteLbl);
+    } else {
+      // 비선택 시 라벨
+      const allPts=so.lotCoords.flat();
+      const bx1=Math.min(...allPts.map(p=>mmToPx(p.x)));
+      const by1=Math.min(...allPts.map(p=>mmToPx(p.y)));
+      const bx2=Math.max(...allPts.map(p=>mmToPx(p.x)));
+      const siteLbl=mk('text',{
+        x:ox+(bx1+bx2)/2, y:oy+by1-6,
+        'text-anchor':'middle','font-size':'9','font-weight':'700',
+        'font-family':'Pretendard,sans-serif',
+        fill:'#e74c3c','pointer-events':'none',
+      });
+      siteLbl.textContent='대지';
+      siteG.appendChild(siteLbl);
     }
-    const siteLbl=mk('text',{
-      x:ox,y:oy-8,'text-anchor':'middle','font-size':'9','font-weight':'700',
-      'font-family':'Pretendard,sans-serif',
-      fill:isSiteSel?'#dc2626':'#e74c3c','pointer-events':'none',
-    });
-    siteLbl.textContent = isSiteSel?`대지 (${so.rotation}°) — 드래그·R회전·ESC해제`:'대지';
-    siteG.appendChild(siteLbl);
+
     svg.appendChild(siteG);
   }
 }
@@ -3857,7 +3912,7 @@ async function computeBuildableQuiet(){
 
 function resetFloorPlan(){
   FL.instances=[]; FL.nextId=1; FL.selected=null; FL.placedGroups=new Set();
-  FL.siteOverlay=null; FL.siteDrag=null;
+  FL.siteOverlay=null; FL.siteDrag=null; FL.siteRotate=null;
   renderFloorPlan();
   renderFloorCoreList();
 }
@@ -3919,25 +3974,34 @@ function initFloorSVGEvents(){
     });
   }
 
-  // 대지 오버레이 히트 테스트 (폴리곤 내부 ray-casting)
+  // 대지 오버레이 히트 테스트 — 폴리곤 선 위에 커서가 있을 때만 선택
+  const SITE_HIT_PX = 6; // 선에서 6px 이내
   function hitSite(mx, my){
     const so = FL.siteOverlay;
     if(!so) return false;
     const ox = mmToPx(so.x_mm), oy = mmToPx(so.y_mm);
-    // 회전 역변환으로 로컬 좌표 계산
+    // 회전 역변환
     const rad = -so.rotation * Math.PI / 180;
-    const dx = mx - ox, dy = my - oy;
+    const dx = mx-ox, dy = my-oy;
     const lx = dx*Math.cos(rad) - dy*Math.sin(rad);
     const ly = dx*Math.sin(rad) + dy*Math.cos(rad);
-    // 모든 링에 대해 ray-casting
-    for(const ring of so.lotCoords){
+
+    // 선분과 점 사이 거리 계산
+    function distToSeg(px,py,ax,ay,bx,by){
+      const abx=bx-ax,aby=by-ay;
+      const len2=abx*abx+aby*aby;
+      if(len2===0) return Math.hypot(px-ax,py-ay);
+      const t=Math.max(0,Math.min(1,((px-ax)*abx+(py-ay)*aby)/len2));
+      return Math.hypot(px-(ax+t*abx),py-(ay+t*aby));
+    }
+
+    // lotCoords + buildableCoords 모든 링의 선분 체크
+    const allRings = [...so.lotCoords, ...(so.buildableCoords||[])];
+    for(const ring of allRings){
       const pts = ring.map(p=>({x:mmToPx(p.x), y:mmToPx(p.y)}));
-      let inside = false;
       for(let i=0,j=pts.length-1; i<pts.length; j=i++){
-        const xi=pts[i].x,yi=pts[i].y, xj=pts[j].x,yj=pts[j].y;
-        if(((yi>ly)!==(yj>ly)) && (lx < (xj-xi)*(ly-yi)/(yj-yi)+xi)) inside=!inside;
+        if(distToSeg(lx,ly, pts[j].x,pts[j].y, pts[i].x,pts[i].y) <= SITE_HIT_PX) return true;
       }
-      if(inside) return true;
     }
     return false;
   }
@@ -3945,17 +4009,18 @@ function initFloorSVGEvents(){
   svg.addEventListener('mousedown',e=>{
     if(e.button!==0) return;
     e.stopPropagation();
+    // 회전 핸들 mousedown이 먼저 FL.siteRotate를 세팅 → 여기선 스킵
+    if(FL.siteRotate) return;
     const {mx,my}=svgPos(e);
     const inst=hitFL(mx,my);
     if(inst){
-      // 코어 선택 시 대지 선택 해제
       if(FL.siteOverlay) FL.siteOverlay.selected=false;
       FL.selected=inst.uid;
       FL.drag={uid:inst.uid, startPx:{x:mx,y:my}, origX:inst.x_mm, origY:inst.y_mm};
       svg.style.cursor='grabbing'; renderFloorPlan(); e.preventDefault();
       return;
     }
-    // 대지 오버레이 히트
+    // 대지 선 위 히트
     if(hitSite(mx,my)){
       FL.selected=null;
       FL.siteOverlay.selected=true;
@@ -3963,7 +4028,6 @@ function initFloorSVGEvents(){
       svg.style.cursor='grabbing'; renderFloorPlan(); e.preventDefault();
       return;
     }
-    // 빈 공간 클릭
     FL.selected=null;
     if(FL.siteOverlay) FL.siteOverlay.selected=false;
     renderFloorPlan();
@@ -3973,6 +4037,18 @@ function initFloorSVGEvents(){
   function onFlMove(e){
     const r=svg.getBoundingClientRect();
     const mx=e.clientX-r.left, my=e.clientY-r.top;
+
+    // 대지 회전 드래그
+    if(FL.siteRotate && FL.siteOverlay){
+      const so=FL.siteOverlay;
+      const ox=mmToPx(so.x_mm), oy=mmToPx(so.y_mm);
+      const curAngle = Math.atan2(my-oy, mx-ox) * 180/Math.PI;
+      const delta = curAngle - FL.siteRotate.startAngle;
+      // 1도 단위 snap
+      const newRot = Math.round(FL.siteRotate.startRotation + delta) % 360;
+      so.rotation = (newRot + 360) % 360;
+      renderFloorPlan(); return;
+    }
 
     // 대지 드래그
     if(FL.siteDrag && FL.siteOverlay){
@@ -4007,6 +4083,7 @@ function initFloorSVGEvents(){
     renderFloorPlan();
   }
   function onFlUp(){
+    if(FL.siteRotate){ FL.siteRotate=null; svg.style.cursor='default'; renderFloorPlan(); return; }
     if(FL.siteDrag){ FL.siteDrag=null; svg.style.cursor='default'; renderFloorPlan(); return; }
     if(!FL.drag) return;
     FL.drag=null; svg.style.cursor='default'; renderFloorPlan();
@@ -4016,9 +4093,11 @@ function initFloorSVGEvents(){
 
   svg.addEventListener('contextmenu',e=>{ e.preventDefault(); const {mx,my}=svgPos(e); const inst=hitFL(mx,my); if(inst) removeFloorInstance(inst.uid); });
   svg.addEventListener('mousemove',e=>{
-    if(FL.drag||FL.siteDrag) return;
+    if(FL.drag||FL.siteDrag||FL.siteRotate) return;
     const {mx,my}=svgPos(e);
-    svg.style.cursor=(hitFL(mx,my)||hitSite(mx,my))?'grab':'default';
+    if(hitFL(mx,my)){ svg.style.cursor='grab'; return; }
+    if(hitSite(mx,my)){ svg.style.cursor='grab'; return; }
+    svg.style.cursor='default';
   });
 
   if(!window._flDocRegistered){
