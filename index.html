@@ -3791,9 +3791,14 @@ async function buildSiteOverlay(){
     }
   }
 
+  // 초기 배치: 우측 캔버스 정중앙
+  const canvasWrap = $('fl-canvas-wrap');
+  const vpW_mm = (canvasWrap ? canvasWrap.clientWidth : 800) * MM_PER_PX;
+  const vpH_mm = (canvasWrap ? canvasWrap.clientHeight : 600) * MM_PER_PX;
+
   FL.siteOverlay = {
-    x_mm: 2*CELL_MM,
-    y_mm: 2*CELL_MM,
+    x_mm: snapMm(vpW_mm / 2),
+    y_mm: snapMm(vpH_mm / 2),
     rotation: 0,
     lotCoords,
     buildableCoords,
