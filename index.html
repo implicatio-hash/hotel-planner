@@ -766,7 +766,7 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
     <!-- 대지 오버레이 -->
     <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">대지 오버레이</div>
-      <button class="btn btn-secondary btn-full btn-sm" onclick="buildSiteOverlay();renderFloorPlan();" style="font-size:10px;">
+      <button class="btn btn-secondary btn-full btn-sm" onclick="buildSiteOverlay()" style="font-size:10px;">
         필지·건축한계선 불러오기
       </button>
       <div id="fl-site-info" style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.5;"></div>
@@ -3499,8 +3499,8 @@ let FL = {
   siteDrag: null,
 };
 
-function initFloorPlanStep(){
-  buildSiteOverlay();
+async function initFloorPlanStep(){
+  await buildSiteOverlay();
   renderFloorCoreList();
   renderFloorPlan();
   initFloorSVGEvents();
@@ -3727,12 +3727,26 @@ function removeFloorInstance(uid){
 }
 
 // ── 대지 오버레이: 2페이지 필지/건축한계선 → mm 좌표 변환 ──
-function buildSiteOverlay(){
+async function buildSiteOverlay(){
   const mergedPoly = window._step1MergedPoly;
   if(!mergedPoly){
     const info = $('fl-site-info');
     if(info){ info.textContent = '2페이지에서 필지를 먼저 선택하세요.'; info.style.color='var(--text3)'; }
     return;
+  }
+
+  // buildable feature가 없으면 자동 계산
+  const outSrc = window._step1OutlineSource;
+  const hasBuildable = outSrc?.getFeatures().some(f=>f.get('type')==='buildable'||f.get('type')==='setback');
+  if(!hasBuildable){
+    // SHP 미로드 시 먼저 로드
+    if(!_shpLoaded){
+      const info = $('fl-site-info');
+      if(info){ info.textContent = '건축한계선 데이터 로딩 중...'; info.style.color='var(--text3)'; }
+      await loadSetbackLayer();
+    }
+    // 건축한계선 자동 계산 (UI 토스트 없이 조용히 실행)
+    await computeBuildableQuiet();
   }
 
   // GeoJSON geometry → 꼭짓점 배열 (EPSG:4326)
@@ -3744,25 +3758,22 @@ function buildSiteOverlay(){
 
   // 위경도 → 미터 상대좌표 변환 (중심점 기준)
   function lnglatToMm(coords, centerLng, centerLat){
-    const R = 6371000; // 지구 반경(m)
+    const R = 6371000;
     return coords.map(([lng, lat])=>{
       const dx = (lng - centerLng) * Math.cos(centerLat*Math.PI/180) * R * Math.PI/180;
       const dy = (lat - centerLat) * R * Math.PI/180;
-      return { x: Math.round(dx*1000), y: Math.round(-dy*1000) }; // mm, Y축 반전
+      return { x: Math.round(dx*1000), y: Math.round(-dy*1000) };
     });
   }
 
-  // 필지 중심 계산
   const center = turf.centroid(mergedPoly);
   const [centerLng, centerLat] = center.geometry.coordinates;
 
-  // 필지 외곽선 좌표 (mm)
   const lotRings = extractRings(mergedPoly.geometry);
   const lotCoords = lotRings.map(ring => lnglatToMm(ring, centerLng, centerLat));
 
-  // 건축한계선 좌표 (mm) — type==='setback' 또는 'buildable' feature
+  // 건축한계선 좌표
   let buildableCoords = null;
-  const outSrc = window._step1OutlineSource;
   if(outSrc){
     const bFeats = outSrc.getFeatures().filter(f=>f.get('type')==='buildable'||f.get('type')==='setback');
     if(bFeats.length){
@@ -3780,7 +3791,6 @@ function buildSiteOverlay(){
     }
   }
 
-  // 초기 배치: 그리드 (2,2) 셀 위치
   FL.siteOverlay = {
     x_mm: 2*CELL_MM,
     y_mm: 2*CELL_MM,
@@ -3790,13 +3800,63 @@ function buildSiteOverlay(){
     selected: false,
   };
 
-  // 패널 정보 업데이트
   const info = $('fl-site-info');
   if(info){
     const area = turf.area(mergedPoly);
     info.textContent = `✅ 대지면적 ${area.toFixed(0)}㎡${buildableCoords?'\n건축한계선 포함':''}`;
     info.style.color = 'var(--green)';
   }
+
+  renderFloorPlan();
+}
+
+// 건축한계선 자동 계산 (UI 없이 조용히) — testBuildableArea의 순수 계산 버전
+async function computeBuildableQuiet(){
+  const outSrc = window._step1OutlineSource;
+  if(!outSrc || !window._step1MergedPoly) return;
+  if(!_shpLoaded || !_shpGeoJSONs.length) return;
+
+  const merged = window._step1MergedPoly;
+  const fmt = new ol.format.GeoJSON();
+
+  try {
+    const insetPoly = sharpInsetPolygon(merged, 0.5);
+    if(!insetPoly) return;
+
+    const mBbox = turf.bbox(merged);
+    const nearby = _shpGeoJSONs.filter(f=>{
+      const b=turf.bbox(f);
+      return !(b[2]<mBbox[0]||b[0]>mBbox[2]||b[3]<mBbox[1]||b[1]>mBbox[3]);
+    });
+    const allLines = [];
+    nearby.forEach(f=>f.geometry.coordinates.forEach(line=>allLines.push([...line])));
+
+    const filteredLines = allLines.filter(line=>{
+      try{ return turf.booleanIntersects(turf.lineString(line), merged); }catch(e){ return false; }
+    });
+
+    outSrc.getFeatures().filter(f=>f.get('type')==='buildable').forEach(f=>outSrc.removeFeature(f));
+
+    let final;
+    if(!filteredLines.length){
+      final = insetPoly;
+    } else {
+      const allCoords = filteredLines.reduce((acc,line)=>[...acc,...line],[]);
+      const points = turf.featureCollection(allCoords.map(c=>turf.point(c)));
+      const setbackHull = turf.concave(points,{maxEdge:0.1,units:'kilometers'});
+      if(!setbackHull){ final=insetPoly; }
+      else {
+        const step1 = turf.intersect(setbackHull, merged);
+        final = (step1 ? turf.intersect(step1, insetPoly) : null) || insetPoly;
+      }
+    }
+
+    const olGeom = fmt.readGeometry(final.geometry,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});
+    const bf = new ol.Feature({geometry:olGeom});
+    bf.set('type','buildable');
+    outSrc.addFeature(bf);
+    state.buildableArea = turf.area(final);
+  } catch(e){ console.warn('computeBuildableQuiet 오류:', e); }
 }
 
 function resetFloorPlan(){
