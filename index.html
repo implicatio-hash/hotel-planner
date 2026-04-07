@@ -757,10 +757,23 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
       <h2>기준층 계획</h2>
     </div>
 
+    <!-- 기준층 선택 -->
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">기준층 선택</div>
+      <div id="fl-floor-type-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
     <!-- 코어 블록 목록 -->
     <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">코어 블록</div>
       <div id="fl-core-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <!-- 객실 배치 -->
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">객실 배치</div>
+      <div id="fl-room-type-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="addRoomType()" style="margin-top:6px;font-size:10px;">+ Type 추가</button>
     </div>
 
     <div style="flex:1;"></div>
@@ -771,9 +784,24 @@ td.editable:hover { background: #eff6ff !important; cursor: text; }
 
   <!-- 우측: 기준층 SVG 캔버스 -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
+    <!-- 상단 면적 정보 바 -->
+    <div id="fl-area-bar" style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:none;align-items:center;justify-content:center;padding:0 24px;">
+      <div style="display:flex;justify-content:center;gap:48px;width:100%;">
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">기준층 바닥면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="fl-sel-area">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">채워야 할 면적</div>
+          <div style="font-size:15px;font-weight:700;" id="fl-remain-area">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
+        </div>
+      </div>
+    </div>
     <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
       <span style="font-size:11px;font-weight:600;color:var(--text2);">기준층 편집</span>
-      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; 드래그/화살표키: 이동(100mm) &nbsp;|&nbsp; 우클릭: 삭제 &nbsp;|&nbsp; ESC: 선택취소 &nbsp;|&nbsp; 대지선택 후 R: 3°회전</span>
+      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; 드래그/화살표키: 이동(100mm) &nbsp;|&nbsp; 우클릭: 삭제 &nbsp;|&nbsp; ESC: 선택취소 &nbsp;|&nbsp; 대지선택 후 +/-: 1°회전</span>
       <div style="flex:1;"></div>
       <button class="btn btn-secondary btn-sm" onclick="resetFloorPlan()" style="font-size:10px;padding:3px 8px;">초기화</button>
     </div>
@@ -3486,17 +3514,345 @@ let FL = {
   selected: null,
   drag: null,
   placedGroups: new Set(),
-  siteOverlay: null,   // { x_mm, y_mm, rotation, lotCoords, buildableCoords, selected }
+  siteOverlay: null,
   siteDrag: null,
   siteRotate: null,
+  selectedFloorType: null,
+  _prevOutsideCount: 0,
+  roomTypes: [{ id:'A', w_mm:4500, d_mm:9000, locked:true }],
+  roomInstances: [],
+  roomNextId: 1,
+  selectedRoom: null,
+  roomDrag: null,
 };
 
 async function initFloorPlanStep(){
-  // 이미 경계선이 있으면 재생성 안 함 (위치/회전 유지)
   if(!FL.siteOverlay) await buildSiteOverlay();
+  renderFloorTypeList();
   renderFloorCoreList();
+  renderRoomTypeList();
   renderFloorPlan();
   initFloorSVGEvents();
+}
+
+// ── 기준층 선택 목록 렌더링 ──
+function renderFloorTypeList(){
+  const list = $('fl-floor-type-list');
+  if(!list) return;
+  list.innerHTML = '';
+
+  const HOTEL_IDS = ['hotel', 'lodge'];
+
+  // 관광숙박시설로 지정된 셀의 면적을 층 인덱스와 함께 수집
+  // 분할 셀인 경우 해당 셀의 비율 면적 계산
+  const hotelFloors = []; // { fi, area, floorH }
+  S2.floors.forEach((floor, fi)=>{
+    floor.cells.forEach(cell=>{
+      if(!cell.useId) return;
+      if(!HOTEL_IDS.includes(cell.useId)) return;
+      const totalRatio = floor.cells.reduce((s,c)=>s+c.ratio, 0);
+      const cellArea = Math.round(floor.area * cell.ratio / totalRatio);
+      hotelFloors.push({ fi, area: cellArea, floorH: USE_MAP[cell.useId]?.floorH || 3.6 });
+    });
+  });
+
+  if(!hotelFloors.length){
+    list.innerHTML = '<div style="font-size:10px;color:var(--text3);padding:4px;">3페이지에서 관광숙박시설 용도를 지정하세요.</div>';
+    return;
+  }
+
+  // 면적 값 기준으로 unique 그룹핑
+  // key: 면적 값(㎡), value: { area, floorH, floors: [fi, ...] }
+  const areaGroups = new Map();
+  hotelFloors.forEach(({fi, area, floorH})=>{
+    if(!areaGroups.has(area)){
+      areaGroups.set(area, { area, floorH, floors: [] });
+    }
+    areaGroups.get(area).floors.push(fi);
+  });
+
+  // 면적 내림차순 정렬
+  const sorted = [...areaGroups.values()].sort((a,b)=>b.area-a.area);
+  const hotelColor = USE_MAP['hotel']?.color || '#2563eb';
+
+  sorted.forEach(group=>{
+    const areaKey = group.area; // unique key
+    const isSelected = FL.selectedFloorType?.areaKey === areaKey;
+
+    // 층 번호 요약 텍스트 (예: 1~5F, 13F)
+    const sortedFloors = [...group.floors].sort((a,b)=>a-b);
+    const floorLabel = summarizeFloors(sortedFloors);
+
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:5px;
+      background:${isSelected ? hotelColor+'15' : 'var(--bg2)'};
+      border:1px solid ${isSelected ? hotelColor : 'var(--border2)'};
+      margin-bottom:2px;
+      opacity:${FL.selectedFloorType && !isSelected ? '0.4' : '1'};
+      pointer-events:${FL.selectedFloorType && !isSelected ? 'none' : 'auto'};`;
+
+    const dot = document.createElement('div');
+    dot.style.cssText = `width:8px;height:8px;border-radius:2px;background:${hotelColor};flex-shrink:0;`;
+
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'flex:1;font-size:10px;font-weight:600;color:var(--text);';
+    lbl.innerHTML = `${group.area.toLocaleString()}㎡<br>
+      <span style="font-size:9px;font-weight:400;color:var(--text3);">${floorLabel} · ${group.floors.length}개층</span>`;
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm';
+    if(isSelected){
+      btn.textContent = '선택됨';
+      btn.style.cssText = `font-size:10px;padding:3px 8px;background:${hotelColor};color:#fff;border:none;`;
+      btn.onclick = ()=>{ FL.selectedFloorType=null; renderFloorTypeList(); updateFloorAreaBar(); };
+    } else {
+      btn.textContent = '선택';
+      btn.style.cssText = 'font-size:10px;padding:3px 8px;background:var(--bg3);color:var(--text2);border:1px solid var(--border2);';
+      btn.onclick = ()=>selectFloorType(areaKey, group);
+    }
+
+    row.append(dot, lbl, btn);
+    list.appendChild(row);
+  });
+}
+
+// 층 번호 배열을 "1~5F, 13F" 형태로 요약
+function summarizeFloors(floors){
+  if(!floors.length) return '';
+  const ranges = [];
+  let start = floors[0], prev = floors[0];
+  for(let i=1; i<=floors.length; i++){
+    if(i<floors.length && floors[i]===prev+1){
+      prev=floors[i];
+    } else {
+      ranges.push(start===prev ? `${start+1}F` : `${start+1}~${prev+1}F`);
+      if(i<floors.length){ start=floors[i]; prev=floors[i]; }
+    }
+  }
+  return ranges.join(', ');
+}
+
+function selectFloorType(areaKey, group){
+  FL.selectedFloorType = {
+    areaKey,
+    area: group.area,
+    floorH: group.floorH,
+    floors: group.floors,
+    label: `${group.area.toLocaleString()}㎡`,
+  };
+  renderFloorTypeList();
+  updateFloorAreaBar();
+}
+
+function updateFloorAreaBar(){
+  const bar = $('fl-area-bar');
+  if(!bar) return;
+
+  const ft = FL.selectedFloorType;
+  if(!ft){ bar.style.display='none'; return; }
+
+  bar.style.display = 'flex';
+
+  // foyer 요소 면적 합산
+  const foyerIds = ['foyer-emg','foyer-evac','foyer-ev','foyer-st'];
+  let foyerArea = 0;
+  FL.instances.forEach(inst=>{
+    if(!inst.group) return;
+    inst.group.forEach(el=>{
+      if(foyerIds.includes(el.defId)) foyerArea += (el.w_mm/1000)*(el.h_mm/1000);
+    });
+  });
+
+  // 객실 면적 합산
+  let roomArea = 0;
+  FL.roomInstances.forEach(inst=>{
+    const rt=FL.roomTypes.find(r=>r.id===inst.typeId);
+    if(rt) roomArea += (rt.w_mm/1000)*(rt.d_mm/1000);
+  });
+
+  const remain = ft.area - foyerArea - roomArea;
+  const remainEl = $('fl-remain-area');
+  if($('fl-sel-area')) $('fl-sel-area').textContent = Math.round(ft.area).toLocaleString() + '㎡';
+  if(remainEl){
+    remainEl.textContent = Math.abs(remain).toFixed(1) + '㎡';
+    remainEl.style.color = remain < 0 ? 'var(--red)' : 'var(--accent)';
+  }
+}
+// ═══════════════════════════════════════════
+// 객실 배치 기능
+// ═══════════════════════════════════════════
+
+function renderRoomTypeList(){
+  const list = $('fl-room-type-list');
+  if(!list) return;
+  list.innerHTML = '';
+
+  FL.roomTypes.forEach(rt=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px;flex-wrap:wrap;';
+
+    // 타입 라벨
+    const lbl = document.createElement('span');
+    lbl.style.cssText = 'font-size:10px;font-weight:700;color:var(--text2);min-width:34px;';
+    lbl.textContent = `Type ${rt.id}`;
+
+    // 폭 입력
+    const wWrap = document.createElement('div');
+    wWrap.style.cssText = 'display:flex;align-items:center;gap:2px;';
+    const wLbl = document.createElement('span');
+    wLbl.style.cssText = 'font-size:9px;color:var(--text3);';
+    wLbl.textContent = '폭';
+    const wInput = document.createElement('input');
+    wInput.type='number'; wInput.min='1'; wInput.step='0.1';
+    wInput.value = (rt.w_mm/1000).toFixed(2);
+    wInput.style.cssText = 'width:52px;padding:3px 4px;border:1px solid var(--border2);border-radius:4px;font-size:10px;font-family:inherit;text-align:center;';
+    wInput.onchange = ()=>{ rt.w_mm = Math.round(parseFloat(wInput.value||4.5)*1000); renderFloorPlan(); updateFloorAreaBar(); };
+    wWrap.append(wLbl, wInput);
+
+    // 깊이 입력
+    const dWrap = document.createElement('div');
+    dWrap.style.cssText = 'display:flex;align-items:center;gap:2px;';
+    const dLbl = document.createElement('span');
+    dLbl.style.cssText = 'font-size:9px;color:var(--text3);';
+    dLbl.textContent = '깊';
+    const dInput = document.createElement('input');
+    dInput.type='number'; dInput.min='1'; dInput.step='0.1';
+    dInput.value = (rt.d_mm/1000).toFixed(2);
+    dInput.style.cssText = 'width:52px;padding:3px 4px;border:1px solid var(--border2);border-radius:4px;font-size:10px;font-family:inherit;text-align:center;';
+    dInput.onchange = ()=>{ rt.d_mm = Math.round(parseFloat(dInput.value||9)*1000); renderFloorPlan(); updateFloorAreaBar(); };
+    dWrap.append(dLbl, dInput);
+
+    // 배치 버튼
+    const placeBtn = document.createElement('button');
+    placeBtn.className = 'btn btn-sm';
+    placeBtn.textContent = '배치';
+    placeBtn.style.cssText = 'font-size:10px;padding:3px 8px;background:var(--accent);color:#fff;border:none;cursor:pointer;';
+    placeBtn.onclick = ()=> addRoomInstance(rt.id);
+
+    row.append(lbl, wWrap, dWrap, placeBtn);
+
+    // 삭제 버튼 (Type A 제외)
+    if(!rt.locked){
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-sm';
+      delBtn.textContent = '×';
+      delBtn.title = `Type ${rt.id} 삭제`;
+      delBtn.style.cssText = 'font-size:11px;padding:2px 6px;background:none;color:var(--red);border:1px solid var(--border2);cursor:pointer;';
+      delBtn.onclick = ()=> removeRoomType(rt.id);
+      row.append(delBtn);
+    }
+
+    list.appendChild(row);
+  });
+}
+
+function addRoomType(){
+  const ids = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const usedIds = new Set(FL.roomTypes.map(r=>r.id));
+  const nextId = [...ids].find(c=>!usedIds.has(c));
+  if(!nextId){ showToast('더 이상 Type을 추가할 수 없습니다.'); return; }
+  FL.roomTypes.push({ id:nextId, w_mm:4500, d_mm:9000, locked:false });
+  renderRoomTypeList();
+}
+
+function removeRoomType(id){
+  if(id==='A') return;
+  FL.roomTypes = FL.roomTypes.filter(r=>r.id!==id);
+  FL.roomInstances = FL.roomInstances.filter(i=>i.typeId!==id);
+  renderRoomTypeList();
+  renderFloorPlan();
+  updateFloorAreaBar();
+}
+
+function addRoomInstance(typeId){
+  const rt = FL.roomTypes.find(r=>r.id===typeId);
+  if(!rt) return;
+  // 빈 위치 탐색: 다른 객실 + 코어 모두 피함
+  let pos = {x_mm:0, y_mm:0};
+  outer: for(let y=0; y<40*CELL_MM; y+=SNAP_MM){
+    for(let x=0; x<40*CELL_MM; x+=SNAP_MM){
+      // 다른 객실 체크
+      const roomOvlp = FL.roomInstances.some(i=>{
+        const iw=roomInstW(i), ih=roomInstH(i);
+        return x < i.x_mm+iw && x+rt.w_mm > i.x_mm &&
+               y < i.y_mm+ih && y+rt.d_mm > i.y_mm;
+      });
+      if(roomOvlp) continue;
+      // 코어 요소 체크
+      const coreOvlp = FL.instances.some(inst=>{
+        const grp=inst.group, bbox=inst.bbox;
+        if(!grp||!bbox) return false;
+        return grp.some(el=>{
+          const ex=inst.x_mm+(el.x_mm-bbox.x_mm);
+          const ey=inst.y_mm+(el.y_mm-bbox.y_mm);
+          return x < ex+el.w_mm && x+rt.w_mm > ex &&
+                 y < ey+el.h_mm && y+rt.d_mm > ey;
+        });
+      });
+      if(!coreOvlp){ pos={x_mm:x,y_mm:y}; break outer; }
+    }
+  }
+  FL.roomInstances.push({ uid:FL.roomNextId++, typeId, x_mm:pos.x_mm, y_mm:pos.y_mm, rotation:0 });
+  renderFloorPlan();
+  updateFloorAreaBar();
+}
+
+function removeRoomInstance(uid){
+  FL.roomInstances = FL.roomInstances.filter(i=>i.uid!==uid);
+  if(FL.selectedRoom===uid) FL.selectedRoom=null;
+  renderFloorPlan();
+  updateFloorAreaBar();
+}
+
+function rotateRoomInstance(uid){
+  const inst = FL.roomInstances.find(i=>i.uid===uid);
+  if(!inst) return;
+  inst.rotation = (inst.rotation+90)%360;
+  renderFloorPlan();
+}
+
+function roomInstW(inst){
+  const rt=FL.roomTypes.find(r=>r.id===inst.typeId);
+  if(!rt) return 0;
+  return inst.rotation%180===0 ? rt.w_mm : rt.d_mm;
+}
+function roomInstH(inst){
+  const rt=FL.roomTypes.find(r=>r.id===inst.typeId);
+  if(!rt) return 0;
+  return inst.rotation%180===0 ? rt.d_mm : rt.w_mm;
+}
+
+function isRoomOutsideBuildable(inst){
+  if(!FL.siteOverlay?.buildableCoords) return false;
+  const x0=inst.x_mm, y0=inst.y_mm;
+  const x1=x0+roomInstW(inst), y1=y0+roomInstH(inst);
+  for(const [cx,cy] of [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]){
+    if(!pointInBuildable(cx,cy)) return true;
+  }
+  return false;
+}
+
+function roomsOverlap(a, b){
+  const ax1=a.x_mm, ay1=a.y_mm, ax2=ax1+roomInstW(a), ay2=ay1+roomInstH(a);
+  const bx1=b.x_mm, by1=b.y_mm, bx2=bx1+roomInstW(b), by2=by1+roomInstH(b);
+  return ax2>bx1 && ax1<bx2 && ay2>by1 && ay1<by2;
+}
+function roomCollidesWithOthers(moving){
+  // 다른 객실과 겹침
+  if(FL.roomInstances.some(i=> i.uid!==moving.uid && roomsOverlap(moving,i))) return true;
+  // 코어 인스턴스와 겹침 (개별 요소 단위)
+  const rx1=moving.x_mm, ry1=moving.y_mm;
+  const rx2=rx1+roomInstW(moving), ry2=ry1+roomInstH(moving);
+  return FL.instances.some(inst=>{
+    const grp=inst.group; const bbox=inst.bbox;
+    if(!grp||!bbox) return false;
+    return grp.some(el=>{
+      const ex=inst.x_mm+(el.x_mm-bbox.x_mm);
+      const ey=inst.y_mm+(el.y_mm-bbox.y_mm);
+      const ex2=ex+el.w_mm, ey2=ey+el.h_mm;
+      return rx2>ex && rx1<ex2 && ry2>ey && ry1<ey2;
+    });
+  });
 }
 
 function renderFloorCoreList(){
@@ -3562,16 +3918,25 @@ function addFloorInstance(groupIdx){
   FL.selected=FL.instances[FL.instances.length-1].uid;
   renderFloorPlan();
   renderFloorCoreList();
+  updateFloorAreaBar();
 }
 
 function findFloorFreePos(w_mm, h_mm){
   for(let y=0; y<40*CELL_MM; y+=CELL_MM){
     for(let x=0; x<40*CELL_MM; x+=CELL_MM){
-      const free=!FL.instances.some(i=>
+      // 코어와 겹침 체크
+      const coreOverlap=FL.instances.some(i=>
         x < i.x_mm+i.w_mm && x+w_mm > i.x_mm &&
         y < i.y_mm+i.h_mm && y+h_mm > i.y_mm
       );
-      if(free) return {x_mm:x, y_mm:y};
+      if(coreOverlap) continue;
+      // 객실과 겹침 체크
+      const roomOverlap=FL.roomInstances.some(i=>{
+        const iw=roomInstW(i), ih=roomInstH(i);
+        return x < i.x_mm+iw && x+w_mm > i.x_mm &&
+               y < i.y_mm+ih && y+h_mm > i.y_mm;
+      });
+      if(!roomOverlap) return {x_mm:x, y_mm:y};
     }
   }
   return {x_mm:0, y_mm:0};
@@ -3584,6 +3949,7 @@ function renderFloorPlan(){
   const padMm=2*CELL_MM;
   let maxX=FL.instances.reduce((m,i)=>Math.max(m,i.x_mm+i.w_mm),16*CELL_MM)+padMm;
   let maxY=FL.instances.reduce((m,i)=>Math.max(m,i.y_mm+i.h_mm),12*CELL_MM)+padMm;
+  FL.roomInstances.forEach(i=>{ maxX=Math.max(maxX,i.x_mm+roomInstW(i)+padMm); maxY=Math.max(maxY,i.y_mm+roomInstH(i)+padMm); });
   if(FL.siteOverlay){
     const so=FL.siteOverlay, allPts=so.lotCoords.flat();
     if(allPts.length){
@@ -3654,10 +4020,69 @@ function renderFloorPlan(){
 
   // 이탈 코어 토스트 경고 (상태 변화 시에만)
   const prevOutside = FL._prevOutsideCount || 0;
+  // 객실 이탈도 포함
+  FL.roomInstances.forEach(i=>{ if(isRoomOutsideBuildable(i)) newOutsideCount++; });
   if(newOutsideCount > 0 && newOutsideCount !== prevOutside){
-    showToast(`⚠️ ${newOutsideCount}개 코어가 건축한계선을 벗어났습니다.`, 3000);
+    showToast(`⚠️ ${newOutsideCount}개 요소가 건축한계선을 벗어났습니다.`, 3000);
   }
   FL._prevOutsideCount = newOutsideCount;
+
+  // ── 객실 인스턴스 렌더링 ──
+  FL.roomInstances.forEach(inst=>{
+    const rt = FL.roomTypes.find(r=>r.id===inst.typeId);
+    if(!rt) return;
+    const isSel = FL.selectedRoom===inst.uid;
+    const isOut = isRoomOutsideBuildable(inst);
+    const iw=roomInstW(inst), ih=roomInstH(inst);
+    const x=mmToPx(inst.x_mm), y=mmToPx(inst.y_mm);
+    const w=mmToPx(iw), h=mmToPx(ih);
+    const cx=x+w/2, cy=y+h/2;
+    // 회전 단계: 0=유리창위/복도아래, 1=유리창오른/복도왼, 2=유리창아래/복도위, 3=유리창왼/복도오른
+    const rot = ((inst.rotation/90)%4+4)%4;
+
+    const g=mk('g');
+
+    // 내부 채움
+    g.appendChild(mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,
+      fill: isOut?'#fecaca':'#fce7f3',
+      stroke: isOut?'#dc2626':(isSel?'#2563eb':'#f472b6'),
+      'stroke-width': isOut||isSel?2:1, rx:1}));
+
+    // 유리창 변 (파란 굵은 선) — rot에 따라 위/오른/아래/왼
+    const glassLine = [
+      {x1:x+2,  y1:y+2,  x2:x+w-2,y2:y+2  }, // 위
+      {x1:x+w-2,y1:y+2,  x2:x+w-2,y2:y+h-2}, // 오른
+      {x1:x+2,  y1:y+h-2,x2:x+w-2,y2:y+h-2}, // 아래
+      {x1:x+2,  y1:y+2,  x2:x+2,  y2:y+h-2}, // 왼
+    ][rot];
+    g.appendChild(mk('line',{...glassLine, stroke:'#2563eb','stroke-width':'3','stroke-linecap':'round'}));
+
+    // 복도 변 (회색 점선) — 유리창 반대편
+    const corrLine = [
+      {x1:x+2,  y1:y+h-2,x2:x+w-2,y2:y+h-2}, // 아래 (rot=0)
+      {x1:x+2,  y1:y+2,  x2:x+2,  y2:y+h-2}, // 왼   (rot=1)
+      {x1:x+2,  y1:y+2,  x2:x+w-2,y2:y+2  }, // 위   (rot=2)
+      {x1:x+w-2,y1:y+2,  x2:x+w-2,y2:y+h-2}, // 오른 (rot=3)
+    ][rot];
+    g.appendChild(mk('line',{...corrLine, stroke:'#94a3b8','stroke-width':'1.5','stroke-dasharray':'4,3'}));
+
+    // 라벨
+    const lbl=mk('text',{x:cx,y:cy+3,'text-anchor':'middle','font-size':'8','font-weight':'700',
+      'font-family':'Pretendard,sans-serif',fill:isOut?'#dc2626':'#9d174d','pointer-events':'none'});
+    lbl.textContent=`${rt.id} (${(rt.w_mm/1000).toFixed(1)}×${(rt.d_mm/1000).toFixed(1)})`;
+    g.appendChild(lbl);
+
+    // 선택 핸들 (회전)
+    if(isSel){
+      const hc=mk('circle',{cx:x+w-10,cy:y+10,r:9,fill:'#2563eb',style:'cursor:pointer'});
+      hc.addEventListener('mousedown',e=>{e.stopPropagation();rotateRoomInstance(inst.uid);});
+      g.appendChild(hc);
+      const ht=mk('text',{x:x+w-10,y:y+14,'text-anchor':'middle','font-size':'11',fill:'white','pointer-events':'none'});
+      ht.textContent='↻'; g.appendChild(ht);
+    }
+
+    svg.appendChild(g);
+  });
 
   // ── 대지 오버레이 렌더링 ──
   const so = FL.siteOverlay;
@@ -3781,12 +4206,13 @@ function flipFloorInstance(uid){
 function removeFloorInstance(uid){
   const inst = FL.instances.find(i=>i.uid===uid);
   if(inst){
-    FL.placedGroups.delete(inst.groupIdx); // 배치 버튼 재활성화
+    FL.placedGroups.delete(inst.groupIdx);
   }
   FL.instances = FL.instances.filter(i=>i.uid!==uid);
   if(FL.selected===uid) FL.selected=null;
   renderFloorPlan();
-  renderFloorCoreList(); // 버튼 상태 갱신
+  renderFloorCoreList();
+  updateFloorAreaBar();
 }
 
 // ── 대지 오버레이: 2페이지 필지/건축한계선 → mm 좌표 변환 ──
@@ -3930,8 +4356,14 @@ async function computeBuildableQuiet(){
 function resetFloorPlan(){
   FL.instances=[]; FL.nextId=1; FL.selected=null; FL.placedGroups=new Set();
   FL.siteOverlay=null; FL.siteDrag=null; FL.siteRotate=null;
+  FL.selectedFloorType=null; FL._prevOutsideCount=0;
+  FL.roomTypes=[{ id:'A', w_mm:4500, d_mm:9000, locked:true }];
+  FL.roomInstances=[]; FL.roomNextId=1; FL.selectedRoom=null; FL.roomDrag=null;
   renderFloorPlan();
+  renderFloorTypeList();
   renderFloorCoreList();
+  renderRoomTypeList();
+  updateFloorAreaBar();
 }
 
 function initFloorPlan(){
@@ -4004,7 +4436,21 @@ function flInstancesOverlap(a, b){
   return false;
 }
 function flCollidesWithOthers(moving){
-  return FL.instances.some(i=> i.uid!==moving.uid && flInstancesOverlap(moving,i));
+  // 다른 코어와 겹침
+  if(FL.instances.some(i=> i.uid!==moving.uid && flInstancesOverlap(moving,i))) return true;
+  // 객실과 겹침 (코어 개별 요소 vs 객실 bbox)
+  const grp=moving.group; const bbox=moving.bbox;
+  if(!grp||!bbox) return false;
+  return grp.some(el=>{
+    const ex=moving.x_mm+(el.x_mm-bbox.x_mm);
+    const ey=moving.y_mm+(el.y_mm-bbox.y_mm);
+    const ex2=ex+el.w_mm, ey2=ey+el.h_mm;
+    return FL.roomInstances.some(room=>{
+      const rx1=room.x_mm, ry1=room.y_mm;
+      const rx2=rx1+roomInstW(room), ry2=ry1+roomInstH(room);
+      return ex2>rx1 && ex<rx2 && ey2>ry1 && ey<ry2;
+    });
+  });
 }
 
 function initFloorSVGEvents(){
@@ -4028,6 +4474,14 @@ function initFloorSVGEvents(){
         const ew=mmToPx(el.w_mm), eh=mmToPx(el.h_mm);
         return mx>=ex&&mx<ex+ew&&my>=ey&&my<ey+eh;
       });
+    });
+  }
+
+  function hitRoom(mx,my){
+    return FL.roomInstances.find(inst=>{
+      const ix=mmToPx(inst.x_mm), iy=mmToPx(inst.y_mm);
+      const iw=mmToPx(roomInstW(inst)), ih=mmToPx(roomInstH(inst));
+      return mx>=ix&&mx<ix+iw&&my>=iy&&my<iy+ih;
     });
   }
 
@@ -4066,26 +4520,38 @@ function initFloorSVGEvents(){
   svg.addEventListener('mousedown',e=>{
     if(e.button!==0) return;
     e.stopPropagation();
-    // 회전 핸들 mousedown이 먼저 FL.siteRotate를 세팅 → 여기선 스킵
     if(FL.siteRotate) return;
     const {mx,my}=svgPos(e);
     const inst=hitFL(mx,my);
     if(inst){
       if(FL.siteOverlay) FL.siteOverlay.selected=false;
+      FL.selectedRoom=null;
       FL.selected=inst.uid;
-      FL.drag={uid:inst.uid, startPx:{x:mx,y:my}, origX:inst.x_mm, origY:inst.y_mm};
+      FL.drag={uid:inst.uid, startPx:{x:mx,y:my}, origX:inst.x_mm, origY:inst.y_mm,
+        skipCollision: flCollidesWithOthers(inst)};
+      svg.style.cursor='grabbing'; renderFloorPlan(); e.preventDefault();
+      return;
+    }
+    // 객실 히트
+    const room=hitRoom(mx,my);
+    if(room){
+      if(FL.siteOverlay) FL.siteOverlay.selected=false;
+      FL.selected=null;
+      FL.selectedRoom=room.uid;
+      FL.roomDrag={uid:room.uid, startPx:{x:mx,y:my}, origX:room.x_mm, origY:room.y_mm,
+        skipCollision: roomCollidesWithOthers(room)};
       svg.style.cursor='grabbing'; renderFloorPlan(); e.preventDefault();
       return;
     }
     // 대지 선 위 히트
     if(hitSite(mx,my)){
-      FL.selected=null;
+      FL.selected=null; FL.selectedRoom=null;
       FL.siteOverlay.selected=true;
       FL.siteDrag={startPx:{x:mx,y:my}, origX:FL.siteOverlay.x_mm, origY:FL.siteOverlay.y_mm};
       svg.style.cursor='grabbing'; renderFloorPlan(); e.preventDefault();
       return;
     }
-    FL.selected=null;
+    FL.selected=null; FL.selectedRoom=null;
     if(FL.siteOverlay) FL.siteOverlay.selected=false;
     renderFloorPlan();
   });
@@ -4095,13 +4561,33 @@ function initFloorSVGEvents(){
     const r=svg.getBoundingClientRect();
     const mx=e.clientX-r.left, my=e.clientY-r.top;
 
+    // 객실 드래그
+    if(FL.roomDrag){
+      const inst=FL.roomInstances.find(i=>i.uid===FL.roomDrag.uid);
+      if(inst){
+        const nx=snapMm(Math.max(0, FL.roomDrag.origX+Math.round((mx-FL.roomDrag.startPx.x)*MM_PER_PX)));
+        const ny=snapMm(Math.max(0, FL.roomDrag.origY+Math.round((my-FL.roomDrag.startPx.y)*MM_PER_PX)));
+        const px=inst.x_mm, py=inst.y_mm;
+        inst.x_mm=nx; inst.y_mm=ny;
+        if(!FL.roomDrag.skipCollision && roomCollidesWithOthers(inst)){
+          inst.x_mm=nx; inst.y_mm=py;
+          if(roomCollidesWithOthers(inst)){
+            inst.x_mm=px; inst.y_mm=ny;
+            if(roomCollidesWithOthers(inst)){ inst.x_mm=px; inst.y_mm=py; }
+          }
+        }
+        FL.roomDrag.origX=inst.x_mm; FL.roomDrag.origY=inst.y_mm;
+        FL.roomDrag.startPx={x:mx,y:my};
+      }
+      renderFloorPlan(); return;
+    }
+
     // 대지 회전 드래그
     if(FL.siteRotate && FL.siteOverlay){
       const so=FL.siteOverlay;
       const ox=mmToPx(so.x_mm), oy=mmToPx(so.y_mm);
       const curAngle = Math.atan2(my-oy, mx-ox) * 180/Math.PI;
       const delta = curAngle - FL.siteRotate.startAngle;
-      // 1도 단위 snap
       const newRot = Math.round(FL.siteRotate.startRotation + delta) % 360;
       so.rotation = (newRot + 360) % 360;
       renderFloorPlan(); return;
@@ -4126,7 +4612,7 @@ function initFloorSVGEvents(){
     const px=inst.x_mm, py=inst.y_mm;
 
     inst.x_mm=nx; inst.y_mm=ny;
-    if(flCollidesWithOthers(inst)){
+    if(!FL.drag.skipCollision && flCollidesWithOthers(inst)){
       inst.x_mm=nx; inst.y_mm=py;
       if(flCollidesWithOthers(inst)){
         inst.x_mm=px; inst.y_mm=ny;
@@ -4140,6 +4626,7 @@ function initFloorSVGEvents(){
     renderFloorPlan();
   }
   function onFlUp(){
+    if(FL.roomDrag){ FL.roomDrag=null; svg.style.cursor='default'; renderFloorPlan(); updateFloorAreaBar(); return; }
     if(FL.siteRotate){ FL.siteRotate=null; svg.style.cursor='default'; renderFloorPlan(); return; }
     if(FL.siteDrag){ FL.siteDrag=null; svg.style.cursor='default'; renderFloorPlan(); return; }
     if(!FL.drag) return;
@@ -4148,11 +4635,19 @@ function initFloorSVGEvents(){
   document.addEventListener('mousemove', onFlMove);
   document.addEventListener('mouseup', onFlUp);
 
-  svg.addEventListener('contextmenu',e=>{ e.preventDefault(); const {mx,my}=svgPos(e); const inst=hitFL(mx,my); if(inst) removeFloorInstance(inst.uid); });
+  svg.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    const {mx,my}=svgPos(e);
+    const inst=hitFL(mx,my);
+    if(inst){ removeFloorInstance(inst.uid); return; }
+    const room=hitRoom(mx,my);
+    if(room) removeRoomInstance(room.uid);
+  });
   svg.addEventListener('mousemove',e=>{
     if(FL.drag||FL.siteDrag||FL.siteRotate) return;
     const {mx,my}=svgPos(e);
     if(hitFL(mx,my)){ svg.style.cursor='grab'; return; }
+    if(hitRoom(mx,my)){ svg.style.cursor='grab'; return; }
     if(hitSite(mx,my)){ svg.style.cursor='grab'; return; }
     svg.style.cursor='default';
   });
@@ -4162,18 +4657,34 @@ function initFloorSVGEvents(){
     document.addEventListener('keydown',e=>{
       if(document.activeElement.tagName==='INPUT') return;
       if(e.key==='Escape'){
-        FL.selected=null;
+        FL.selected=null; FL.selectedRoom=null;
         if(FL.siteOverlay) FL.siteOverlay.selected=false;
         renderFloorPlan(); return;
       }
       // 대지 선택 중: R키 3도 회전, 화살표 이동
       if(FL.siteOverlay?.selected){
         const so=FL.siteOverlay;
-        if(e.key==='r'||e.key==='R'){ so.rotation=(so.rotation+3)%360; e.preventDefault(); renderFloorPlan(); return; }
+        if(e.key==='+'||e.key==='='){ so.rotation=(so.rotation+1+360)%360; e.preventDefault(); renderFloorPlan(); return; }
+        if(e.key==='-'){ so.rotation=(so.rotation-1+360)%360; e.preventDefault(); renderFloorPlan(); return; }
         if(e.key==='ArrowLeft'){ so.x_mm=Math.max(0,so.x_mm-SNAP_MM); e.preventDefault(); renderFloorPlan(); return; }
         if(e.key==='ArrowRight'){ so.x_mm+=SNAP_MM; e.preventDefault(); renderFloorPlan(); return; }
         if(e.key==='ArrowUp'){ so.y_mm=Math.max(0,so.y_mm-SNAP_MM); e.preventDefault(); renderFloorPlan(); return; }
         if(e.key==='ArrowDown'){ so.y_mm+=SNAP_MM; e.preventDefault(); renderFloorPlan(); return; }
+        return;
+      }
+      // 객실 선택 중 화살표 이동
+      if(FL.selectedRoom){
+        const room=FL.roomInstances.find(i=>i.uid===FL.selectedRoom);
+        if(room){
+          const rpx=room.x_mm, rpy=room.y_mm;
+          if(e.key==='ArrowLeft'){ room.x_mm=Math.max(0,room.x_mm-SNAP_MM); e.preventDefault(); }
+          else if(e.key==='ArrowRight'){ room.x_mm+=SNAP_MM; e.preventDefault(); }
+          else if(e.key==='ArrowUp'){ room.y_mm=Math.max(0,room.y_mm-SNAP_MM); e.preventDefault(); }
+          else if(e.key==='ArrowDown'){ room.y_mm+=SNAP_MM; e.preventDefault(); }
+          else return;
+          if(roomCollidesWithOthers(room)){ room.x_mm=rpx; room.y_mm=rpy; }
+          renderFloorPlan(); updateFloorAreaBar();
+        }
         return;
       }
       if(!FL.selected) return;
