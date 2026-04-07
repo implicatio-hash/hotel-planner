@@ -3492,7 +3492,8 @@ let FL = {
 };
 
 async function initFloorPlanStep(){
-  await buildSiteOverlay();
+  // 이미 경계선이 있으면 재생성 안 함 (위치/회전 유지)
+  if(!FL.siteOverlay) await buildSiteOverlay();
   renderFloorCoreList();
   renderFloorPlan();
   initFloorSVGEvents();
@@ -3607,11 +3608,14 @@ function renderFloorPlan(){
   svg.appendChild(gridG);
 
   const groups=detectCoreGroups();
+  let newOutsideCount = 0;
   FL.instances.forEach(inst=>{
     const x=mmToPx(inst.x_mm), y=mmToPx(inst.y_mm);
     const w=mmToPx(inst.w_mm), h=mmToPx(inst.h_mm);
     const cx=x+w/2, cy=y+h/2;
     const isSel=FL.selected===inst.uid;
+    const isOutside=isInstOutsideBuildable(inst); // 건축한계선 이탈 여부
+    if(isOutside) newOutsideCount++;
     const color=CORE_COLORS[inst.groupIdx%CORE_COLORS.length];
     const g=mk('g');
 
@@ -3623,24 +3627,37 @@ function renderFloorPlan(){
         const ex=x+mmToPx(el.x_mm-bbox.x_mm)+1;
         const ey=y+mmToPx(el.y_mm-bbox.y_mm)+1;
         const ew=mmToPx(el.w_mm)-2, eh=mmToPx(el.h_mm)-2;
+        // 이탈 시 빨간 테두리, 선택 시 파란 테두리, 기본 회색
+        const stroke = isOutside ? '#dc2626' : (isSel?'#2563eb':'#9099a8');
+        const strokeW = isOutside ? 2.5 : (isSel?2:1);
+        const fill = isOutside ? '#fecaca' : '#c8cdd6';
         g.appendChild(mk('rect',{x:ex,y:ey,width:ew,height:eh,
-          fill:'#c8cdd6',stroke:isSel?'#2563eb':'#9099a8','stroke-width':isSel?2:1,rx:1}));
+          fill,stroke,'stroke-width':strokeW,rx:1}));
         const t=mk('text',{x:ex+ew/2,y:ey+eh/2+3,'text-anchor':'middle','font-size':'7',
-          'font-family':'Pretendard,sans-serif',fill:'#444a56','pointer-events':'none','font-weight':'600'});
+          'font-family':'Pretendard,sans-serif',fill: isOutside?'#dc2626':'#444a56','pointer-events':'none','font-weight':'600'});
         t.textContent=def.label.replace('특별피난','특').replace('피난','피').replace(' EV','EV').replace(' 전실','전');
         g.appendChild(t);
       });
     } else {
-      g.appendChild(mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,fill:color+'22',stroke:isSel?'#2563eb':color,'stroke-width':isSel?2.5:1.5,rx:2}));
+      const stroke = isOutside?'#dc2626':(isSel?'#2563eb':color);
+      g.appendChild(mk('rect',{x:x+1,y:y+1,width:w-2,height:h-2,
+        fill:isOutside?'#fecaca':color+'22',stroke,'stroke-width':isOutside?2.5:(isSel?2.5:1.5),rx:2}));
     }
 
     const lbl=mk('text',{x:cx,y:y+14,'text-anchor':'middle','font-size':'10','font-weight':'700',
-      'font-family':'Pretendard,sans-serif',fill:color,'pointer-events':'none'});
+      'font-family':'Pretendard,sans-serif',fill:isOutside?'#dc2626':color,'pointer-events':'none'});
     lbl.textContent=`코어 ${inst.groupIdx+1} (${(inst.w_mm/1000).toFixed(1)}×${(inst.h_mm/1000).toFixed(1)}m)`;
     g.appendChild(lbl);
 
     svg.appendChild(g);
   });
+
+  // 이탈 코어 토스트 경고 (상태 변화 시에만)
+  const prevOutside = FL._prevOutsideCount || 0;
+  if(newOutsideCount > 0 && newOutsideCount !== prevOutside){
+    showToast(`⚠️ ${newOutsideCount}개 코어가 건축한계선을 벗어났습니다.`, 3000);
+  }
+  FL._prevOutsideCount = newOutsideCount;
 
   // ── 대지 오버레이 렌더링 ──
   const so = FL.siteOverlay;
@@ -3921,6 +3938,46 @@ function initFloorPlan(){
   FL.floorW = parseFloat($('fl-width')?.value||30);
   FL.floorH = parseFloat($('fl-height')?.value||20);
   renderFloorPlan();
+}
+
+// ── 건축한계선 이탈 체크 ──
+// 점이 회전된 건축한계선 폴리곤 내부에 있는지 ray-casting
+function pointInBuildable(px_mm, py_mm){
+  const so = FL.siteOverlay;
+  if(!so || !so.buildableCoords || !so.buildableCoords.length) return true; // 한계선 없으면 통과
+  const ox_mm = so.x_mm, oy_mm = so.y_mm;
+  const rad = -so.rotation * Math.PI / 180;
+  // 점을 경계선 로컬 좌표로 역변환
+  const dx = px_mm - ox_mm, dy = py_mm - oy_mm;
+  const lx = dx*Math.cos(rad) - dy*Math.sin(rad);
+  const ly = dx*Math.sin(rad) + dy*Math.cos(rad);
+  // buildableCoords의 첫 번째 링(외곽)에 대해 ray-casting
+  const ring = so.buildableCoords[0];
+  let inside = false;
+  for(let i=0, j=ring.length-1; i<ring.length; j=i++){
+    const xi=ring[i].x, yi=ring[i].y, xj=ring[j].x, yj=ring[j].y;
+    if(((yi>ly)!==(yj>ly)) && (lx < (xj-xi)*(ly-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+// 인스턴스의 개별 요소 각각의 4꼭짓점을 모두 체크
+function isInstOutsideBuildable(inst){
+  if(!FL.siteOverlay?.buildableCoords) return false;
+  const bbox = inst.bbox;
+  const group = inst.group;
+  if(!group || !group.length) return false;
+  for(const el of group){
+    const x0 = inst.x_mm + (el.x_mm - bbox.x_mm);
+    const y0 = inst.y_mm + (el.y_mm - bbox.y_mm);
+    const x1 = x0 + el.w_mm, y1 = y0 + el.h_mm;
+    // 4꼭짓점 체크
+    const corners = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+    for(const [cx,cy] of corners){
+      if(!pointInBuildable(cx, cy)) return true;
+    }
+  }
+  return false;
 }
 
 // ── 6페이지 인스턴스 충돌 감지 (실제 구성 요소 단위 비교) ──
