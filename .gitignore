@@ -1,0 +1,14 @@
+# API 키 - 절대 커밋 금지
+api.key
+
+# Perl 임시 파일
+*.bak
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (Firebase functions - 미사용)
+functions/node_modules/
+functions/.env
