@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hotel Planner — Design Automation</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@9.2.4/ol.css">
+<script src="https://cdn.jsdelivr.net/npm/ol@9.2.4/dist/ol.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo">HOTEL PLANNER <span>Design Automation v0.1</span></div>
+  <div class="topbar-sep"></div>
+  <div style="font-size:11px;color:var(--text3)" id="project-name-display">새 프로젝트</div>
+  <div style="flex:1"></div>
+</div>
+
+<!-- STEP NAV -->
+<div id="stepnav">
+  <button class="step-btn active" data-step="1" onclick="goStep(1)"><span class="snum">1</span>대지 선택</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="2" onclick="goStep(2)"><span class="snum">2</span>대지 정보</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="3" onclick="goStep(3)"><span class="snum">3</span>지상 볼륨</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="snum">4</span>지하 볼륨</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="snum">5</span>코어 계획</button>
+  <span class="step-sep">›</span>
+  <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="snum">6</span>기준층 계획</button>
+  <span class="step-sep">›</span>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- ═══ STEP 1: 대지 선택 ═══ -->
+<div id="step-1" class="step-panel active" style="flex-direction:row;">
+  <div id="panel">
+    <div id="panel-header">
+      <h2>대지 위치 선택</h2>
+    </div>
+    <div id="panel-body">
+
+      <!-- 주소 검색 -->
+      <div>
+        <div class="sec-label" style="margin-bottom:8px;">주소 검색</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="addr-search" placeholder="동·읍면 또는 도로명 입력"
+            onkeydown="if(event.key==='Enter')searchAddr()">
+          <button class="btn btn-primary btn-sm" onclick="searchAddr()" style="flex-shrink:0;padding:7px 11px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);">🔍</button>
+        </div>
+        <div id="search-status" style="margin-top:5px;font-size:10px;color:var(--text3);min-height:14px;"></div>
+      </div>
+
+      <!-- 검색 결과 -->
+      <div id="search-results" style="display:none;">
+        <div id="search-result-list" style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;"></div>
+      </div>
+
+      <!-- 선택된 위치 -->
+      <div id="selected-location" style="display:none;">
+        <div class="info-box blue" style="padding:9px 11px;">
+          <div style="font-size:9px;color:#3b82f6;font-weight:700;margin-bottom:4px;">📍 기준 주소</div>
+          <div id="selected-addr-parcel" style="font-weight:700;font-size:11px;line-height:1.5;"></div>
+          <div id="selected-addr-road" style="font-size:10px;color:#3b82f6;opacity:.8;margin-top:1px;"></div>
+        </div>
+      </div>
+
+      <!-- 선택 필지 -->
+      <div>
+        <div class="sec-label" style="margin-bottom:8px;">선택된 필지</div>
+        <div id="selected-lots">
+          <div class="info-box" style="text-align:center;color:var(--text3);">지도에서 필지를 클릭하세요</div>
+        </div>
+      </div>
+
+      <!-- 합산 면적 -->
+      <div id="lots-summary" style="display:none;margin-top:auto;">
+        <div class="info-box green" style="text-align:center;">
+          <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:2px;">합산 대지 면적</div>
+          <div id="total-site-area" style="font-size:22px;font-weight:800;color:#16a34a;">0 m²</div>
+        </div>
+      </div>
+
+    </div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="createProject()" style="font-size:13px;padding:11px;letter-spacing:.01em;">
+        이 장소로 프로젝트 생성
+      </button>
+    </div>
+  </div>
+
+  <!-- 브이월드 지도 -->
+  <div id="site-map" style="flex:1;position:relative;">
+    <div id="vmap" style="width:100%;height:100%;"></div>
+  </div>
+</div>
+
+<!-- ═══ STEP 2: 대지 정보 ═══ -->
+<div id="step-2" class="step-panel" style="flex-direction:row;">
+  <div id="panel" style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>대지 정보</h2>
+    </div>
+    <div id="panel-body" style="display:flex;flex-direction:column;gap:0;flex:1;overflow-y:auto;padding:14px 16px;">
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>대지 면적 (㎡)</label>
+        <input type="text" id="site-area" readonly
+          style="background:var(--bg3);color:var(--text);font-weight:700;font-size:14px;cursor:default;">
+      </div>
+
+      <button id="btn-show-setback" class="btn btn-secondary btn-full"
+        onclick="toggleSetbackView()" style="font-size:13px;padding:11px;letter-spacing:.01em;margin-bottom:12px;">건축한계선 확인</button>
+
+      <div class="form-group" id="buildable-area-group" style="margin-bottom:12px;">
+        <label>지상 건축가능 면적 (㎡)</label>
+        <input type="text" id="buildable-area-disp" readonly
+          style="background:#fff7ed;color:#ea580c;font-weight:700;font-size:14px;cursor:default;border-color:#fed7aa;">
+      </div>
+
+      <div style="border-top:1px solid var(--border);margin-bottom:12px;"></div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>지하층 필지선 이격거리 (m)</label>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">시공을 위한 이격거리 입력</div>
+        <div class="input-unit">
+          <input type="number" id="under-setback" value="0.00"
+            min="0" max="3" step="0.01"
+            oninput="clampUnderSetback(this)"
+            placeholder="0.00">
+          <span>m</span>
+        </div>
+      </div>
+
+      <button id="btn-show-under" class="btn btn-secondary btn-full"
+        onclick="toggleUnderView()" style="font-size:13px;padding:11px;letter-spacing:.01em;margin-bottom:12px;">지하 건축 가능 영역 확인</button>
+
+      <div class="form-group" id="under-area-group" style="margin-bottom:12px;">
+        <label>지하 건축가능 면적 (㎡)</label>
+        <input type="text" id="under-design-area-disp" readonly
+          style="background:#eff6ff;color:#2563eb;font-weight:700;font-size:14px;cursor:default;border-color:#bfdbfe;">
+      </div>
+
+      <div style="flex:1;"></div>
+
+    </div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="goStep(3)"
+        style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 지상 볼륨 →</button>
+    </div>
+  </div>
+
+  <!-- 우측: 지도 -->
+  <div style="flex:1;position:relative;">
+    <div id="step1-map" style="width:100%;height:100%;"></div>
+    <div id="step1-legend" style="position:absolute;bottom:12px;left:12px;font-size:10px;color:var(--text2);
+      background:rgba(255,255,255,.9);padding:4px 10px;border-radius:5px;border:1px solid var(--border);
+      z-index:100;pointer-events:none;">
+      <span style="display:inline-block;width:16px;height:2px;background:#e74c3c;vertical-align:middle;margin-right:4px;"></span>대지경계선
+      <span id="legend-setback" style="display:none;">
+        &nbsp;&nbsp;<span style="display:inline-block;width:16px;height:0;border-top:2px dashed #e67e22;vertical-align:middle;margin-right:4px;"></span>건축한계선
+      </span>
+      <span id="legend-under" style="display:none;">
+        &nbsp;&nbsp;<span style="display:inline-block;width:16px;height:0;border-top:2px dashed #2563eb;vertical-align:middle;margin-right:4px;"></span>지하층 범위
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 3: 지상 볼륨 ═══ -->
+<div id="step-3" class="step-panel" style="flex-direction:row;">
+
+  <!-- 좌측: 규모 입력 + 용도 선택 패널 -->
+  <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>지상 볼륨</h2>
+    </div>
+
+    <!-- 규모 입력 -->
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">건축물 규모 설정</div>
+      <div class="input-row" style="margin-bottom:8px;">
+        <div class="form-group">
+          <label>건폐율 (%)</label>
+          <div class="input-unit">
+            <input type="number" id="bcr" placeholder="" min="1" max="100">
+            <span>%</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>용적률 (%)</label>
+          <div class="input-unit">
+            <input type="number" id="far" placeholder="" min="1">
+            <span>%</span>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>최대 높이 (m)</label>
+        <div class="input-unit">
+          <input type="number" id="max-height" placeholder="" min="10" step="1">
+          <span>m</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="applyVolumeSettings()">적용 →</button>
+      <div id="volume-result" style="display:none;margin-top:8px;">
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="ic-label">최대 건축 면적</div>
+            <div><span class="ic-val" id="max-coverage">0</span><span class="ic-unit">m²</span></div>
+          </div>
+          <div class="info-card">
+            <div class="ic-label">최대 연면적</div>
+            <div><span class="ic-val" id="max-gfa">0</span><span class="ic-unit">m²</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 용도 선택 -->
+    <div style="padding:10px 16px 4px;flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);">건축물 용도 선택</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:6px 12px;display:flex;flex-direction:column;gap:6px;" id="use-btn-list"></div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="goStep(4)" style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 지하 볼륨 →</button>
+    </div>
+  </div>
+
+  <!-- 우측: 단면 다이어그램 -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);position:relative;">
+
+    <!-- 조작 방법 범례 -->
+    <div style="position:absolute;bottom:20px;right:20px;z-index:10;
+      background:rgba(255,255,255,0.95);border:1px solid var(--border2);border-radius:8px;
+      padding:10px 14px;box-shadow:var(--shadow2);min-width:180px;">
+      <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">좌클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 선택 (Shift: 범위 선택)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
+          <span style="font-size:11px;color:var(--text2);">용도 선택</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">더블클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 편집 (분할·삭제)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">드래그</span>
+          <span style="font-size:11px;color:var(--text2);">층 이동</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">ESC</span>
+          <span style="font-size:11px;color:var(--text2);">선택 취소</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상단 규모 요약 -->
+    <div style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0 24px;">
+      <div style="display:flex;justify-content:center;gap:48px;width:100%;">
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">건축면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="total-coverage-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">최대 <span id="max-coverage-disp">-</span>㎡ / 건폐율 <b id="bcr-disp">-</b> / 잔여 <b id="remain-coverage-disp" style="color:var(--accent);">-</b>㎡</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">지상층 연면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="total-area-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">최대 <span id="max-gfa-disp">-</span>㎡ / 용적률 <b id="far-disp">-</b> / 잔여 <b id="remain-area-disp" style="color:var(--accent);">-</b>㎡</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">총 높이</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="total-height-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">최대 <span id="max-height-disp">-</span>m / 잔여 <b id="remain-height-disp" style="color:var(--accent);">-</b>m</div>
+        </div>
+      </div>
+    </div>
+    <!-- 다이어그램 영역 -->
+    <div style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px;">
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <!-- 헤더 행 -->
+        <div style="display:flex;align-items:stretch;">
+          <div style="width:120px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">단면 다이어그램</span>
+          </div>
+          <div style="width:500px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;flex-shrink:0;"></div>
+          <div style="width:36px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
+          </div>
+          <div style="width:50px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">층고(m)</span>
+          </div>
+          <div style="width:80px;height:24px;border-bottom:2px solid #1a1d26;box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
+          </div>
+        </div>
+        <!-- 다이어그램 + 정보 -->
+        <div id="section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
+          <div style="width:120px;flex-shrink:0;"></div>
+          <div id="section-blocks" style="display:flex;flex-direction:column-reverse;position:relative;width:500px;flex-shrink:0;"></div>
+          <div id="section-info-col" style="display:flex;flex-direction:column-reverse;width:166px;flex-shrink:0;"></div>
+        </div>
+        <!-- 지면선 -->
+        <div style="width:786px;height:0;border-top:2px solid #1a1d26;flex-shrink:0;position:relative;">
+          <span style="position:absolute;top:2px;left:8px;font-size:10px;font-weight:700;color:var(--text2);">지면</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 4: 지하 볼륨 ═══ -->
+<div id="step-4" class="step-panel" style="flex-direction:row;">
+
+  <!-- 좌측 패널 -->
+  <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>지하 볼륨</h2>
+    </div>
+
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">지하층 규모 설정</div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>층 수</label>
+        <div class="input-unit">
+          <input type="number" id="under-floor-count" placeholder="" min="1" max="10" step="1">
+          <span>층</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="applyUnderFloors()">적용 →</button>
+    </div>
+
+    <div style="flex:1;"></div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="goStep(5)"
+        style="font-size:13px;padding:11px;letter-spacing:.01em;">다음: 코어 계획 →</button>
+    </div>
+  </div>
+
+  <!-- 우측: 단면 다이어그램 -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);position:relative;">
+
+    <!-- 조작 방법 범례 -->
+    <div style="position:absolute;bottom:20px;right:20px;z-index:10;
+      background:rgba(255,255,255,0.95);border:1px solid var(--border2);border-radius:8px;
+      padding:10px 14px;box-shadow:var(--shadow2);min-width:180px;">
+      <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">조작 방법</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">좌클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 선택 (Shift: 범위 선택)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">우클릭</span>
+          <span style="font-size:11px;color:var(--text2);">용도 선택</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">더블클릭</span>
+          <span style="font-size:11px;color:var(--text2);">층 편집 (분할·삭제)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">드래그</span>
+          <span style="font-size:11px;color:var(--text2);">층 이동</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2);font-weight:600;white-space:nowrap;">ESC</span>
+          <span style="font-size:11px;color:var(--text2);">선택 취소</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상단 요약 -->
+    <div style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0 24px;">
+      <div style="display:flex;justify-content:center;gap:48px;width:100%;">
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">지하층 연면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="u-total-area-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">총 깊이</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="u-total-depth-disp">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
+        </div>
+      </div>
+    </div>
+    <!-- 다이어그램 영역 -->
+    <div style="flex:1;overflow:auto;padding:24px;display:flex;align-items:flex-start;justify-content:center;">
+      <!-- 초기 안내 -->
+      <div id="u-diagram-empty" style="display:flex;align-items:center;justify-content:center;min-height:200px;width:100%;position:absolute;top:58px;left:0;right:0;bottom:0;">
+        <div style="color:var(--text3);font-size:12px;text-align:center;">좌측에서 층 수를 입력한 후<br>[적용] 버튼을 누르세요</div>
+      </div>
+      <!-- 실제 다이어그램 -->
+      <div id="u-diagram-content" style="display:none;flex-direction:column;gap:0;">
+        <div style="display:flex;align-items:stretch;">
+          <div style="width:120px;height:24px;box-sizing:border-box;display:flex;align-items:center;padding:0 8px;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;">단면 다이어그램</span>
+          </div>
+          <div style="width:500px;height:24px;box-sizing:border-box;flex-shrink:0;"></div>
+          <div style="width:36px;height:24px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">층</span>
+          </div>
+          <div style="width:50px;height:24px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">층고(m)</span>
+          </div>
+          <div style="width:80px;height:24px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;color:var(--text2);">바닥면적(㎡)</span>
+          </div>
+        </div>
+        <!-- 지면선 -->
+        <div style="width:786px;height:0;border-top:2px solid #1a1d26;flex-shrink:0;position:relative;">
+          <span style="position:absolute;top:2px;left:8px;font-size:10px;font-weight:700;color:var(--text2);">지면</span>
+        </div>
+        <!-- 다이어그램 + 정보 -->
+        <div id="u-section-diagram-wrap" style="display:flex;gap:0;align-items:flex-start;">
+          <div style="width:120px;flex-shrink:0;"></div>
+          <div id="u-section-blocks" style="display:flex;flex-direction:column;position:relative;width:500px;flex-shrink:0;"></div>
+          <div id="u-section-info-col" style="display:flex;flex-direction:column;width:166px;flex-shrink:0;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 5: 코어 계획 ═══ -->
+<div id="step-5" class="step-panel" style="flex-direction:row;">
+
+  <!-- 좌측 패널 -->
+  <div style="width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>코어 계획</h2>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:4px;" id="core-element-list"></div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button id="core-next-btn" class="btn btn-full"
+        style="font-size:13px;padding:11px;letter-spacing:.01em;background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;"
+        disabled onclick="goStep(6)">다음: 기준층 계획 →</button>
+    </div>
+  </div>
+
+  <!-- 우측: SVG 편집 영역 -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
+    <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
+      <span style="font-size:11px;font-weight:600;color:var(--text2);">코어 편집</span>
+      <span style="font-size:10px;color:var(--text3);">선택 후 &nbsp; R키/↻: 회전 &nbsp;|&nbsp; F키/↔: 좌우반전 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 우클릭: 삭제</span>
+      <div style="flex:1;"></div>
+      <button class="btn btn-secondary btn-sm" onclick="resetCoreCanvas()" style="font-size:10px;padding:3px 8px;">초기화</button>
+    </div>
+    <div id="core-canvas-wrap" style="flex:1;overflow:auto;position:relative;cursor:default;">
+      <svg id="core-svg" xmlns="http://www.w3.org/2000/svg" style="display:block;"></svg>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 6: 기준층 계획 ═══ -->
+<div id="step-6" class="step-panel" style="flex-direction:row;">
+
+  <!-- 좌측 패널 -->
+  <div style="width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panel-header">
+      <h2>기준층 계획</h2>
+    </div>
+
+    <!-- 기준층 선택 -->
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">기준층 선택</div>
+      <div id="fl-floor-type-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <!-- 코어 블록 목록 -->
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">코어 블록</div>
+      <div id="fl-core-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <!-- 객실 배치 -->
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">객실 배치</div>
+      <div id="fl-room-type-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="addRoomType()" style="margin-top:6px;font-size:10px;">+ Type 추가</button>
+    </div>
+
+    <div style="flex:1;"></div>
+    <div style="padding:10px 12px 12px;border-top:1px solid var(--border);flex-shrink:0;"></div>
+  </div>
+
+  <!-- 우측: 기준층 SVG 캔버스 -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3);">
+    <!-- 상단 면적 정보 바 -->
+    <div id="fl-area-bar" style="background:transparent;border-bottom:1px solid var(--border);height:58px;flex-shrink:0;display:none;align-items:center;justify-content:center;padding:0 24px;">
+      <div style="display:flex;justify-content:center;gap:48px;width:100%;">
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">기준층 바닥면적</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);" id="fl-sel-area">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:1px;">채워야 할 면적</div>
+          <div style="font-size:15px;font-weight:700;" id="fl-remain-area">-</div>
+          <div style="font-size:9px;color:var(--text3);">&nbsp;</div>
+        </div>
+      </div>
+    </div>
+    <div style="height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;padding:0 16px;gap:12px;">
+      <span style="font-size:11px;font-weight:600;color:var(--text2);">기준층 편집</span>
+      <span style="font-size:10px;color:var(--text3);">클릭: 선택 &nbsp;|&nbsp; 드래그/화살표키: 이동(100mm) &nbsp;|&nbsp; 우클릭: 삭제 &nbsp;|&nbsp; ESC: 선택취소 &nbsp;|&nbsp; 대지선택 후 +/-: 1°회전</span>
+      <div style="flex:1;"></div>
+      <button class="btn btn-secondary btn-sm" onclick="resetFloorPlan()" style="font-size:10px;padding:3px 8px;">초기화</button>
+    </div>
+    <div id="fl-canvas-wrap" style="flex:1;overflow:auto;position:relative;cursor:default;">
+      <svg id="fl-svg" xmlns="http://www.w3.org/2000/svg" style="display:block;"></svg>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- SCRIPTS (순서 중요: state → step1 → step2 → step3 → step4 → step5 → step6 → app) -->
+<script src="js/state.js"></script>
+<script src="js/step1.js"></script>
+<script src="js/step2.js"></script>
+<script src="js/step3.js"></script>
+<script src="js/step4.js"></script>
+<script src="js/step5.js"></script>
+<script src="js/step6.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
