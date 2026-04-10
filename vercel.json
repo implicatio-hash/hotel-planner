@@ -1,0 +1,6 @@
+{
+  "outputDirectory": "html",
+  "rewrites": [
+    { "source": "/api/ai-layout", "destination": "/api/gemini" }
+  ]
+}
