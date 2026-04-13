@@ -10,7 +10,13 @@ const SU = {
 };
 
 function initUnderDiagram(){
-  if(SU.floors.length > 0){ renderUnderDiagram(); }
+  if(SU.floors.length > 0){
+    const empty   = $('u-diagram-empty');
+    const content = $('u-diagram-content');
+    if(empty)   empty.style.display   = 'none';
+    if(content) content.style.display = 'flex';
+    renderUnderDiagram();
+  }
 }
 
 function applyUnderFloors(){

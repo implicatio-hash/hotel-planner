@@ -54,6 +54,13 @@ let FL = {
 
 async function initFloorPlanStep(){
   if(!FL.siteOverlay) await buildSiteOverlay();
+  // 프로젝트 복원 시: 저장된 대지 오버레이 위치·회전 적용
+  if (window._pendingSiteOverlay && FL.siteOverlay) {
+    FL.siteOverlay.x_mm     = window._pendingSiteOverlay.x_mm;
+    FL.siteOverlay.y_mm     = window._pendingSiteOverlay.y_mm;
+    FL.siteOverlay.rotation = window._pendingSiteOverlay.rotation;
+    window._pendingSiteOverlay = null;
+  }
   renderFloorTypeList();
   renderFloorCoreList();
   renderRoomTypeList();

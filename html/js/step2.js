@@ -105,6 +105,31 @@ function drawLotOutline(){
   const outlineSource = window._step1OutlineSource;
   outlineSource.clear();
 
+  // ── 프로젝트 불러오기: 저장된 피처 복원 후 조기 반환 ──
+  if (window._pendingOutlineFeatures?.length) {
+    const rfmt = new ol.format.GeoJSON();
+    window._pendingOutlineFeatures.forEach(item => {
+      try {
+        const olGeom = rfmt.readGeometry(item.geojson);
+        olGeom.transform('EPSG:4326', 'EPSG:3857');
+        const rf = new ol.Feature({ geometry: olGeom });
+        rf.set('type', item.type);
+        outlineSource.addFeature(rf);
+      } catch(e) {}
+    });
+    window._pendingOutlineFeatures = null;
+    if (window._pendingStep1MapView) {
+      window._step1Map.getView().setCenter(window._pendingStep1MapView.center);
+      window._step1Map.getView().setZoom(window._pendingStep1MapView.zoom);
+      window._pendingStep1MapView = null;
+    } else {
+      const rext = outlineSource.getExtent();
+      if (rext && rext[0] !== Infinity)
+        window._step1Map.getView().fit(rext, { padding:[60,60,60,60], maxZoom:19 });
+    }
+    return;
+  }
+
   if(merged){
     // merged 폴리곤 저장 (지하 offset, 건축한계선 모두 재사용)
     window._step1MergedPoly = merged;
