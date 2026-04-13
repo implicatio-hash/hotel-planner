@@ -102,7 +102,7 @@ function _buildCoreLayoutRequest() {
 // ─────────────────────────────────────────────────────────────────
 async function _loadCoreGuidelines() {
   try {
-    const res = await fetch('/ai-guidelines.md?_=' + Date.now());
+    const res = await fetch('/ai-core-guidelines.md?_=' + Date.now());
     if (!res.ok) return '';
     const text = await res.text();
     return text.split('\n')
