@@ -20,8 +20,9 @@ async function aiAutoLayout() {
   _setAIBtn(btn, status, true, 'AI 분석 중...');
 
   try {
-    const layoutData = _buildLayoutRequest(groups);
-    const prompt     = _buildPrompt(layoutData);
+    const layoutData  = _buildLayoutRequest(groups);
+    const guidelines  = await _loadGuidelines();
+    const prompt      = _buildPrompt(layoutData, guidelines);
 
     _setAIBtn(btn, status, true, 'Gemini 요청 중...');
 
@@ -110,9 +111,26 @@ function _getBuildableBbox() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Load ai-guidelines.md (실패 시 빈 문자열 반환)
+// ─────────────────────────────────────────────────────────────────
+async function _loadGuidelines() {
+  try {
+    const res = await fetch('/ai-guidelines.md?_=' + Date.now()); // 캐시 방지
+    if (!res.ok) return '';
+    const text = await res.text();
+    // '#' 주석 줄 제거 후 반환
+    return text.split('\n')
+      .filter(line => !line.trimStart().startsWith('#') || line.trimStart().startsWith('##'))
+      .join('\n')
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
 // Build the Gemini prompt from layout data
 // ─────────────────────────────────────────────────────────────────
-function _buildPrompt(d) {
+function _buildPrompt(d, guidelines = '') {
   const { buildableBbox: b, coreGroups, roomTypes, targetArea_m2, snapMm } = d;
   const snap = snapMm || 100;
   const bw = b.x_max - b.x_min, bh = b.y_max - b.y_min;
@@ -197,6 +215,7 @@ LAYOUT RULES:
 4. STRICT: No overlaps between any two elements
 5. All coordinates must be exact multiples of ${snap}
 6. Place as many rooms as possible without violating rules 3-5
+${guidelines ? `\nDESIGN GUIDELINES (follow these in addition to the rules above):\n${guidelines}` : ''}
 
 RESPOND WITH ONLY VALID JSON (no markdown, no explanation):
 {
