@@ -484,4 +484,5 @@ function initCoreDesign(){
   }
   renderSVG(); renderCoreList();
   initCoreSVGEvents();
+  if (typeof renderAICoreLayoutButton === 'function') renderAICoreLayoutButton();
 }
