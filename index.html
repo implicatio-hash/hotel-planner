@@ -12,6 +12,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -22,6 +24,8 @@
   <div class="topbar-sep"></div>
   <div style="font-size:11px;color:var(--text3)" id="project-name-display">새 프로젝트</div>
   <div style="flex:1"></div>
+  <button id="proj-save-btn" onclick="pmSaveCurrentProject()" style="display:none">저장</button>
+  <button id="proj-mgr-btn" onclick="openProjectModal()">프로젝트 관리</button>
 </div>
 
 <!-- STEP NAV -->
@@ -533,8 +537,43 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<!-- SCRIPTS (순서 중요: state → step1 → step2 → step3 → step4 → step5 → step6 → app) -->
+<!-- PROJECT MODAL -->
+<div id="project-modal" class="proj-backdrop" style="display:none" onclick="if(event.target===this)closeProjectModal()">
+  <div class="proj-glass">
+    <div class="proj-glass-header">
+      <span>프로젝트 관리</span>
+      <button class="proj-close-btn" onclick="closeProjectModal()">✕</button>
+    </div>
+    <div class="proj-glass-body">
+
+      <!-- 새 프로젝트 -->
+      <div class="proj-section">
+        <div class="proj-section-title">새 프로젝트 만들기</div>
+        <input class="proj-input" type="text" id="pm-new-name" placeholder="프로젝트 이름" maxlength="60"
+          onkeydown="if(event.key==='Enter')$('pm-new-pw').focus()">
+        <input class="proj-input" type="password" id="pm-new-pw" placeholder="비밀번호 (4자 이상)"
+          onkeydown="if(event.key==='Enter')pmCreateProject()">
+        <button class="proj-btn proj-btn-dark" onclick="pmCreateProject()">만들기</button>
+      </div>
+
+      <div class="proj-divider"></div>
+
+      <!-- 불러오기 -->
+      <div class="proj-section">
+        <div class="proj-section-title">프로젝트 불러오기</div>
+        <select class="proj-input proj-select" id="pm-load-select"></select>
+        <input class="proj-input" type="password" id="pm-load-pw" placeholder="비밀번호"
+          onkeydown="if(event.key==='Enter')pmLoadProject()">
+        <button class="proj-btn proj-btn-accent" onclick="pmLoadProject()">불러오기</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPTS (순서 중요: state → firebase-project → step1 → step2 → step3 → step4 → step5 → step6 → app) -->
 <script src="js/state.js"></script>
+<script src="js/firebase-project.js"></script>
 <script src="js/step1.js"></script>
 <script src="js/step2.js"></script>
 <script src="js/step3.js"></script>
