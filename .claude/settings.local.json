@@ -30,7 +30,10 @@
       "Bash(curl -s -X POST http://localhost:8765/api/ai-layout -H \"Content-Type: application/json\" -d \"{\\\\\"prompt\\\\\":\\\\\"You are a hotel floor plan layout AI. Generate an optimal layout for a standard hotel guest floor.\\\\n\\\\nCOORDINATE SYSTEM:\\\\n- All values in millimeters \\(mm\\), integers only\\\\n- Canvas origin \\(0,0\\) top-left; X increases right, Y increases down\\\\n- Snap grid: 100mm\\\\n\\\\nBUILDABLE AREA:\\\\n  x: [13000, 27000] width=14000mm \\(14.0m\\)\\\\n  y: [11000, 19000] height=8000mm \\(8.0m\\)\\\\n  center: \\(20000, 15000\\)\\\\n  Target hotel floor area: 500m2\\\\n\\\\nELEMENTS:\\\\nCores \\(ALL must be placed\\):\\\\n  Core[0]: 5800x5800mm \\(5.8m x 5.8m\\)\\\\n\\\\nRoom Types:\\\\n  Type A: width=4500mm, depth=9000mm\\\\n  Type B: width=3900mm, depth=8500mm\\\\n\\\\nLAYOUT RULES:\\\\n1. Place core centered\\\\n2. Double-loaded corridor\\\\n3. No overlaps\\\\n4. All coordinates multiples of 100\\\\n\\\\nRESPOND WITH ONLY VALID JSON:\\\\n{\\\\\\\\\\\\\"corePlacements\\\\\\\\\\\\\":[{\\\\\\\\\\\\\"groupIdx\\\\\\\\\\\\\":0,\\\\\\\\\\\\\"x_mm\\\\\\\\\\\\\":17100,\\\\\\\\\\\\\"y_mm\\\\\\\\\\\\\":12100}],\\\\\\\\\\\\\"roomPlacements\\\\\\\\\\\\\":[{\\\\\\\\\\\\\"typeId\\\\\\\\\\\\\":\\\\\\\\\\\\\"A\\\\\\\\\\\\\",\\\\\\\\\\\\\"x_mm\\\\\\\\\\\\\":13000,\\\\\\\\\\\\\"y_mm\\\\\\\\\\\\\":11000,\\\\\\\\\\\\\"rotation\\\\\\\\\\\\\":0}],\\\\\\\\\\\\\"strategy\\\\\\\\\\\\\":\\\\\\\\\\\\\"코어 중앙 배치 + double-loaded corridor\\\\\\\\\\\\\"}\\\\\"}\")",
       "Bash(python3 -c ':*)",
       "Bash(python3 -c \"import sys; print\\(sys.version\\)\")",
-      "Bash(where py:*)"
+      "Bash(where py:*)",
+      "Bash(git -C \"\\\\\\\\heerim-project\\\\project_B\\\\HID_DM032025N106_호텔 디자인 검토 프로젝트\\\\20260407_AI-Hotel-Plan\" status)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
